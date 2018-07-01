@@ -1,4 +1,4 @@
-# Amstrad for MiST board
+# Amstrad CPC 6128 for MiSTer
 This core is port of [CoreAmstrad by Renaud Hélias](https://github.com/renaudhelias/CoreAmstrad).
 
 ## Features
