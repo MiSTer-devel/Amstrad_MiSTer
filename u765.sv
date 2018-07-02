@@ -21,7 +21,7 @@
 //============================================================================
 
 //TODO:
-//sk, mt flags for READ
+//mt flags for READ
 //WRITE DELETE should write the Deleted Address Mark to the SectorInfo
 //SCAN commands
 //time-accurate SEEK (based on the head stepping rate)
@@ -218,7 +218,7 @@ always @(posedge clk_sys) begin
 
 	//reg mt;
 	//reg mfm;
-	//reg sk;
+	reg sk;
 	reg int_state;
 
 	buff_wait <= 0;
@@ -346,7 +346,9 @@ always @(posedge clk_sys) begin
 						image_scan_state <= 0;
 					else begin
 						int_state <= 1;
-						status[0] <= 8'hE8; //seek error
+						pcn <= ncn;
+						status[0] <= 8'h20; //it's legit to seek to an empty track
+						status[3][UPD765_ST3_T0] <= !ncn;
 					end
 					seek_state <= 0;
 			   end
@@ -379,7 +381,7 @@ always @(posedge clk_sys) begin
 				if (~old_wr & wr & a0) begin
 					//mt <= din[7];
 					//mfm <= din[6];
-					//sk <= din[5];
+					sk <= din[5];
 					substate <= 0;
 					casex (din[7:0])
 						8'bXXX00110: state <= COMMAND_READ_DATA;
@@ -536,6 +538,8 @@ always @(posedge clk_sys) begin
 
 			COMMAND_READ_ID_EXEC2:
 			if (~buff_wait) begin
+				//cycle through sectors between adjacent READ ID commands
+				//to imitate rotating media (and satisfy some copy protections)
 				buff_addr[7:0] <= 8'h18 + (last_sector << 3); //choose the next sector
 				buff_wait <= 1;
 				last_sector <= last_sector == (buff_data_in - 1'd1) ? 8'h00: last_sector + 1'd1;
@@ -724,6 +728,7 @@ always @(posedge clk_sys) begin
 						state <= COMMAND_RW_DATA_EXEC5;
 					end
 					//Speedlock: randomize 'weak' sectors last bytes
+					//weak sector is cyl 0, head 0, sector 2
 					dout <= (current_sector == 2 & !pcn & ~hds &
 					         sector_st1[5] & sector_st2[5] & !bytes_to_read[14:2]) ?
 								timeout[7:0] :
@@ -771,7 +776,7 @@ always @(posedge clk_sys) begin
 			//End of reading/writing sector, what's next?
 			COMMAND_RW_DATA_EXEC8:
 			if (~sd_busy) begin
-				if	(~rtrack & ((sector_st1[5] & sector_st2[5]) | (rw_deleted ^ sector_st2[6]))) begin
+				if (~rtrack & ~sk & ((sector_st1[5] & sector_st2[5]) | (rw_deleted ^ sector_st2[6]))) begin
 					//deleted mark or crc error
 					m_status[UPD765_MAIN_EXM] <= 0;
 					state <= COMMAND_READ_RESULTS;
