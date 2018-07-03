@@ -124,7 +124,7 @@ localparam CONF_STR = {
 	"-;",
 	"R0,Reset;",
 	"J,Fire 1,Fire 2;",
-	"V,v1.00.",`BUILD_DATE
+	"V,v1.01.",`BUILD_DATE
 };
 
 //////////////////////////////////////////////////////////////////////////
@@ -142,25 +142,23 @@ pll pll
 	.locked(locked)
 );
 
-reg ce_4n, ce_ref, ce_boot;
-reg ce_4p, ce_u765;
+reg ce_4n, ce_boot;
+reg ce_4p, ce_ref, ce_u765;
 reg ce_16;
 always @(negedge clk_sys) begin
-	reg [5:0] div4  = 0;
-	reg [3:0] div16 = 0;
+	reg [3:0] div4  = 0;
+	reg [1:0] div16 = 0;
 
 	div4 <= div4 + 1'd1;
-	if(div4 == 27) div4 <= 0;
 
-	ce_4n   <= (div4 == 0);
-	ce_ref  <= (div4 == 0);
-	ce_boot <= (div4 == 0);
+	ce_4n   <= !div4;
+	ce_boot <= !div4;
 
-	ce_4p   <= (div4 == 14);
-	ce_u765 <= (div4 == 14);
+	ce_4p   <= (div4 == 8);
+	ce_u765 <= (div4 == 8);
+	ce_ref  <= (div4 == 8);
 
 	div16 <= div16 + 1'd1;
-	if(div16 == 6) div16 <= 0;
 
 	ce_16  <= !div16;
 end
@@ -277,15 +275,15 @@ wire [22:0] ram_a;
 wire  [7:0] ram_din;
 wire  [7:0] ram_dout;
 
-wire        zram_rd;
 wire  [7:0] zram_dout;
 wire [15:0] zram_addr;
 
-assign SDRAM_CKE = 1;
 assign SDRAM_CLK = clk_sys;
 
 zsdram zsdram
 (
+	.*,
+
 	.init(~locked),
 	.clk(clk_sys),
 	.clkref(ce_ref),
@@ -296,16 +294,6 @@ zsdram zsdram
 	.din (reset ? boot_dout : ram_din),
 	.dout(ram_dout),
 
-	.sd_cs(SDRAM_nCS),
-	.sd_we(SDRAM_nWE),
-	.sd_ras(SDRAM_nRAS),
-	.sd_cas(SDRAM_nCAS),
-	.sd_dqm({SDRAM_DQMH, SDRAM_DQML}),
-	.sd_addr(SDRAM_A),
-	.sd_ba(SDRAM_BA),
-	.sd_data(SDRAM_DQ),
-
-	.zram_oe(zram_rd & ~reset),
 	.zram_addr(zram_addr),
 	.zram_dout(zram_dout)
 );
@@ -428,7 +416,6 @@ Amstrad_motherboard motherboard
 	.ram_Din(ram_dout | rom_mask),
 	.ram_Dout(ram_din),
 
-	.zram_rd(zram_rd),
 	.zram_din(zram_dout),
 	.zram_addr(zram_addr)
 );

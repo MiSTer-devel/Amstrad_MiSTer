@@ -40,14 +40,16 @@
 module zsdram (
 
 	// interface to the MT48LC16M16 chip
-	inout [15:0]  		sd_data,    // 16 bit bidirectional data bus
-	output [12:0]		sd_addr,    // 13 bit multiplexed address bus
-	output [1:0] 		sd_dqm,     // two byte masks
-	output [1:0] 		sd_ba,      // two banks
-	output 				sd_cs,      // a single chip select
-	output 				sd_we,      // write enable
-	output 				sd_ras,     // row address select
-	output 				sd_cas,     // columns address select
+	inout  [15:0] 		SDRAM_DQ,   // 16 bit bidirectional data bus
+	output [12:0]		SDRAM_A,    // 13 bit multiplexed address bus
+	output      		SDRAM_DQML, // byte mask
+	output      		SDRAM_DQMH, // byte mask
+	output [1:0] 		SDRAM_BA,   // two banks
+	output 				SDRAM_nCS,  // a single chip select
+	output 				SDRAM_nWE,  // write enable
+	output 				SDRAM_nRAS, // row address select
+	output 				SDRAM_nCAS, // columns address select
+	output 				SDRAM_CKE,
 
 	// cpu/chipset interface
 	input 		 		init,			// init signal after FPGA config to initialize RAM
@@ -60,13 +62,9 @@ module zsdram (
 	input 		 		oe,         // cpu/chipset requests read
 	input 		 		we,         // cpu/chipset requests write
 
-	output reg [7:0]  zram_dout,	// data output to graphic
-	input [15:0]   	zram_addr,  // 16 bit byte address
-	input 		 		zram_oe     // graphic requests write (and DISP)
-
+	output  [7:0]     zram_dout,	// data output to graphic
+	input  [15:0]   	zram_addr   // 16 bit byte address
 );
-
-// falling edge on oe/we/rfsh starts state machine
 
 // no burst configured
 localparam RASCAS_DELAY   = 3'd3;   // tRCD=20ns -> 3 cycles@128MHz
@@ -89,77 +87,35 @@ localparam STATE_CMD_START = 3'd1;   // state in which a new command can be star
 localparam STATE_CMD_CONT  = STATE_CMD_START  + RASCAS_DELAY; // 4 command can be continued
 localparam STATE_LAST      = 3'd7;   // last state in cycle
 
-localparam DELTA_ASYNC = 2'd2;
-localparam DELTA_SYNC = 2'd1;
-reg rd_i=1'b0; // oe at 114MHz
-reg zram_rd_i=1'b0; // oe at 114MHz
-reg wr_i=1'b0; // wr at 114MHz
-reg clkref_i=1'b0; // clkref at 114MHz
-reg init_i=1'b0; // init at 114MHz
-always @(posedge clk) begin
-	rd_i<=oe;
-	wr_i<=we;
-	zram_rd_i<=zram_oe;
-	clkref_i<=clkref;
-	init_i<=init;
-end
+reg [2:0] q;
+reg wr;
+reg ram_req=0;
+reg zram_req=0;
 
-reg [2:0] q /* synthesis noprune */;
-reg [2:0] delay;
-reg clkref_i_old=1'b0;
-reg [1:0] operation_wait=0;
-reg [1:0] zram_operation_wait=0;
-reg operation_launch=1'b0;
-reg zram_operation_launch=1'b0;
 always @(posedge clk) begin
-	// 112Mhz counter synchronous to <whatever> Mhz clock (here 4MHz)
-   // does insert STATE_IDLE when needed
-	// operation_wait=2 : do ignore next 2 operations before running one operation (only one)
-	// operations not covered are simply running "REFRESH" operation
-	if ((clkref_i_old==0) && (clkref_i==1))
-		begin
-			operation_wait<=DELTA_ASYNC;
-			if (zram_rd_i)
-				zram_operation_wait<=DELTA_SYNC;
+	reg [15:0] old_addr;
+	reg old_rd, old_we, old_ref;
+
+	old_rd<=oe;
+	old_we<=we;
+	old_ref<=clkref;
+
+	if(q==STATE_IDLE) begin
+		ram_req <= 0;
+		zram_req <= 0;
+
+		if((~old_rd & oe) | (~old_we & we)) begin
+			ram_req <= 1;
+			wr <= we;
 		end
-	else if (q == STATE_LAST) //(operation_wait!=0 && (q == STATE_LAST))
-		begin
-			if (operation_wait!=0)
-				begin
-					operation_wait<=operation_wait-2'd1;
-					if (operation_wait==2'd1)
-						operation_launch<=(wr_i || rd_i);
-					//Daisy VALIDATED
-					else operation_launch<=0;
-				end
-			else if (operation_launch)
-				operation_launch<=0;
-			if (zram_operation_wait!=0)
-				begin
-					zram_operation_wait<=zram_operation_wait-2'd1;
-					if (zram_operation_wait==2'd1)
-						zram_operation_launch<=zram_rd_i;
-					//Daisy VALIDATED
-					else zram_operation_launch<=0;
-				end
-			else if (zram_operation_launch)
-				begin
-					zram_operation_launch<=0;
-				end
+		else begin
+			old_addr <= zram_addr;
+			if(old_addr[15:1] != zram_addr[15:1]) zram_req <= 1;
 		end
-	
-	if ((clkref_i_old==0) && (clkref_i==1) && (q != STATE_IDLE))
-		// some synchro by here
-		//delay <= ((q+4'd7)%4'd8);
-		begin
-			delay <= q;
-			q <= q + 3'd1;
-		end
-	else if ((q == STATE_IDLE) && (delay!=0))
-		delay <= delay - 3'd1;
-	else
-		q <= q + 3'd1;
-	clkref_i_old<=clkref_i;
+	end
+
+	q <= q + 3'd1;
+	if(~old_ref & clkref) q <= 0;
 end
 
 // ---------------------------------------------------------------------
@@ -169,14 +125,12 @@ end
 // wait 1ms (32 8Mhz cycles) after FPGA config is done before going
 // into normal operation. Initialize the ram in the last 16 reset cycles (cycles 15-0)
 reg [4:0] reset=5'h1f; // do reset also at boot time (please do not sleep !)
-reg init_old=1'b0;
 always @(posedge clk) begin
-	if(init_old && !init_i)
-		// do reset also at end of inits.
-		reset <= 5'h1f;
-	else if((q == STATE_LAST) && (reset != 0))
-		reset <= reset - 5'd1;
-	init_old <= init_i;
+	reg init_old=1'b0;
+	init_old <= init;
+
+	if(init_old & ~init) reset <= 5'h1f;
+	else if((q == STATE_LAST) && (reset != 0)) reset <= reset - 5'd1;
 end
 
 // ---------------------------------------------------------------------
@@ -197,39 +151,40 @@ localparam CMD_LOAD_MODE       = 4'b0000;
 wire [3:0] sd_cmd;   // current command sent to sd ram
 
 // drive control signals according to current command
-assign sd_cs  = sd_cmd[3];
-assign sd_ras = sd_cmd[2];
-assign sd_cas = sd_cmd[1];
-assign sd_we  = sd_cmd[0];
+assign SDRAM_nCS  = sd_cmd[3];
+assign SDRAM_nRAS = sd_cmd[2];
+assign SDRAM_nCAS = sd_cmd[1];
+assign SDRAM_nWE  = sd_cmd[0];
+assign SDRAM_CKE  = ~init;
 
 // drive ram data lines when writing, set them as inputs otherwise
 // the eight bits are sent on both bytes ports. Which one's actually
 // written depends on the state of dqm of which only one is active
 // at a time when writing
-assign sd_data = (wr_i && operation_launch) ?{din, din}:16'bZZZZZZZZZZZZZZZZ;
+assign SDRAM_DQ = (wr && ram_req) ? {din, din}:16'bZZZZZZZZZZZZZZZZ;
+
+//The output buffers are High-Z (two-clock latency) during a READ cycle.
+//Input data is masked during a WRITE cycle
+//LDQM corresponds to DQ[7:0], and UDQM corresponds to DQ[15:8]. LDQM and UDQM are considered same-state when referenced as DQM.
+assign {SDRAM_DQMH,SDRAM_DQML} = (wr && ram_req) ? { ~addr[0], addr[0] }:2'b00;
 
 reg addr0;
 always @(posedge clk) begin
 	//Daisy
-	//if((q == STATE_CMD_START) && rd_i && !wr_i && !zram_operation_launch) addr0 <= addr[0];
-	//if((q == STATE_CMD_START) && zram_operation_launch) addr0 <= zram_addr[0];
-	if(q == STATE_CMD_START && operation_launch) addr0 <= addr[0];
-	else if(q == STATE_CMD_START && zram_operation_launch) addr0 <= zram_addr[0];
+	if(q == STATE_CMD_START && ram_req) addr0 <= addr[0];
 end
 
+assign zram_dout = zram_addr[0] ? zram_data[15:8] : zram_data[7:0];
+
+reg [15:0] zram_data;
 always @(posedge clk) begin
 	//The CAS latency (CL) is the delay, in clock cycles, between the registration of a READ command and the availability of the output data. The latency can be set to two or three clocks.
 	//Daisy VALIDATED
-	if (rd_i && !wr_i && operation_launch & q == STATE_CMD_CONT+CAS_LATENCY+1)
-		if (addr0)
-			dout<=sd_data[7:0];
-		else
-			dout<=sd_data[15:8];
-	else if (zram_rd_i && zram_operation_launch & q == STATE_CMD_CONT+CAS_LATENCY+1)
-		if (addr0)
-			zram_dout<=sd_data[7:0];
-		else
-			zram_dout<=sd_data[15:8];
+	if (!wr && ram_req & q == STATE_CMD_CONT+CAS_LATENCY+1) begin
+		if (addr0) dout<=SDRAM_DQ[15:8];
+		else dout<=SDRAM_DQ[7:0];
+	end
+	else if (zram_req & q == STATE_CMD_CONT+CAS_LATENCY+1) zram_data<=SDRAM_DQ;
 end
 
 wire [3:0] reset_cmd = 
@@ -239,22 +194,18 @@ wire [3:0] reset_cmd =
 
 // CMD_WRITE : The DQM signal must be de-asserted prior to the WRITE command (DQM latency is zero clocks for input buffers)
 wire [3:0] run_cmd =
-	(operation_launch && (wr_i || rd_i) && (q == STATE_CMD_START))?CMD_ACTIVE:
-	//Daisy
-	//(zram_operation_launch && (q == STATE_CMD_START))?CMD_ACTIVE:
-	(zram_operation_launch && zram_rd_i && (q == STATE_CMD_START))?CMD_ACTIVE:
-	(operation_launch &&  wr_i && 			 (q == STATE_CMD_CONT ))?CMD_WRITE:
-	(operation_launch && !wr_i &&  rd_i && (q == STATE_CMD_CONT ))?CMD_READ:
-	//Daisy
-	//(zram_operation_launch && (q == STATE_CMD_CONT ))?CMD_READ:
-	(zram_operation_launch && zram_rd_i && (q == STATE_CMD_CONT ))?CMD_READ:
-	(!(operation_launch || zram_operation_launch) && (q == STATE_CMD_START))?CMD_AUTO_REFRESH:
+	(ram_req        && (q == STATE_CMD_START))?CMD_ACTIVE:
+	(zram_req       && (q == STATE_CMD_START))?CMD_ACTIVE:
+	(ram_req &&  wr && (q == STATE_CMD_CONT ))?CMD_WRITE:
+	(ram_req && !wr && (q == STATE_CMD_CONT ))?CMD_READ:
+	(zram_req       && (q == STATE_CMD_CONT ))?CMD_READ:
+	(!(ram_req || zram_req) && (q == STATE_CMD_START))?CMD_AUTO_REFRESH:
 	CMD_INHIBIT;
 	
-assign sd_cmd = (reset != 0)?reset_cmd:run_cmd;
+assign sd_cmd = reset ? reset_cmd : run_cmd;
 
 //When all banks are to be precharged (A10 = HIGH), inputs BA0 and BA1 are treated as "Don't Care."
-wire [12:0] reset_addr = (reset == 13)?13'b0010000000000:MODE;
+wire [12:0] reset_addr = (reset == 13) ? 13'b0010000000000 : MODE;
 //    START            CONT             LAST
 //      1      2   3    1+3=4   5   6    4+3=7
 // CMD_ACTIVE NOP NOP CMD_READ NOP NOP NOP     NOP
@@ -265,27 +216,17 @@ wire [12:0] reset_addr = (reset == 13)?13'b0010000000000:MODE;
 //0000010
 wire [12:0] run_addr = 
 	//Daisy
-	//(q == STATE_CMD_START && !zram_operation_launch)?addr[21:9]:
-	//(q == STATE_CMD_START && zram_operation_launch)?{6'b000010, zram_addr[15:9]}:
-	//(!zram_operation_launch)?{ 4'b0010, addr[24], addr[8:1]}:{ 5'b00100, zram_addr[8:1]};
-	(q == STATE_CMD_START && operation_launch)?addr[21:9]:
-	(q == STATE_CMD_START && zram_operation_launch)?{6'b000010, zram_addr[15:9]}:
-	(q == STATE_CMD_CONT && operation_launch)?{ 4'b0010, addr[24], addr[8:1]}:
-	(q == STATE_CMD_CONT && zram_operation_launch)?{ 5'b00100, zram_addr[8:1]}:
+	(q == STATE_CMD_START && ram_req )? addr[21:9]                       :
+	(q == STATE_CMD_START && zram_req)? {6'b000010, zram_addr[15:9]}     :
+	(q == STATE_CMD_CONT  && ram_req )? {  4'b0010, addr[24], addr[8:1]} :
+	(q == STATE_CMD_CONT  && zram_req)? { 5'b00100, zram_addr[8:1]}      :
 	13'b0000000000000;
 
-assign sd_addr = (reset != 0)?reset_addr:run_addr;
+assign SDRAM_A = reset ? reset_addr : run_addr;
 
 // bank address (CMD_ACTIVE)
 //Daisy
-//assign sd_ba = (!zram_operation_launch)?addr[23:22]:2'b00;
-assign sd_ba = ((q == STATE_CMD_START || q == STATE_CMD_CONT) && operation_launch)?addr[23:22]:
-((q == STATE_CMD_START || q == STATE_CMD_CONT) && zram_operation_launch)?2'b00:
-2'b00;
-
-//The output buffers are High-Z (two-clock latency) during a READ cycle.
-//Input data is masked during a WRITE cycle
-//LDQM corresponds to DQ[7:0], and UDQM corresponds to DQ[15:8]. LDQM and UDQM are considered same-state when referenced as DQM.
-assign sd_dqm = (wr_i && operation_launch)?{ addr[0], ~addr[0] }:2'b00;
+assign SDRAM_BA = ((q == STATE_CMD_START || q == STATE_CMD_CONT) && ram_req)  ? addr[23:22] :
+               ((q == STATE_CMD_START || q == STATE_CMD_CONT) && zram_req) ? 2'b00 : 2'b00;
 
 endmodule
