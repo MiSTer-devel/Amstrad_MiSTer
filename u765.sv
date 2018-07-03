@@ -91,6 +91,7 @@ typedef enum
  COMMAND_RW_DATA_EXEC3,
  COMMAND_RW_DATA_EXEC4,
  COMMAND_RW_DATA_EXEC5,
+ COMMAND_RW_DATA_EXEC_WEAK,
  COMMAND_RW_DATA_EXEC6,
  COMMAND_RW_DATA_EXEC7,
  COMMAND_RW_DATA_EXEC8,
@@ -189,7 +190,8 @@ always @(posedge clk_sys) begin
 	reg [7:0] sector_c, sector_h, sector_r, sector_n;
 	reg [7:0] sector_st1, sector_st2, total_sectors;
 	reg [15:0] sector_size;
-	reg [7:0] current_sector, last_sector;
+	reg [7:0] current_sector, last_readid_sector;
+	reg [2:0] weak_sector, next_weak_sector;
 	reg [14:0] bytes_to_read;
 	reg [2:0] substate;
 	reg [1:0] seek_state;
@@ -233,7 +235,8 @@ always @(posedge clk_sys) begin
 		state <= COMMAND_IDLE;
 		int_state <= 0;
 		seek_state <= 0;
-		last_sector <= 0;
+		next_weak_sector <= 0;
+		last_readid_sector <= 0;
 	end
 
    //Process the image file
@@ -458,7 +461,7 @@ always @(posedge clk_sys) begin
 
 			COMMAND_RECALIBRATE:
 			begin
-				last_sector <= 0;
+				last_readid_sector <= 0;
 				int_state <= 0;
 				m_status[UPD765_MAIN_CB] <= 1;
 				if (~old_wr & wr & a0) begin
@@ -472,7 +475,7 @@ always @(posedge clk_sys) begin
 
 			COMMAND_SEEK:
 			begin
-				last_sector <= 0;
+				last_readid_sector <= 0;
 				int_state <= 0;
 				m_status[UPD765_MAIN_CB] <= 1;
 				if (~old_wr & wr & a0) begin
@@ -540,9 +543,9 @@ always @(posedge clk_sys) begin
 			if (~buff_wait) begin
 				//cycle through sectors between adjacent READ ID commands
 				//to imitate rotating media (and satisfy some copy protections)
-				buff_addr[7:0] <= 8'h18 + (last_sector << 3); //choose the next sector
+				buff_addr[7:0] <= 8'h18 + (last_readid_sector << 3); //choose the next sector
 				buff_wait <= 1;
-				last_sector <= last_sector == (buff_data_in - 1'd1) ? 8'h00: last_sector + 1'd1;
+				last_readid_sector <= last_readid_sector == (buff_data_in - 1'd1) ? 8'h00: last_readid_sector + 1'd1;
 				state <= COMMAND_READ_ID_EXEC3;
 			end
 
@@ -683,12 +686,24 @@ always @(posedge clk_sys) begin
 				else if (!sector_n) bytes_to_read <= dtl;
 				else bytes_to_read <= 8'h80 << sector_n[2:0];
 				timeout <= COMMAND_TIMEOUT;
-				state <= COMMAND_RW_DATA_EXEC5;
+				weak_sector <= 0;
+				state <= COMMAND_RW_DATA_EXEC_WEAK;
 			end else begin
 				//try the next sector in the sectorinfo list
 				current_sector <= current_sector + 1'd1;
 				seek_pos <= seek_pos + sector_size;
 				state <= COMMAND_RW_DATA_EXEC3;
+			end
+
+			COMMAND_RW_DATA_EXEC_WEAK:
+			//handle multiple version of the same sector (weak sectors)
+			if (image_edsk && sector_size > bytes_to_read && weak_sector != next_weak_sector) begin
+				seek_pos <= seek_pos + bytes_to_read;
+				sector_size <= sector_size - bytes_to_read;
+				weak_sector <= weak_sector + 1'd1;
+			end else begin
+				next_weak_sector <= (sector_size <= bytes_to_read) ? 3'd0 : weak_sector + 1'd1;
+				state <= COMMAND_RW_DATA_EXEC5;
 			end
 
 			//Read the LBA for the sector into the RAM
@@ -782,7 +797,7 @@ always @(posedge clk_sys) begin
 					state <= COMMAND_READ_RESULTS;
 					status[0] <= 8'h40;
 					status[1] <= sector_st1;
-					status[2] <= rw_deleted ? 8'h40 : sector_st2;
+					status[2] <= sector_st2 | (rw_deleted ? 8'h40 : 8'h0);
 				end else	if ((rtrack ? current_sector : sector_r) == eot) begin
 					//end of cylinder
 					m_status[UPD765_MAIN_EXM] <= 0;
