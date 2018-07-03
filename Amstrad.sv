@@ -142,7 +142,7 @@ pll pll
 	.locked(locked)
 );
 
-reg ce_4n, ce_boot;
+reg ce_4n;
 reg ce_4p, ce_ref, ce_u765;
 reg ce_16;
 always @(negedge clk_sys) begin
@@ -152,7 +152,6 @@ always @(negedge clk_sys) begin
 	div4 <= div4 + 1'd1;
 
 	ce_4n   <= !div4;
-	ce_boot <= !div4;
 
 	ce_4p   <= (div4 == 8);
 	ce_u765 <= (div4 == 8);
@@ -261,7 +260,7 @@ always @(posedge clk_sys) begin
 		endcase
 	end
 
-	if(ce_boot) begin
+	if(ce_ref) begin
 		boot_wr <= ioctl_wait;
 		if(boot_wr & ioctl_wait) {boot_wr, ioctl_wait} <= 0;
 	end
