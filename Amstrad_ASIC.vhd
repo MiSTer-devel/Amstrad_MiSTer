@@ -33,122 +33,130 @@ use IEEE.STD_LOGIC_UNSIGNED.ALL;
 -- speed ink 1,1
 entity Amstrad_ASIC is
 	Generic (
-	--HD6845S 	Hitachi 	0 HD6845S_WriteMaskTable type 0 in JavaCPC
-	--UM6845 	UMC 		0
-	--UM6845R 	UMC 		1 UM6845R_WriteMaskTable type 1 in JavaCPC <==
-	--MC6845 	Motorola	2 
-	--crtc_type:std_logic:='1'; -- '0' or '1' :p
-	M1_OFFSET:integer :=3; -- from 0 to 3
-	SOUND_OFFSET:integer :=1; -- from 0 to 3 =(M1_OFFSET+2)%4
-	NB_LINEH_BY_VSYNC:integer:=24+1; --4--5-- VSYNC normally 4 HSYNC
-	-- feel nice policy : interrupt at end of HSYNC
-	--I have HDISP (external port of original Amstrad 6128) so I can determinate true timing and making a fix time generator
-	-- 39*8=312   /40=7.8 /52=6 /32=9.75
-  VRAM_HDsp:integer:=800/16; -- words of 16bits, that contains more or less pixels... thinking as reference mode 2, some 800x600 mode 2 (mode 2 is one bit <=> one pixel, that's cool)
-  VRAM_VDsp:integer:=600/2;
-  -- plus je grandi cette valeur plus l'image va vers la gauche.
-  VRAM_Hoffset:integer:=12; -- 63*16-46*16
-  
-  -- le raster palette arrive au moment oÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¹ l'encre est en face du stylo.
-  -- si on a un dÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â©calage raster palette alors on lis au mauvais moment, donc au mauvais endroit
-  -- hors nous on lit via MA, et on ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â©crit n'importe oÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¹ via VRAM_Voffset
-  -- donc VRAM_Voffset n'a pas d'influence sur le raster palette
-  -- ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â§a veut dire que l'adresse mÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â©moire dessous la palette n'est pas bonne
-  
-  
-  -- plus je grandi cette valeur plus l'image va vers le haut.
-  VRAM_Voffset:integer:=14; --15; --16; --18;  -- no influence under layer PRAM (raster palette colours ink), because PRAM is time dependant. Here influence is just about image position on screen
- -- output pixels
-	-- Amstrad
-	 -- 
-	 --OFFSET:STD_LOGIC_VECTOR(15 downto 0):=x"C000";
-	 -- screen.bas
-	 -- CLS
-	 -- FOR A=&C000 TO &FFFF
-	 -- POKE A,&FF
-	 -- NEXT A
-	 -- 
-	 -- line.bas
-	 -- CLS
-	 -- FOR A=&C000 TO &C050
-	 -- POKE A,&FF
-	 -- NEXT A
-	 -- 
-	 -- lines.bas
-	 -- CLS
-	 -- FOR A=&C000 TO &C7FF
-	 -- POKE A,&FF
-	 -- NEXT A
-	 -- 
-	 -- byte pixels structure :
-	 -- mode 1 :
-	 --   1 byte <=> 4 pixels
-	 --   [AAAA][BBBB] : layering colors [AAAA] and [BBBB]
-	 --   A+B=0+0=dark blue (default Amstrad background color)
-	 --   A+B=0+1=light blue
-	 --   A+B=1+0=yellow
-	 --   A+B=1+1=red
-	 --  for example [1100][0011] with give 2 yellow pixels followed by 2 light blue pixels &C3
-	 -- mode 0 : 
-	 --   1 byte <=> 2 pixels
-	 --   [AA][BB][CC][DD] : layering colors of AA, BB, CC, DD
-	 --   Because it results too many equations for a simple RGB output, they do switch the last equation (alternating at a certain low frequency (INK SPEED))
-	 -- mode 2 :
-	 --   1 byte <=> 8 pixels
-	 --   [AAAAAAAA] : so only 2 colors xD
-	 MODE_MAX:integer:=2;
---	 NB_PIXEL_PER_OCTET:integer:=4;--2**(MODE+1);
-  	NB_PIXEL_PER_OCTET_MAX:integer:=8;
-	NB_PIXEL_PER_OCTET_MIN:integer:=2
+		--HD6845S 	Hitachi 	0 HD6845S_WriteMaskTable type 0 in JavaCPC
+		--UM6845 	UMC 		0
+		--UM6845R 	UMC 		1 UM6845R_WriteMaskTable type 1 in JavaCPC <==
+		--MC6845 	Motorola	2 
+		--crtc_type:std_logic:='1'; -- '0' or '1' :p
+		M1_OFFSET:integer :=3; -- from 0 to 3
+		SOUND_OFFSET:integer :=1; -- from 0 to 3 =(M1_OFFSET+2)%4
+		NB_LINEH_BY_VSYNC:integer:=24+1; --4--5-- VSYNC normally 4 HSYNC
+		-- feel nice policy : interrupt at end of HSYNC
+		--I have HDISP (external port of original Amstrad 6128) so I can determinate true timing and making a fix time generator
+		-- 39*8=312   /40=7.8 /52=6 /32=9.75
+		VRAM_HDsp:integer:=800/16; -- words of 16bits, that contains more or less pixels... thinking as reference mode 2, some 800x600 mode 2 (mode 2 is one bit <=> one pixel, that's cool)
+		VRAM_VDsp:integer:=600/2;
+		-- plus je grandi cette valeur plus l'image va vers la gauche.
+		VRAM_Hoffset:integer:=12; -- 63*16-46*16
+
+		-- le raster palette arrive au moment oÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¹ l'encre est en face du stylo.
+		-- si on a un dÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â©calage raster palette alors on lis au mauvais moment, donc au mauvais endroit
+		-- hors nous on lit via MA, et on ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â©crit n'importe oÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¹ via VRAM_Voffset
+		-- donc VRAM_Voffset n'a pas d'influence sur le raster palette
+		-- ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â§a veut dire que l'adresse mÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â©moire dessous la palette n'est pas bonne
+
+
+		-- plus je grandi cette valeur plus l'image va vers le haut.
+		VRAM_Voffset:integer:=14; --15; --16; --18;  -- no influence under layer PRAM (raster palette colours ink), because PRAM is time dependant. Here influence is just about image position on screen
+		-- output pixels
+		-- Amstrad
+		-- 
+		--OFFSET:STD_LOGIC_VECTOR(15 downto 0):=x"C000";
+		-- screen.bas
+		-- CLS
+		-- FOR A=&C000 TO &FFFF
+		-- POKE A,&FF
+		-- NEXT A
+		-- 
+		-- line.bas
+		-- CLS
+		-- FOR A=&C000 TO &C050
+		-- POKE A,&FF
+		-- NEXT A
+		-- 
+		-- lines.bas
+		-- CLS
+		-- FOR A=&C000 TO &C7FF
+		-- POKE A,&FF
+		-- NEXT A
+		-- 
+		-- byte pixels structure :
+		-- mode 1 :
+		--   1 byte <=> 4 pixels
+		--   [AAAA][BBBB] : layering colors [AAAA] and [BBBB]
+		--   A+B=0+0=dark blue (default Amstrad background color)
+		--   A+B=0+1=light blue
+		--   A+B=1+0=yellow
+		--   A+B=1+1=red
+		--  for example [1100][0011] with give 2 yellow pixels followed by 2 light blue pixels &C3
+		-- mode 0 : 
+		--   1 byte <=> 2 pixels
+		--   [AA][BB][CC][DD] : layering colors of AA, BB, CC, DD
+		--   Because it results too many equations for a simple RGB output, they do switch the last equation (alternating at a certain low frequency (INK SPEED))
+		-- mode 2 :
+		--   1 byte <=> 8 pixels
+		--   [AAAAAAAA] : so only 2 colors xD
+		MODE_MAX:integer:=2;
+		--	 NB_PIXEL_PER_OCTET:integer:=4;--2**(MODE+1);
+		NB_PIXEL_PER_OCTET_MAX:integer:=8;
+		NB_PIXEL_PER_OCTET_MIN:integer:=2
 	);
-    Port ( nCLK4_1 : in  STD_LOGIC;
-           CLK16MHz : in STD_LOGIC;
-           IO_REQ_W : in  STD_LOGIC;
-			  IO_REQ_R : in  STD_LOGIC;
-           A15_A14_A9_A8 : in  STD_LOGIC_VECTOR (3 downto 0);
-			  VMODE:out STD_LOGIC_VECTOR (1 downto 0);
-           D : in  STD_LOGIC_VECTOR (7 downto 0);
-			  R2D2 : in  STD_LOGIC_VECTOR (7 downto 0);
-			  Dout : out  STD_LOGIC_VECTOR (7 downto 0):= (others=>'1');
-			  crtc_VSYNC : out STD_LOGIC:='0';
-			  IO_ACK : in STD_LOGIC;
-			  crtc_A: out STD_LOGIC_VECTOR (15 downto 0):=(others=>'0');
-			  bvram_A:out STD_LOGIC_VECTOR (14 downto 0):=(others=>'0');
-			  bvram_W:out STD_LOGIC:='0'; 
-			  bvram_D:out std_logic_vector(7 downto 0):=(others=>'0'); -- pixel_DATA
-			  crtc_R:out STD_LOGIC:='0'; --ram_A external solve CRTC read scan
-           int : out  STD_LOGIC:='0'; -- JavaCPC reset init
-			  M1_n : in  STD_LOGIC;
-			  MEM_RD:in std_logic;
-			  
-			  -- Z80 4MHz and CRTC 1MHz are produced by GATE_ARRAY normally
-			  -- MA0/CCLK is produced by GATE_ARRAY and does feed Yamaha sound chip.
-			  -- WAIT<=WAIT_MEM_n and WAIT_n; -- MEM_WR and M1
-			  -- please_wait(4MHz,WAIT)=>4MHz is a clock hack as Z80 does not implement correclty the WAIT purpose (Z80 is encapsulating a Z8080 and so corrupt this purpose)
-           WAIT_n : out  STD_LOGIC:='1';
-			  -- YM2149 is using rising_edge(CLK)
-			  SOUND_CLK : out  STD_LOGIC; -- calibrated with Sim City/Abracadabra et les voleurs du temps/CPCRulez -CIRCLES demo
-			  --decalibrated (dsk DELETED TRACK purpose does break it completly)
-			  crtc_D : in  STD_LOGIC_VECTOR (7 downto 0);
-			  palette_A: out STD_LOGIC_VECTOR (13 downto 0):=(others=>'0');
-			  palette_D: out std_logic_vector(7 downto 0);
-			  palette_W: out std_logic;
-			  reset:in  STD_LOGIC;
-			  
-			  crtc_type: in std_logic;
-			  ga_shunt: in std_logic;
-			  
-			  RED    : out  STD_LOGIC_VECTOR(1 downto 0);
-           GREEN  : out  STD_LOGIC_VECTOR(1 downto 0);
-           BLUE   : out  STD_LOGIC_VECTOR(1 downto 0);
-			  HBLANK : out STD_logic;
-			  VBLANK : out STD_logic;
-			  HSYNC  : out STD_logic;
-			  VSYNC  : out STD_logic
-			  );
+	Port (
+		nCLK4_1 : in  STD_LOGIC;
+		CLK16MHz : in STD_LOGIC;
+		VMODE:out STD_LOGIC_VECTOR (1 downto 0);
+		R2D2 : in  STD_LOGIC_VECTOR (7 downto 0);
+		Dout : out  STD_LOGIC_VECTOR (7 downto 0):= (others=>'1');
+		crtc_VSYNC : out STD_LOGIC:='0';
+		crtc_A : out STD_LOGIC_VECTOR (15 downto 0):=(others=>'0');
+		bvram_A: out STD_LOGIC_VECTOR (14 downto 0):=(others=>'0');
+		bvram_W: out STD_LOGIC:='0'; 
+		bvram_D: out std_logic_vector(7 downto 0):=(others=>'0'); -- pixel_DATA
+		crtc_R : out STD_LOGIC:='0'; --ram_A external solve CRTC read scan
+		int    : out STD_LOGIC:='0'; -- JavaCPC reset init
+
+		A15_A14_A9_A8 : in  STD_LOGIC_VECTOR (3 downto 0);
+		D      : in  STD_LOGIC_VECTOR (7 downto 0);
+		M1_n   : in  STD_LOGIC;
+		IORQ_n : in  STD_LOGIC;
+		MREQ_n : in  STD_LOGIC;
+		RD_n   : in  STD_LOGIC;
+		WR_n   : in  STD_LOGIC;
+
+		-- Z80 4MHz and CRTC 1MHz are produced by GATE_ARRAY normally
+		-- MA0/CCLK is produced by GATE_ARRAY and does feed Yamaha sound chip.
+		-- WAIT<=WAIT_MEM_n and WAIT_n; -- MEM_WR and M1
+		-- please_wait(4MHz,WAIT)=>4MHz is a clock hack as Z80 does not implement correclty the WAIT purpose (Z80 is encapsulating a Z8080 and so corrupt this purpose)
+		WAIT_n : out  STD_LOGIC:='1';
+		-- YM2149 is using rising_edge(CLK)
+		SOUND_CLK : out  STD_LOGIC; -- calibrated with Sim City/Abracadabra et les voleurs du temps/CPCRulez -CIRCLES demo
+		--decalibrated (dsk DELETED TRACK purpose does break it completly)
+		crtc_D : in  STD_LOGIC_VECTOR (7 downto 0);
+		palette_A: out STD_LOGIC_VECTOR (13 downto 0):=(others=>'0');
+		palette_D: out std_logic_vector(7 downto 0);
+		palette_W: out std_logic;
+		reset:in  STD_LOGIC;
+
+		crtc_type: in std_logic;
+		ga_shunt: in std_logic;
+
+		RED    : out  STD_LOGIC_VECTOR(1 downto 0);
+		GREEN  : out  STD_LOGIC_VECTOR(1 downto 0);
+		BLUE   : out  STD_LOGIC_VECTOR(1 downto 0);
+		HBLANK : out STD_logic;
+		VBLANK : out STD_logic;
+		HSYNC  : out STD_logic;
+		VSYNC  : out STD_logic
+	);
 end Amstrad_ASIC;
 
 architecture Behavioral of Amstrad_ASIC is
+
+	signal IO_REQ_W : std_logic;
+	signal IO_REQ_R : std_logic;
+	signal IO_ACK   : std_logic;
+	signal MEM_RD   : std_logic;
+
 	-- init values are for test bench javacpc ! + Grimware
 	signal RHtot:std_logic_vector(7 downto 0):="00111111";
 	signal RHdisp:std_logic_vector(7 downto 0):="00101000";
@@ -1541,6 +1549,10 @@ others=>0);
 	
 begin
 
+	IO_ACK  <= not M1_n and not IORQ_n;
+	IO_REQ_R<= not RD_n and not IORQ_n;
+	IO_REQ_W<= not WR_n and not IORQ_n;
+	MEM_RD  <= not RD_n and not MREQ_n;
 
 	process(reset,nCLK4_1) is
 	begin
@@ -1571,10 +1583,10 @@ WAIT_n_0 <= '0' when M1_n='0' and MEM_RD='1' and WAIT_n_D>0 else '1';
 
 WAIT_n<=WAIT_n_0 and WAIT_n_1 when not(WAIT_n_0_ack) else WAIT_n_1;
 
-m1_process:process(reset,nCLK4_1) is
+	process(reset,nCLK4_1) is
 	variable compteur1MHz:integer range 0 to 3:=2;
-			variable was_M1:boolean:=false;
-			variable was_m:boolean:=false;
+		variable was_M1:boolean:=false;
+		variable was_m:boolean:=false;
 		variable waiting:boolean:=false;
 		variable waiting_LATENCE:boolean:=false;
 		--variable waiting_R2D2:std_logic:='0';
@@ -1584,33 +1596,31 @@ m1_process:process(reset,nCLK4_1) is
 		--variable pang_WAIT:boolean:=false;
 		variable pang_WAIT:integer range 0 to 2:=0;
 
-			
-			
+
+
 		variable prefix_CB_mem:boolean:=false;
 		variable prefix_ED_mem:boolean:=false;
 		variable prefix_DD_FD_mem:boolean:=false;
 		variable prefix_DD_FD_CB_mem:boolean:=false;
 			
-begin
-if reset='1' then
-WAIT_n_1<='1';
-WAIT_n_0_ack<=false;
-waiting:=false;
-waiting_LATENCE:=false;
-conflit_WAIT:=false;
---pang_WAIT:=false;
-pang_WAIT:=0;
---was_MEMWR:=false;
-was_M1:=false;
-elsif rising_edge(nCLK4_1) then
-	compteur1MHz:=(compteur1MHz+1) mod 4;
+	begin
+		if reset='1' then
+			WAIT_n_1<='1';
+			WAIT_n_0_ack<=false;
+			waiting:=false;
+			waiting_LATENCE:=false;
+			conflit_WAIT:=false;
+			--pang_WAIT:=false;
+			pang_WAIT:=0;
+			--was_MEMWR:=false;
+			was_M1:=false;
+		elsif rising_edge(nCLK4_1) then
+			compteur1MHz:=(compteur1MHz+1) mod 4;
 	
-		if WAIT_n_1='0' and WAIT_n_0='0' and not(WAIT_n_0_ack) then
-			-- conflit : WAIT_n_0 n'a servit à rien.
-			conflit_WAIT:=true;
-		end if;
-		
-			
+			if WAIT_n_1='0' and WAIT_n_0='0' and not(WAIT_n_0_ack) then
+				-- conflit : WAIT_n_0 n'a servit à rien.
+				conflit_WAIT:=true;
+			end if;
 	
 			--if (M1_n='0' or was_M1) and MEM_RD='0' and was_MEMRD and R2D2=x"2A" then
 			--if not(was_2A) and R2D2=x"2A" then
@@ -1756,9 +1766,8 @@ elsif rising_edge(nCLK4_1) then
 			else
 				was_MEMRD:=false;
 			end if;
-			
-end if;
-end process m1_process;
+		end if;
+	end process;
 
 ctrcConfig_process:process(reset,nCLK4_1) is
 	variable reg_select32 : std_logic_vector(7 downto 0);
