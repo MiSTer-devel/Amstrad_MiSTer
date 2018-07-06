@@ -143,38 +143,31 @@ entity Amstrad_motherboard is
 end Amstrad_motherboard;
 
 architecture BEHAVIORAL of Amstrad_motherboard is
-   attribute KEEP_HIERARCHY : string ;
-   attribute BOX_TYPE       : string ;
-   attribute HU_SET         : string ;
 
-   signal A             : std_logic_vector (15 downto 0);
-   signal D             : std_logic_vector (7 downto 0);
-   signal IO_RD         : std_logic;
-   signal IO_WR         : std_logic;
-   signal LED1          : std_logic;
-   signal LED2          : std_logic;
-   signal MEM_RD        : std_logic;
-   signal MEM_WR        : std_logic;
-   signal n_crtc_vsync  : std_logic;
-   signal portC         : std_logic_vector (7 downto 0);
-   signal WR_n          : std_logic;
-   signal MREQ_n        : std_logic;
-   signal RFSH_n        : std_logic;
-   signal IORQ_n        : std_logic;
-   signal RD_n          : std_logic;
-	signal MIX_DOUT      : std_logic_vector (7 downto 0):=(others=>'1');
+	signal A             : std_logic_vector (15 downto 0);
+	signal D             : std_logic_vector (7 downto 0);
+	signal IO_RD         : std_logic;
+	signal IO_WR         : std_logic;
+	signal MEM_RD        : std_logic;
+	signal MEM_WR        : std_logic;
+	signal n_crtc_vsync  : std_logic;
+	signal portC         : std_logic_vector (7 downto 0);
+	signal WR_n          : std_logic;
+	signal MREQ_n        : std_logic;
+	signal RFSH_n        : std_logic;
+	signal IORQ_n        : std_logic;
+	signal RD_n          : std_logic;
 	signal asic_dout     : std_logic_vector (7 downto 0):=(others=>'1');
 	signal ppi_dout      : std_logic_vector (7 downto 0):=(others=>'1');
 	signal mem_dout      : std_logic_vector (7 downto 0):=(others=>'1');
-   signal portAout      : std_logic_vector (7 downto 0);
-   signal kbd_out       : std_logic_vector (7 downto 0);
-   signal portAin       : std_logic_vector (7 downto 0);
-   signal WAIT_n        : std_logic;
-   signal INT           : std_logic;
-   signal M1_n          : std_logic;
+	signal portAout      : std_logic_vector (7 downto 0);
+	signal kbd_out       : std_logic_vector (7 downto 0);
+	signal portAin       : std_logic_vector (7 downto 0);
+	signal WAIT_n        : std_logic;
+	signal INT           : std_logic;
+	signal M1_n          : std_logic;
 	signal SOUND_CLK     : std_logic;
-   signal xram_A        : std_logic_vector (22 downto 0);
-	
+
 begin
 
 	IO_RD <=not RD_n and not IORQ_n;
@@ -182,19 +175,16 @@ begin
 	MEM_RD<=not RD_n and not MREQ_n;
 	MEM_WR<=not WR_n and not MREQ_n;
 
-	ram_A<=xram_A;
 	ram_W<=MEM_WR;
 	ram_R<=MEM_RD;
 
 	ram_Dout<=D;
-	mem_dout<=ram_Din when (MEM_RD='1' and MEM_WR='0') else (others=>'1');
+	mem_dout<=ram_Din when MEM_RD='1' else (others=>'1');
 
 	fdc_sel <= A(10) & A(8) & A(7) & A(0);
 	fdc_wr  <= IO_WR;
 	fdc_rd  <= IO_RD;
 	fdc_dout<= D;
-
-	MIX_DOUT<=asic_dout and ppi_dout and mem_dout and fdc_din;
 
 	CPU : work.T80pa
 		port map (
@@ -202,7 +192,7 @@ begin
 			CLK=>CLK,
 			CEN_p=>CE_4P and (WAIT_n or no_wait),
 			CEN_n=>CE_4N,
-			DI=>MIX_DOUT,
+			DI=>asic_dout and ppi_dout and mem_dout and fdc_din,
 			INT_n=>not INT,
 			NMI_n=>'1',
 			RESET_n=>RESET_n,
@@ -224,7 +214,6 @@ begin
 			CLK16MHz=>CLK and CE_16,
 
 			crtc_D=>zram_din,
-			R2D2=>MIX_DOUT,
 
 			VMODE=>VMODE,
 
@@ -291,7 +280,7 @@ begin
 			D=>D,
 			wr_io_z80=>IO_WR,
 			wr_z80=>MEM_WR,
-			ram_A=>xram_A
+			ram_A=>ram_A
 		);
 
    PSG : work.YM2149

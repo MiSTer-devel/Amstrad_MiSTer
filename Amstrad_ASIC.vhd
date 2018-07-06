@@ -105,7 +105,6 @@ entity Amstrad_ASIC is
 		nCLK4_1 : in  STD_LOGIC;
 		CLK16MHz : in STD_LOGIC;
 		VMODE:out STD_LOGIC_VECTOR (1 downto 0);
-		R2D2 : in  STD_LOGIC_VECTOR (7 downto 0);
 		Dout : out  STD_LOGIC_VECTOR (7 downto 0):= (others=>'1');
 		crtc_VSYNC : out STD_LOGIC:='0';
 		crtc_A : out STD_LOGIC_VECTOR (15 downto 0):=(others=>'0');
