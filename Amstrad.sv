@@ -149,17 +149,14 @@ always @(negedge clk_sys) begin
 	reg [3:0] div4  = 0;
 	reg [1:0] div16 = 0;
 
-	div4 <= div4 + 1'd1;
-
+	div4    <= div4 + 1'd1;
 	ce_4n   <= !div4;
-
 	ce_4p   <= (div4 == 8);
 	ce_u765 <= (div4 == 8);
 	ce_ref  <= (div4 == 8);
 
-	div16 <= div16 + 1'd1;
-
-	ce_16  <= !div16;
+	div16   <= div16 + 1'd1;
+	ce_16   <= !div16;
 end
 
 reg ce_vid;
@@ -376,13 +373,13 @@ wire        wait_time = status[3];
 Amstrad_motherboard motherboard
 (
 	.RESET_n(~reset),
-	.CLK4MHz(clk_sys & ce_4p),
-	.nCLK4MHz(clk_sys & ce_4n),
+	.CLK(clk_sys),
+	.CE_4P(ce_4p),
+	.CE_4N(ce_4n),
+	.CE_16(ce_16),
 
 	.PS2_CLK(ps2_clk),
 	.PS2_DATA(ps2_data),
-
-	.CLK16MHz(clk_sys & ce_16),
 
 	.ga_shunt(wait_time),
 	.ppi_jumpers(ppi_jumpers),

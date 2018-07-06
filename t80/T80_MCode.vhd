@@ -1,21 +1,8 @@
---    {@{@{@{@{@{@
---  {@{@{@{@{@{@{@{@  This code is covered by CoreAmstrad synthesis r004
---  {@    {@{@    {@  A core of Amstrad CPC 6128 running on MiST-board platform
---  {@{@{@{@{@{@{@{@
---  {@  {@{@{@{@  {@  CoreAmstrad is implementation of FPGAmstrad on MiST-board
---  {@{@        {@{@   Contact : renaudhelias@gmail.com
---  {@{@{@{@{@{@{@{@   @see http://code.google.com/p/mist-board/
---    {@{@{@{@{@{@     @see FPGAmstrad at CPCWiki
---
---
---------------------------------------------------------------------------------
--- FPGAmstrad_amstrad_motherboard.T80se_p.T80.T80_MCode
 --------------------------------------------------------------------------------
 -- ****
 -- T80(b) core. In an effort to merge and maintain bug fixes ....
 --
 -- Ver 303 add undocumented DDCB and FDCB opcodes by TobiFlex 20.04.2010
--- Ver 302 fixed IO cycle timing, tested thanks to Alessandro.
 -- Ver 300 started tidyup
 -- MikeJ March 2005
 -- Latest version from www.fpgaarcade.com (original www.opencores.org)
@@ -93,61 +80,61 @@ entity T80_MCode is
 		Flag_S : integer := 7
 	);
 	port(
-		IR                              : in std_logic_vector(7 downto 0);
-		ISet                    : in std_logic_vector(1 downto 0);
-		MCycle                  : in std_logic_vector(2 downto 0);
-		F                               : in std_logic_vector(7 downto 0);
-		NMICycle                : in std_logic;
-		IntCycle                : in std_logic;
-		XY_State                : in std_logic_vector(1 downto 0);
-		MCycles                 : out std_logic_vector(2 downto 0);
-		TStates                 : out std_logic_vector(2 downto 0);
-		Prefix                  : out std_logic_vector(1 downto 0); -- None,CB,ED,DD/FD
-		Inc_PC                  : out std_logic;
-		Inc_WZ                  : out std_logic;
-		IncDec_16               : out std_logic_vector(3 downto 0); -- BC,DE,HL,SP   0 is inc
-		Read_To_Reg             : out std_logic;
-		Read_To_Acc             : out std_logic;
-		Set_BusA_To     : out std_logic_vector(3 downto 0); -- B,C,D,E,H,L,DI/DB,A,SP(L),SP(M),0,F
-		Set_BusB_To     : out std_logic_vector(3 downto 0); -- B,C,D,E,H,L,DI,A,SP(L),SP(M),1,F,PC(L),PC(M),0
-		ALU_Op                  : out std_logic_vector(3 downto 0);
+		IR				: in std_logic_vector(7 downto 0);
+		ISet			: in std_logic_vector(1 downto 0);
+		MCycle			: in std_logic_vector(2 downto 0);
+		F				: in std_logic_vector(7 downto 0);
+		NMICycle		: in std_logic;
+		IntCycle		: in std_logic;
+		XY_State		: in std_logic_vector(1 downto 0);
+		MCycles			: out std_logic_vector(2 downto 0);
+		TStates			: out std_logic_vector(2 downto 0);
+		Prefix			: out std_logic_vector(1 downto 0); -- None,CB,ED,DD/FD
+		Inc_PC			: out std_logic;
+		Inc_WZ			: out std_logic;
+		IncDec_16		: out std_logic_vector(3 downto 0); -- BC,DE,HL,SP   0 is inc
+		Read_To_Reg		: out std_logic;
+		Read_To_Acc		: out std_logic;
+		Set_BusA_To	    : out std_logic_vector(3 downto 0); -- B,C,D,E,H,L,DI/DB,A,SP(L),SP(M),0,F
+		Set_BusB_To	    : out std_logic_vector(3 downto 0); -- B,C,D,E,H,L,DI,A,SP(L),SP(M),1,F,PC(L),PC(M),0
+		ALU_Op			: out std_logic_vector(3 downto 0);
 			-- ADD, ADC, SUB, SBC, AND, XOR, OR, CP, ROT, BIT, SET, RES, DAA, RLD, RRD, None
-		Save_ALU                : out std_logic;
-		PreserveC               : out std_logic;
-		Arith16                 : out std_logic;
-		Set_Addr_To             : out std_logic_vector(2 downto 0); -- aNone,aXY,aIOA,aSP,aBC,aDE,aZI
-		IORQ                    : out std_logic;
-		Jump                    : out std_logic;
-		JumpE                   : out std_logic;
-		JumpXY                  : out std_logic;
-		Call                    : out std_logic;
-		RstP                    : out std_logic;
-		LDZ                             : out std_logic;
-		LDW                             : out std_logic;
-		LDSPHL                  : out std_logic;
-		Special_LD              : out std_logic_vector(2 downto 0); -- A,I;A,R;I,A;R,A;None
-		ExchangeDH              : out std_logic;
-		ExchangeRp              : out std_logic;
-		ExchangeAF              : out std_logic;
-		ExchangeRS              : out std_logic;
-		I_DJNZ                  : out std_logic;
-		I_CPL                   : out std_logic;
-		I_CCF                   : out std_logic;
-		I_SCF                   : out std_logic;
-		I_RETN                  : out std_logic;
-		I_BT                    : out std_logic;
-		I_BC                    : out std_logic;
-		I_BTR                   : out std_logic;
-		I_RLD                   : out std_logic;
-		I_RRD                   : out std_logic;
-		I_INRC                  : out std_logic;
-		SetDI                   : out std_logic;
-		SetEI                   : out std_logic;
-		IMode                   : out std_logic_vector(1 downto 0);
-		Halt                    : out std_logic;
-		NoRead                  : out std_logic;
-		Write                   : out std_logic;
-		XYbit_undoc             : out std_logic
+		Save_ALU		: out std_logic;
+		PreserveC		: out std_logic;
+		Arith16			: out std_logic;
+		Set_Addr_To		: out std_logic_vector(2 downto 0); -- aNone,aXY,aIOA,aSP,aBC,aDE,aZI
+		IORQ			: out std_logic;
+		Jump			: out std_logic;
+		JumpE			: out std_logic;
+		JumpXY			: out std_logic;
+		Call			: out std_logic;
+		RstP			: out std_logic;
+		LDZ				: out std_logic;
+		LDW				: out std_logic;
+		LDSPHL			: out std_logic;
+		Special_LD		: out std_logic_vector(2 downto 0); -- A,I;A,R;I,A;R,A;None
+		ExchangeDH		: out std_logic;
+		ExchangeRp		: out std_logic;
+		ExchangeAF		: out std_logic;
+		ExchangeRS		: out std_logic;
+		I_DJNZ			: out std_logic;
+		I_CPL			: out std_logic;
+		I_CCF			: out std_logic;
+		I_SCF			: out std_logic;
+		I_RETN			: out std_logic;
+		I_BT			: out std_logic;
+		I_BC			: out std_logic;
+		I_BTR			: out std_logic;
+		I_RLD			: out std_logic;
+		I_RRD			: out std_logic;
+		I_INRC			: out std_logic;
+		SetDI			: out std_logic;
+		SetEI			: out std_logic;
+		IMode			: out std_logic_vector(1 downto 0);
+		Halt			: out std_logic;
+		NoRead			: out std_logic;
+		Write			: out std_logic;
+		XYbit_undoc		: out std_logic
 	);
 end T80_MCode;
 
@@ -261,7 +248,7 @@ begin
 
 ------------------------------------------------------------------------------
 --
---      Unprefixed instructions
+--	Unprefixed instructions
 --
 ------------------------------------------------------------------------------
 
@@ -825,13 +812,13 @@ begin
 					Set_Addr_To <= aSP;
 					Set_BusB_To <= "1101";
 				when 2 =>
-					TStates <= "100";
+					--TStates <= "100";
 					Write <= '1';
 					IncDec_16 <= "1111";
 					Set_Addr_To <= aSP;
 					Set_BusB_To <= "1100";
 				when 3 =>
-					TStates <= "100";
+					--TStates <= "100";
 					Write <= '1';
 				when 4 =>
 					Inc_PC <= '1';
@@ -935,7 +922,7 @@ begin
 					case to_integer(unsigned(MCycle)) is
 					when 1 =>
 						Set_Addr_To <= aBC;
-						Set_BusB_To     <= "0111";
+						Set_BusB_To	<= "0111";
 					when 2 =>
 						Write <= '1';
 						IORQ <= '1';
@@ -1168,7 +1155,7 @@ begin
 			MCycles <= "011";
 			case to_integer(unsigned(MCycle)) is
 			when 1 =>
-				TStates <= "101";
+				--TStates <= "101";
 				Set_Addr_TO <= aSP;
 			when 2 =>
 				IncDec_16 <= "0111";
@@ -1189,7 +1176,7 @@ begin
 					when 2 =>
 						Inc_PC <= '1';
 						Set_Addr_To <= aIOA;
-						Set_BusB_To     <= "0111";
+						Set_BusB_To	<= "0111";
 					when 3 =>
 						Write <= '1';
 					when others => null;
@@ -1211,7 +1198,7 @@ begin
 						Save_ALU <= '1';
 						ALU_Op <= "0001";
 						Set_BusA_To <= "1001";
-						Set_BusB_To <= "1110";  -- Incorrect unsigned !!!!!!!!!!!!!!!!!!!!!
+						Set_BusB_To <= "1110";	-- Incorrect unsigned !!!!!!!!!!!!!!!!!!!!!
 					when others =>
 					end case;
 				when "10" =>
@@ -1226,7 +1213,7 @@ begin
 					when others => null;
 					end case;
 				when "11" =>
-					-- LD HL,SP+n       -- Not correct !!!!!!!!!!!!!!!!!!!
+					-- LD HL,SP+n	-- Not correct !!!!!!!!!!!!!!!!!!!
 					MCycles <= "101";
 					case to_integer(unsigned(MCycle)) is
 					when 2 =>
@@ -1265,7 +1252,6 @@ begin
 				when 3 =>
 					Jump <= '1';
 					IncDec_16 <= "0111";
-					--TStates <= "101"; --plustest.dsk
 				when others => null;
 				end case;
 			end if;
@@ -1301,7 +1287,6 @@ begin
 				when 3 =>
 					Read_To_Acc <= '1';
 					IORQ <= '1';
-					TStates <= "100"; -- MIKEJ should be 4 for IO cycle
 				when others => null;
 				end case;
 			end if;
@@ -1313,11 +1298,10 @@ begin
 				when 2 =>
 					Inc_PC <= '1';
 					Set_Addr_To <= aIOA;
-					Set_BusB_To <= "0111";
+					Set_BusB_To	<= "0111";
 				when 3 =>
 					Write <= '1';
 					IORQ <= '1';
-					TStates <= "100"; -- MIKEJ should be 4 for IO cycle
 				when others => null;
 				end case;
 			end if;
@@ -1327,6 +1311,7 @@ begin
 -- MULTIBYTE INSTRUCTIONS
 ------------------------------------------------------------------------------
 ------------------------------------------------------------------------------
+
 		when "11001011" =>
 			if Mode /= 2 then
 				Prefix <= "01";
@@ -1348,9 +1333,10 @@ begin
 
 ------------------------------------------------------------------------------
 --
---      CB prefixed instructions
+--	CB prefixed instructions
 --
 ------------------------------------------------------------------------------
+
 			Set_BusA_To(2 downto 0) <= IR(2 downto 0);
 			Set_BusB_To(2 downto 0) <= IR(2 downto 0);
 
@@ -1395,7 +1381,6 @@ begin
 					when others => null;
 					end case;
 				end if;
-
 
 			when "00000110"|"00010110"|"00001110"|"00011110"|"00101110"|"00111110"|"00100110"|"00110110" =>
 				-- RLC (HL)
@@ -1447,11 +1432,12 @@ begin
 					when others => null;
 					end case;
 				end if;
+
 			when "01000110"|"01001110"|"01010110"|"01011110"|"01100110"|"01101110"|"01110110"|"01111110" =>
 				-- BIT b,(HL)
 				MCycles <= "010";
 				case to_integer(unsigned(MCycle)) is
-				when 1 | 7=>
+				when 1 | 7 =>
 					Set_Addr_To <= aXY;
 				when 2 =>
 					ALU_Op <= "1001";
@@ -1469,9 +1455,9 @@ begin
 				-- SET b,r
 				if XY_State="00" then
 					if MCycle = "001" then
-					  ALU_Op <= "1010";
-					  Read_To_Reg <= '1';
-					  Save_ALU <= '1';
+						ALU_Op <= "1010";
+						Read_To_Reg <= '1';
+						Save_ALU <= '1';
 					end if;
 				else
 				-- SET b,(IX+d),Reg, undocumented
@@ -1491,11 +1477,12 @@ begin
 					when others => null;
 					end case;
 				end if;
+
 			when "11000110"|"11001110"|"11010110"|"11011110"|"11100110"|"11101110"|"11110110"|"11111110" =>
 				-- SET b,(HL)
 				MCycles <= "011";
 				case to_integer(unsigned(MCycle)) is
-				when 1 | 7=>
+				when 1 | 7 =>
 					Set_Addr_To <= aXY;
 				when 2 =>
 					ALU_Op <= "1010";
@@ -1518,9 +1505,9 @@ begin
 				-- RES b,r
 				if XY_State="00" then
 					if MCycle = "001" then
-					  ALU_Op <= "1011";
-					  Read_To_Reg <= '1';
-					  Save_ALU <= '1';
+						ALU_Op <= "1011";
+						Read_To_Reg <= '1';
+						Save_ALU <= '1';
 					end if;
 				else
 				-- RES b,(IX+d),Reg, undocumented
@@ -1540,7 +1527,7 @@ begin
 					when others => null;
 					end case;
 				end if;
-				
+
 			when "10000110"|"10001110"|"10010110"|"10011110"|"10100110"|"10101110"|"10110110"|"10111110" =>
 				-- RES b,(HL)
 				MCycles <= "011";
@@ -1563,9 +1550,10 @@ begin
 
 ------------------------------------------------------------------------------
 --
---      ED prefixed instructions
+--	ED prefixed instructions
 --
 ------------------------------------------------------------------------------
+
 			case IRB is
 			when "00000000"|"00000001"|"00000010"|"00000011"|"00000100"|"00000101"|"00000110"|"00000111"
 				|"00001000"|"00001001"|"00001010"|"00001011"|"00001100"|"00001101"|"00001110"|"00001111"
@@ -1881,7 +1869,6 @@ begin
 				when 1 =>
 					Set_Addr_To <= aBC;
 				when 2 =>
-					TStates <= "100"; -- MIKEJ should be 4 for IO cycle
 					IORQ <= '1';
 					if IR(5 downto 3) /= "110" then
 						Read_To_Reg <= '1';
@@ -1897,19 +1884,17 @@ begin
 				case to_integer(unsigned(MCycle)) is
 				when 1 =>
 					Set_Addr_To <= aBC;
-					Set_BusB_To(2 downto 0)     <= IR(5 downto 3);
+					Set_BusB_To(2 downto 0)	<= IR(5 downto 3);
 					if IR(5 downto 3) = "110" then
 						Set_BusB_To(3) <= '1';
 					end if;
 				when 2 =>
-					TStates <= "100"; -- MIKEJ should be 4 for IO cycle
 					Write <= '1';
 					IORQ <= '1';
 				when others =>
 				end case;
 			when "10100010" | "10101010" | "10110010" | "10111010" =>
 				-- INI, IND, INIR, INDR
-				-- note B is decremented AFTER being put on the bus
 				MCycles <= "100";
 				case to_integer(unsigned(MCycle)) is
 				when 1 =>
@@ -1920,16 +1905,13 @@ begin
 					Save_ALU <= '1';
 					ALU_Op <= "0010";
 				when 2 =>
-					TStates <= "100"; -- MIKEJ should be 4 for IO cycle
 					IORQ <= '1';
 					Set_BusB_To <= "0110";
 					Set_Addr_To <= aXY;
 				when 3 =>
 					if IR(3) = '0' then
-						--IncDec_16 <= "0010";
 						IncDec_16 <= "0110";
 					else
-						--IncDec_16 <= "1010";
 						IncDec_16 <= "1110";
 					end if;
 					TStates <= "100";
@@ -1942,8 +1924,6 @@ begin
 				end case;
 			when "10100011" | "10101011" | "10110011" | "10111011" =>
 				-- OUTI, OUTD, OTIR, OTDR
-				-- note B is decremented BEFORE being put on the bus.
-				-- mikej fix for hl inc
 				MCycles <= "100";
 				case to_integer(unsigned(MCycle)) is
 				when 1 =>
@@ -1959,11 +1939,10 @@ begin
 					Set_Addr_To <= aBC;
 				when 3 =>
 					if IR(3) = '0' then
-						IncDec_16 <= "0110"; -- mikej
+						IncDec_16 <= "0110";
 					else
-						IncDec_16 <= "1110"; -- mikej
+						IncDec_16 <= "1110";
 					end if;
-					TStates <= "100"; -- MIKEJ should be 4 for IO cycle
 					IORQ <= '1';
 					Write <= '1';
 					I_BTR <= '1';
@@ -1978,18 +1957,20 @@ begin
 
 		if Mode = 1 then
 			if MCycle = "001" then
---              TStates <= "100";
+--				TStates <= "100";
 			else
 				TStates <= "011";
 			end if;
 		end if;
+
 		if Mode = 3 then
 			if MCycle = "001" then
---              TStates <= "100";
+--				TStates <= "100";
 			else
 				TStates <= "100";
 			end if;
 		end if;
+
 		if Mode < 2 then
 			if MCycle = "110" then
 				Inc_PC <= '1';
@@ -2022,4 +2003,5 @@ begin
 		end if;
 
 	end process;
+
 end;

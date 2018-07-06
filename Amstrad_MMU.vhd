@@ -57,6 +57,7 @@ architecture Behavioral of Amstrad_MMU is
 	signal RAMbank    : STD_LOGIC_VECTOR (2 downto 0);
 	signal RAMbank512 : STD_LOGIC_VECTOR (2 downto 0);
 	signal ROMbank    : STD_LOGIC_VECTOR (7 downto 0); -- upper ROM number
+	signal old_wr_io  : STD_LOGIC;
 
 begin
 
@@ -64,38 +65,33 @@ begin
 	process(reset,CLK) is
 	begin
 		if reset='1' then
+			ROMbank<=(others=>'0');
 			RAMbank<=(others=>'0');
 			RAMbank512<=(others=>'0');
 			lowerROMen<='1';
 			upperROMen<='1';
+			old_wr_io<='0';
 		elsif rising_edge(CLK) then
-			if wr_io_z80='1' and A(15 downto 14) = "01" and D(7) ='1' then --7Fxx gate array --
-				--http://www.cpctech.org.uk/docs/garray.html
-				if D(6) = '0' then --RMR
-					lowerROMen<=not(D(2));
-					upperROMen<=not(D(3));
-				--http://www.cpctech.org.uk/docs/mem.html
-				else               -- MMR
-					-- cpcwiki doesn't care about : if D(4 downto 2)="001" or D(4 downto 2)="000" then
-					RAMbank512<=D(5 downto 3);
-					RAMbank<=D(2 downto 0);
+			old_wr_io <= wr_io_z80;
+			if old_wr_io='0' and wr_io_z80='1' then
+				if A(15 downto 14) = "01" and D(7) ='1' then --7Fxx gate array --
+					--http://www.cpctech.org.uk/docs/garray.html
+					if D(6) = '0' then --RMR
+						lowerROMen<=not(D(2));
+						upperROMen<=not(D(3));
+					--http://www.cpctech.org.uk/docs/mem.html
+					else               -- MMR
+						-- cpcwiki doesn't care about : if D(4 downto 2)="001" or D(4 downto 2)="000" then
+						RAMbank512<=D(5 downto 3);
+						RAMbank<=D(2 downto 0);
+					end if;
+				end if;
+				if A(13)='0' then
+					ROMbank<=D(7 downto 0);
 				end if;
 			end if;
 		end if;	
 	end process;
-
-	process(reset,CLK) is
-		variable ROMbank_mem: STD_LOGIC_VECTOR (7 downto 0);
-	begin
-		if reset='1' then
-			ROMbank<=(others=>'0');
-		elsif rising_edge(CLK) then
-			if wr_io_z80='1' and A(13)='0' then
-				ROMbank<=D(7 downto 0);
-			end if;
-		end if;
-	end process;
-
 
 	ram_A(13 downto 0) <=A(13 downto 0);
 

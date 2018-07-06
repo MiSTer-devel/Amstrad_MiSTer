@@ -90,9 +90,10 @@ entity Amstrad_motherboard is
    port (
 		RESET_n    : in  std_logic;
 
-		CLK4MHz    : in  std_logic; 
-		nCLK4MHz   : in  std_logic; 
-		CLK16MHz   : in  std_logic;
+		CLK        : in  std_logic; 
+		CE_4P      : in  std_logic; 
+		CE_4N      : in  std_logic; 
+		CE_16      : in  std_logic;
 
 		JOYSTICK1  : in  std_logic_vector(5 downto 0); 
 		JOYSTICK2  : in  std_logic_vector(5 downto 0); 
@@ -204,19 +205,20 @@ begin
 
 	MIX_DOUT<=asic_dout and ppi_dout and mem_dout and fdc_din;
 
-	CPU : work.T80se
+	CPU : work.T80pa
 		port map (
 			BUSRQ_n=>'1',
-			CLKEN=>WAIT_n,
-			CLK_n=>CLK4MHz,
-			DI(7 downto 0)=>MIX_DOUT(7 downto 0),
+			CLK=>CLK,
+			CEN_p=>CE_4P and WAIT_n,
+			CEN_n=>CE_4N,
+			DI=>MIX_DOUT,
 			INT_n=>not INT,
 			NMI_n=>'1',
 			RESET_n=>RESET_n, -- '1'der time constraint test
 			WAIT_n=>'1',
-			A(15 downto 0)=>A(15 downto 0),
+			A=>A,
 			BUSAK_n=>open,
-			DO(7 downto 0)=>D(7 downto 0),
+			DO=>D,
 			HALT_n=>open,
 			IORQ_n=>IORQ_n,
 			MREQ_n=>MREQ_n,
@@ -241,8 +243,8 @@ begin
 			MEM_RD=>MEM_RD,
 			VMODE=>VMODE,
 			M1_n=>M1_n,
-			nCLK4_1=>nCLK4MHz,
-			CLK16MHz=>CLK16MHz,
+			nCLK4_1=>CLK and CE_4N,
+			CLK16MHz=>CLK and CE_16,
 			reset=>not RESET_n,
 			crtc_type=>crtc_type,
 			ga_shunt=>ga_shunt,
@@ -275,7 +277,7 @@ begin
 			cs=>A(11),
 			iowr=>not(IO_WR),
 			iord=>not(IO_RD),
-			cpuclk=>CLK16MHz, -- (no clocked this component normaly, so let's overclock it)
+			cpuclk=>CLK, -- (no clocked this component normaly, so let's overclock it)
 
 			PBI(7)=>'1', -- pull up (default)
 			PBI(6)=>'1', -- pull up (default)
@@ -294,7 +296,7 @@ begin
 
    MMU : work.Amstrad_MMU
       port map (
-			CLK=>nCLK4MHz,
+			CLK=>CLK,
 			reset=>not RESET_n,
 			A(15 downto 0)=>A(15 downto 0),
 			D(7 downto 0)=>D(7 downto 0),
@@ -305,8 +307,8 @@ begin
 
    PSG : work.YM2149
       port map (
-			CLK=>CLK4MHz,
-			ENA=>not SOUND_CLK,
+			CLK=>CLK,
+			ENA=>not SOUND_CLK and CE_4P,
 			I_A8=>'1',
 			I_A9_L=>'0',
 			I_BC1=>portC(6),
@@ -324,7 +326,7 @@ begin
 
    KBD : work.joykeyb_MUSER_amstrad_motherboard
 		port map (
-			CLK4MHz=>nCLK4MHz,
+			CLK4MHz=>CLK and CE_4N,
 			joystick1(5 downto 0)=>JOYSTICK1(5 downto 0),
 			joystick2(5 downto 0)=>JOYSTICK2(5 downto 0),
 			PPI_portC(3 downto 0)=>portC(3 downto 0),
