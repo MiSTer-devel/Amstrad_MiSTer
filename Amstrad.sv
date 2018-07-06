@@ -146,17 +146,17 @@ reg ce_4n;
 reg ce_4p, ce_ref, ce_u765;
 reg ce_16;
 always @(negedge clk_sys) begin
-	reg [3:0] div4  = 0;
-	reg [1:0] div16 = 0;
+	reg [3:0] div = 0;
 
-	div4    <= div4 + 1'd1;
-	ce_4n   <= !div4;
-	ce_4p   <= (div4 == 8);
-	ce_u765 <= (div4 == 8);
-	ce_ref  <= (div4 == 8);
+	div     <= div + 1'd1;
 
-	div16   <= div16 + 1'd1;
-	ce_16   <= !div16;
+	ce_4n   <= (div == 8);
+
+	ce_4p   <= !div;
+	ce_u765 <= !div;
+	ce_ref  <= !div;
+
+	ce_16   <= !div[1:0];
 end
 
 reg ce_vid;

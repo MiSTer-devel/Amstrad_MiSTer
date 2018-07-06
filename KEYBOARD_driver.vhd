@@ -19,25 +19,27 @@ use IEEE.std_logic_arith.ALL;
 use IEEE.STD_LOGIC_UNSIGNED.ALL;
 
 entity KEYBOARD_driver is
-    Port ( CLK : in  STD_LOGIC;
-           enable : in  STD_LOGIC;
-			  press : in STD_LOGIC;
-			  unpress : in STD_LOGIC;
-           portC : in  STD_LOGIC_VECTOR (3 downto 0);
-			  joystick1 : in STD_LOGIC_VECTOR(5 downto 0);
-           joystick2 : in STD_LOGIC_VECTOR(5 downto 0);
-           keycode : in  STD_LOGIC_VECTOR (9 downto 0); -- e0 & e1 & scancode
-           portA : out  STD_LOGIC_VECTOR (7 downto 0);
-			  key_reset : out std_logic:='0';
-			  key_reset_space : out std_logic:='0'
-			  );
+    Port ( 
+		CLK : in  STD_LOGIC;
+		CE  : in  STD_LOGIC;
+		enable : in  STD_LOGIC;
+		press : in STD_LOGIC;
+		unpress : in STD_LOGIC;
+		portC : in  STD_LOGIC_VECTOR (3 downto 0);
+		joystick1 : in STD_LOGIC_VECTOR(5 downto 0);
+		joystick2 : in STD_LOGIC_VECTOR(5 downto 0);
+		keycode : in  STD_LOGIC_VECTOR (9 downto 0); -- e0 & e1 & scancode
+		portA : out  STD_LOGIC_VECTOR (7 downto 0);
+		key_reset : out std_logic:='0';
+		key_reset_space : out std_logic:='0'
+	);
 end KEYBOARD_driver;
 
 architecture Behavioral of KEYBOARD_driver is
-		type amstrad_decode_type is array(0 to 15,0 to 7) of STD_LOGIC_VECTOR(7 downto 0); --integer range 0 to 127;
-		constant RESET_KEY:STD_LOGIC_VECTOR(7 downto 0):=x"7D"; -- page up
-		constant RESET_KEY_SPACE:STD_LOGIC_VECTOR(7 downto 0):=x"29"; -- SPACE
-		constant NO_KEY:STD_LOGIC_VECTOR(7 downto 0):=x"FF"; -- x"00" is also another candidate of "NO_KEY" in PC 102 keyboard
+	type amstrad_decode_type is array(0 to 15,0 to 7) of STD_LOGIC_VECTOR(7 downto 0); --integer range 0 to 127;
+	constant RESET_KEY:STD_LOGIC_VECTOR(7 downto 0):=x"7D"; -- page up
+	constant RESET_KEY_SPACE:STD_LOGIC_VECTOR(7 downto 0):=x"29"; -- SPACE
+	constant NO_KEY:STD_LOGIC_VECTOR(7 downto 0):=x"FF"; -- x"00" is also another candidate of "NO_KEY" in PC 102 keyboard
 	constant amstrad_decode:amstrad_decode_type:=(
 			(x"75",x"74",x"72",x"01",x"0B",x"04",x"69",x"7A"),--  0 ligne 19 /\ -> \/ 9 6 3 Enter . -- Enter is "End" here
 			(x"6B",x"70",x"83",x"0A",x"03",x"05",x"06",x"09"), --  1 ligne 18 <= COPY 7 8 5 1 2 0
@@ -55,8 +57,7 @@ architecture Behavioral of KEYBOARD_driver is
 			(others=>NO_KEY), -- 13 osef
 			(others=>NO_KEY), -- 14 osef
 			(others=>NO_KEY) -- 15 osef
-			
-			);
+	);
 	type keyb_type is array(7 downto 0) of std_logic_vector(7 downto 0);
 	signal keyb:keyb_type;
 	signal joystick1_8:std_logic_vector(7 downto 0);
@@ -68,71 +69,70 @@ begin
 	begin
 		keyb<=keyb_mem;
 		if rising_edge(CLK) then
-			if RESET_KEY=keycode(7 downto 0) then
-				if unpress='1' then
-					key_reset<='0';
-				elsif press='1' then
-					key_reset<='1';
-				end if;
-			elsif unpress='1' then
-				for i in keyb'range loop
-					if keyb_mem(i)=keycode(7 downto 0) then
-						keyb_mem(i):=(others=>'0');
+			if CE='1' then
+				if RESET_KEY=keycode(7 downto 0) then
+					if unpress='1' then
+						key_reset<='0';
+					elsif press='1' then
+						key_reset<='1';
 					end if;
-				end loop;
-			elsif press='1' then
-				-- that sucks but... it's about pressing 8 keys at the same time, saying that some keys are double-keys, and I generally do up+right+jump+fire
-				if keyb_mem(0)=x"00" or keyb_mem(0)=keycode(7 downto 0) then
-					keyb_mem(0):=keycode(7 downto 0);
-				elsif keyb_mem(1)=x"00" or keyb_mem(1)=keycode(7 downto 0) then
-					keyb_mem(1):=keycode(7 downto 0);
-				elsif keyb_mem(2)=x"00" or keyb_mem(2)=keycode(7 downto 0) then
-					keyb_mem(2):=keycode(7 downto 0);
-				elsif keyb_mem(3)=x"00" or keyb_mem(3)=keycode(7 downto 0) then
-					keyb_mem(3):=keycode(7 downto 0);
-				elsif keyb_mem(4)=x"00" or keyb_mem(4)=keycode(7 downto 0) then
-					keyb_mem(4):=keycode(7 downto 0);
-				elsif keyb_mem(5)=x"00" or keyb_mem(5)=keycode(7 downto 0) then
-					keyb_mem(5):=keycode(7 downto 0);
-				elsif keyb_mem(6)=x"00" or keyb_mem(6)=keycode(7 downto 0) then
-					keyb_mem(6):=keycode(7 downto 0);
-					-- for killapede.dsk each key seems double entries : so up+left+fire comes here
-					-- In fact no, you can do ESC ESC in killepede.dsk and then choose others keys,
-					--except if you take back arrows+space keys strangely.
-				elsif keyb_mem(7)=x"00" or keyb_mem(7)=keycode(7 downto 0) then
-					keyb_mem(7):=keycode(7 downto 0);
-				else
-					-- cheater !
-					keyb_mem:=(others=>(others=>'0'));
-				end if;
-			end if;
-			if RESET_KEY_SPACE=keycode(7 downto 0) then
-				if unpress='1' then
-					key_reset_space<='0';
+				elsif unpress='1' then
+					for i in keyb'range loop
+						if keyb_mem(i)=keycode(7 downto 0) then
+							keyb_mem(i):=(others=>'0');
+						end if;
+					end loop;
 				elsif press='1' then
-					key_reset_space<='1';
+					-- that sucks but... it's about pressing 8 keys at the same time, saying that some keys are double-keys, and I generally do up+right+jump+fire
+					if keyb_mem(0)=x"00" or keyb_mem(0)=keycode(7 downto 0) then
+						keyb_mem(0):=keycode(7 downto 0);
+					elsif keyb_mem(1)=x"00" or keyb_mem(1)=keycode(7 downto 0) then
+						keyb_mem(1):=keycode(7 downto 0);
+					elsif keyb_mem(2)=x"00" or keyb_mem(2)=keycode(7 downto 0) then
+						keyb_mem(2):=keycode(7 downto 0);
+					elsif keyb_mem(3)=x"00" or keyb_mem(3)=keycode(7 downto 0) then
+						keyb_mem(3):=keycode(7 downto 0);
+					elsif keyb_mem(4)=x"00" or keyb_mem(4)=keycode(7 downto 0) then
+						keyb_mem(4):=keycode(7 downto 0);
+					elsif keyb_mem(5)=x"00" or keyb_mem(5)=keycode(7 downto 0) then
+						keyb_mem(5):=keycode(7 downto 0);
+					elsif keyb_mem(6)=x"00" or keyb_mem(6)=keycode(7 downto 0) then
+						keyb_mem(6):=keycode(7 downto 0);
+						-- for killapede.dsk each key seems double entries : so up+left+fire comes here
+						-- In fact no, you can do ESC ESC in killepede.dsk and then choose others keys,
+						--except if you take back arrows+space keys strangely.
+					elsif keyb_mem(7)=x"00" or keyb_mem(7)=keycode(7 downto 0) then
+						keyb_mem(7):=keycode(7 downto 0);
+					else
+						-- cheater !
+						keyb_mem:=(others=>(others=>'0'));
+					end if;
+				end if;
+				if RESET_KEY_SPACE=keycode(7 downto 0) then
+					if unpress='1' then
+						key_reset_space<='0';
+					elsif press='1' then
+						key_reset_space<='1';
+					end if;
 				end if;
 			end if;
 		end if;
 	end process;
 	
 	process(CLK)
-		variable joystick1_8mem:std_logic_vector(7 downto 0):=(others=>'0');
-		variable joystick2_8mem:std_logic_vector(7 downto 0):=(others=>'0');
 	begin
 		if rising_edge(CLK) then
-			joystick1_8mem(5 downto 0):=joystick1(5) & joystick1(4) & joystick1(0) & joystick1(1) & joystick1(2) & joystick1(3);
-			joystick2_8mem(5 downto 0):=joystick2(5) & joystick2(4) & joystick2(0) & joystick2(1) & joystick2(2) & joystick2(3);
-			joystick1_8<=joystick1_8mem;
-			joystick2_8<=joystick2_8mem;
+			joystick1_8<="00" & joystick1(5) & joystick1(4) & joystick1(0) & joystick1(1) & joystick1(2) & joystick1(3);
+			joystick2_8<="00" & joystick2(5) & joystick2(4) & joystick2(0) & joystick2(1) & joystick2(2) & joystick2(3);
 		end if;
 	end process;
-	
+
 	process(CLK)
 		-- bad CLK to refresh keyboard102_pressing, it could be nicer having a sort of PS2_CLK
 		--http://www.beyondlogic.org/keyboard/keybrd.htm
 	begin
-			if rising_edge(CLK) then
+		if rising_edge(CLK) then
+			if CE='1' then
 				portA<=(others=>'1');
 				if enable='1' then
 					for i in 7 downto 0 loop
@@ -156,5 +156,6 @@ begin
 					end loop;
 				end if;
 			end if;
+		end if;
 	end process;
 end Behavioral;

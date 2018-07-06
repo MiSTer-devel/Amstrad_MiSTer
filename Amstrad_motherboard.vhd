@@ -22,7 +22,8 @@ use ieee.numeric_std.ALL;
 
 entity joykeyb_MUSER_amstrad_motherboard is
 	port (
-		CLK4MHz   : in    std_logic; 
+		CLK       : in    std_logic; 
+		CE_4MHz   : in    std_logic; 
 		joystick1 : in    std_logic_vector (5 downto 0); 
 		joystick2 : in    std_logic_vector (5 downto 0); 
 		PPI_portC : in    std_logic_vector (3 downto 0); 
@@ -45,7 +46,8 @@ architecture BEHAVIORAL of joykeyb_MUSER_amstrad_motherboard is
 begin
 	drvr : work.KEYBOARD_driver
 		port map (
-			CLK=>CLK4MHz,
+			CLK=>CLK,
+			CE=>CE_4MHz,
 			enable=>'1', --PPI_enable
 			joystick1(5 downto 0)=>joystick1(5 downto 0),
 			joystick2(5 downto 0)=>joystick2(5 downto 0),
@@ -60,7 +62,8 @@ begin
    
 	cntrl : work.KEYBOARD_controller
 		port map (
-			CLK=>CLK4MHz,
+			CLK=>CLK,
+			CE=>CE_4MHz,
 			fok=>fok,
 			scancode_in(7 downto 0)=>scancode(7 downto 0),
 			keycode(9 downto 0)=>keycode(9 downto 0),
@@ -70,9 +73,10 @@ begin
 
 	kbd : work.Keyboard
 		port map (
+			fclk=>CLK,
+			fce=>CE_4MHz,
 			clkin=>PS2_CLK,
 			datain=>PS2_DATA,
-			fclk=>CLK4MHz,
 			rst=>'0',
 			fok=>fok,
 			scancode(7 downto 0)=>scancode(7 downto 0)
@@ -188,30 +192,36 @@ begin
 
 	CPU : work.T80pa
 		port map (
-			BUSRQ_n=>'1',
+			RESET_n=>RESET_n,
+
 			CLK=>CLK,
 			CEN_p=>CE_4P and (WAIT_n or no_wait),
 			CEN_n=>CE_4N,
-			DI=>asic_dout and ppi_dout and mem_dout and fdc_din,
-			INT_n=>not INT,
-			NMI_n=>'1',
-			RESET_n=>RESET_n,
-			WAIT_n=>'1',
+
 			A=>A,
 			DO=>D,
+			DI=>asic_dout and ppi_dout and mem_dout and fdc_din,
+
+			RD_n=>RD_n,
+			WR_n=>WR_n,
 			IORQ_n=>IORQ_n,
 			MREQ_n=>MREQ_n,
 			M1_n=>M1_n,
-			RD_n=>RD_n,
 			RFSH_n=>RFSH_n,
-			WR_n=>WR_n
+
+			BUSRQ_n=>'1',
+			INT_n=>not INT,
+			NMI_n=>'1',
+			WAIT_n=>'1'
 		);
 
 	ASIC : work.Amstrad_ASIC
 		port map (
 			reset=>not RESET_n,
-			nCLK4_1=>CLK and CE_4N,
-			CLK16MHz=>CLK and CE_16,
+			
+			CLK=>CLK,
+			CE_4=>CE_4P,
+			CE_16=>CE_16,
 
 			crtc_D=>zram_din,
 
@@ -304,7 +314,8 @@ begin
 
    KBD : work.joykeyb_MUSER_amstrad_motherboard
 		port map (
-			CLK4MHz=>CLK and CE_4N,
+			CLK=>CLK,
+			CE_4MHz=>CE_4P,
 			joystick1=>JOYSTICK1,
 			joystick2=>JOYSTICK2,
 			PPI_portC=>portC(3 downto 0),
