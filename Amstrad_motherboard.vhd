@@ -103,7 +103,7 @@ entity Amstrad_motherboard is
 
 		ppi_jumpers: in  std_logic_vector(3 downto 0);
 		crtc_type  : in  std_logic;
-		ga_shunt   : in  std_logic;
+		no_wait    : in  std_logic;
 
 		audio_AB   : out std_logic_vector(7 downto 0); 
 		audio_BC   : out std_logic_vector(7 downto 0); 
@@ -200,7 +200,7 @@ begin
 		port map (
 			BUSRQ_n=>'1',
 			CLK=>CLK,
-			CEN_p=>CE_4P and WAIT_n,
+			CEN_p=>CE_4P and (WAIT_n or no_wait),
 			CEN_n=>CE_4N,
 			DI=>MIX_DOUT,
 			INT_n=>not INT,
@@ -228,7 +228,7 @@ begin
 
 			VMODE=>VMODE,
 
-			A15_A14_A9_A8 => (A(15) & A(14) & A(9) & A(8)),
+			A15_A14_A9_A8=> (A(15) & A(14) & A(9) & A(8)),
 			D=>D,
 			M1_n=>M1_n,
 			MREQ_n=>MREQ_n or not RFSH_n,
@@ -237,7 +237,6 @@ begin
 			WR_n=>WR_n,
 
 			crtc_type=>crtc_type,
-			ga_shunt=>ga_shunt,
 			bvram_A=>vram_A,
 			bvram_D=>vram_D,
 			bvram_W=>vram_W,
