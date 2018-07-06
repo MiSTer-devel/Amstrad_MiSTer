@@ -393,8 +393,8 @@ Amstrad_motherboard motherboard
 	.fdc_din(fdc_dout),
 	.fdc_dout(fdc_din),
 
-	.audio_AB(audio_l),
-	.audio_BC(audio_r),
+	.audio_l(audio_l),
+	.audio_r(audio_r),
 
 	.VMODE(vmode),
 	.HBLANK(hbl),

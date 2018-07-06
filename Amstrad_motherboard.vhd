@@ -109,8 +109,8 @@ entity Amstrad_motherboard is
 		crtc_type  : in  std_logic;
 		no_wait    : in  std_logic;
 
-		audio_AB   : out std_logic_vector(7 downto 0); 
-		audio_BC   : out std_logic_vector(7 downto 0); 
+		audio_l    : out std_logic_vector(7 downto 0); 
+		audio_r    : out std_logic_vector(7 downto 0); 
 
 		ram_A      : out std_logic_vector(22 downto 0); 
 		ram_Dout   : out std_logic_vector(7 downto 0); 
@@ -295,21 +295,25 @@ begin
 
    PSG : work.YM2149
       port map (
+			RESET_L=>RESET_n,
+
 			CLK=>CLK,
 			ENA=>not SOUND_CLK and CE_4P,
+			I_SEL_L=>'1',
+
 			I_A8=>'1',
 			I_A9_L=>'0',
 			I_BC1=>portC(6),
 			I_BC2=>'1',
 			I_BDIR=>portC(7),
 			I_DA=>portAout,
-			I_IOA=>kbd_out,
-			I_SEL_L=>'1',
-			RESET_L=>RESET_n,
-         O_AUDIO_AB=>audio_AB,
-			O_AUDIO_BC=>audio_BC,
 			O_DA=>portAin,
-			O_DA_OE_L=>open
+
+			O_AUDIO_L=>audio_L,
+			O_AUDIO_R=>audio_R,
+
+			I_IOA=>kbd_out,
+			I_IOB=>X"FF"
 		);
 
    KBD : work.joykeyb_MUSER_amstrad_motherboard
