@@ -19,6 +19,8 @@ entity Amstrad_MMU is
 	Port (
 		CLK        : in  STD_LOGIC;
 		reset      : in  STD_LOGIC;
+		
+		ram64k     : in  STD_LOGIC;
 
 		wr_z80     : in  STD_LOGIC;
 		wr_io_z80  : in  STD_LOGIC;
@@ -80,7 +82,7 @@ begin
 						lowerROMen<=not(D(2));
 						upperROMen<=not(D(3));
 					--http://www.cpctech.org.uk/docs/mem.html
-					else               -- MMR
+					elsif ram64k = '0' then    -- MMR
 						-- cpcwiki doesn't care about : if D(4 downto 2)="001" or D(4 downto 2)="000" then
 						RAMbank512<=D(5 downto 3);
 						RAMbank<=D(2 downto 0);

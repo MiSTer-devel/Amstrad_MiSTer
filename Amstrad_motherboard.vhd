@@ -112,6 +112,7 @@ entity Amstrad_motherboard is
 		audio_l    : out std_logic_vector(7 downto 0); 
 		audio_r    : out std_logic_vector(7 downto 0); 
 
+		ram64k     : in  std_logic;
 		ram_A      : out std_logic_vector(22 downto 0); 
 		ram_Dout   : out std_logic_vector(7 downto 0); 
 		ram_Din    : in  std_logic_vector(7 downto 0); 
@@ -286,6 +287,7 @@ begin
       port map (
 			CLK=>CLK,
 			reset=>not RESET_n,
+			ram64k=>ram64k,
 			A=>A,
 			D=>D,
 			wr_io_z80=>IO_WR,

@@ -56,9 +56,10 @@ module zsdram (
 	input 		 		clk,			// sdram is accessed at up to 128MHz
 	input					clkref,		// reference clock to sync to
 	
+	input [1:0]  		bank,
 	input [7:0]  		din,			// data input from chipset/cpu
 	output reg [7:0]  dout,			// data output to chipset/cpu
-	input [24:0]   	addr,       // 25 bit byte address
+	input [22:0]   	addr,       // 25 bit byte address
 	input 		 		oe,         // cpu/chipset requests read
 	input 		 		we,         // cpu/chipset requests write
 
@@ -218,15 +219,11 @@ wire [12:0] run_addr =
 	//Daisy
 	(q == STATE_CMD_START && ram_req )? addr[21:9]                       :
 	(q == STATE_CMD_START && zram_req)? {6'b000010, zram_addr[15:9]}     :
-	(q == STATE_CMD_CONT  && ram_req )? {  4'b0010, addr[24], addr[8:1]} :
+	(q == STATE_CMD_CONT  && ram_req )? {  4'b0010, addr[22], addr[8:1]} :
 	(q == STATE_CMD_CONT  && zram_req)? { 5'b00100, zram_addr[8:1]}      :
 	13'b0000000000000;
 
 assign SDRAM_A = reset ? reset_addr : run_addr;
-
-// bank address (CMD_ACTIVE)
-//Daisy
-assign SDRAM_BA = ((q == STATE_CMD_START || q == STATE_CMD_CONT) && ram_req)  ? addr[23:22] :
-               ((q == STATE_CMD_START || q == STATE_CMD_CONT) && zram_req) ? 2'b00 : 2'b00;
+assign SDRAM_BA = bank;
 
 endmodule

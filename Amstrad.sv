@@ -118,11 +118,12 @@ localparam CONF_STR = {
 	"OBD,Colors,All,Mono-G,Mono-R,Mono-B,Mono-W;",
 	"O78,Stereo mix,none,25%,50%,100%;",
 	"-;",
-	"O1,Model,Amstrad,Schneider;",
-	"O2,CRTC,1,0;",
+	"O1,Distributor,Amstrad,Schneider;",
+	"OE,Model,CPC 6128,CPC 664;",
+	"O2,Video chip,model 1,model 0;",
 	"O3,CPU timings,Original,Fast;",
 	"-;",
-	"R0,Reset;",
+	"R0,Reset & apply model;",
 	"J,Fire 1,Fire 2;",
 	"V,v1.20.",`BUILD_DATE
 };
@@ -239,6 +240,7 @@ wire        reset = RESET | status[0] | buttons[1] | rom_download;
 
 reg         boot_wr = 0;
 reg  [22:0] boot_a;
+reg   [1:0] boot_bank;
 reg   [7:0] boot_dout;
 
 always @(posedge clk_sys) begin
@@ -250,10 +252,15 @@ always @(posedge clk_sys) begin
 		boot_a[13:0] <= ioctl_addr[13:0];
 
 		case(ioctl_addr[24:14])
-				  0: boot_a[22:14] <= 9'h000;
-				  1: boot_a[22:14] <= 9'h100;
-				  2: boot_a[22:14] <= 9'h107;
+			   0,3: boot_a[22:14] <= 9'h000;
+			   1,4: boot_a[22:14] <= 9'h100;
+			   2,5: boot_a[22:14] <= 9'h107;
 		  default: ioctl_wait    <= 0;
+		endcase
+
+		case(ioctl_addr[24:14])
+			 0,1,2: boot_bank <= 0;
+			 3,4,5: boot_bank <= 1;
 		endcase
 	end
 
@@ -287,6 +294,7 @@ zsdram zsdram
 	.oe  (reset ? 1'b0      : ram_r),
 	.we  (reset ? boot_wr   : ram_w),
 	.addr(reset ? boot_a    : ram_a),
+	.bank(reset ? boot_bank : model),
 	.din (reset ? boot_dout : ram_din),
 	.dout(ram_dout),
 
@@ -303,6 +311,9 @@ always_comb begin
 	default: rom_mask = 'hFF;
 	endcase
 end
+
+reg model = 0;
+always @(posedge clk_sys) if(reset) model <= status[14];
 
 //////////////////////////////////////////////////////////////////////////
 
@@ -405,6 +416,7 @@ Amstrad_motherboard motherboard
 	.GREEN(g),
 	.BLUE(b),
 
+	.ram64k(model),
 	.ram_R(ram_r),
 	.ram_W(ram_w),
 	.ram_A(ram_a),
