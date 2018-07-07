@@ -121,12 +121,6 @@ entity Amstrad_motherboard is
 		ram_R      : out std_logic; 
 		ram_W      : out std_logic; 
 
-		fdc_sel    : out std_logic_vector(3 downto 0); -- A10 & A8 & A7 & A0
-		fdc_wr     : out std_logic;
-		fdc_rd     : out std_logic;
-		fdc_din    : in  std_logic_vector(7 downto 0);
-		fdc_dout   : out std_logic_vector(7 downto 0);
-
 		VMODE      : out std_logic_vector(1 downto 0);
 		RED        : out std_logic_vector(1 downto 0);
 		GREEN      : out std_logic_vector(1 downto 0);
@@ -148,8 +142,11 @@ entity Amstrad_motherboard is
 		zram_rd    : out std_logic;
 
       -- Expansion connector (for implementing peripherals)
-		addr       : out std_logic_vector (15 downto 0);
-		data       : out std_logic_vector (7 downto 0);
+		addr       : out std_logic_vector(15 downto 0);
+		dout       : out std_logic_vector(7 downto 0);
+		din        : in  std_logic_vector(7 downto 0);
+		io_W       : out std_logic;
+		io_R       : out std_logic;
 		M1         : out std_logic;
 		NMI        : in std_logic;
 		key_nmi    : out std_logic
@@ -186,6 +183,9 @@ begin
 
 	IO_RD <=not RD_n and not IORQ_n;
 	IO_WR <=not WR_n and not IORQ_n;
+	io_W  <=IO_WR;
+	io_R  <=IO_RD;
+
 	MEM_RD<=not RD_n and not MREQ_n;
 	MEM_WR<=not WR_n and not MREQ_n;
 
@@ -195,13 +195,8 @@ begin
 	ram_Dout<=D;
 	mem_dout<=ram_Din when MEM_RD='1' else (others=>'1');
 
-	fdc_sel <= A(10) & A(8) & A(7) & A(0);
-	fdc_wr  <= IO_WR;
-	fdc_rd  <= IO_RD;
-	fdc_dout<= D;
-
 	addr<=A;
-	data<=D;
+	dout<=D;
 	M1<=not M1_n;
 
 	CPU : work.T80pa
@@ -214,7 +209,7 @@ begin
 
 			A=>A,
 			DO=>D,
-			DI=>asic_dout and ppi_dout and mem_dout and fdc_din,
+			DI=>asic_dout and ppi_dout and mem_dout and din,
 
 			RD_n=>RD_n,
 			WR_n=>WR_n,

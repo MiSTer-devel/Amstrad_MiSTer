@@ -104,8 +104,8 @@ assign LED_USER  = mf2_en | ioctl_download;
 assign LED_DISK  = 0;
 assign LED_POWER = 0;
 
-assign VIDEO_ARX = status[4] ? 8'd16 : 8'd4;
-assign VIDEO_ARY = status[4] ? 8'd9  : 8'd3;
+assign VIDEO_ARX = status[1] ? 8'd16 : 8'd4;
+assign VIDEO_ARY = status[1] ? 8'd9  : 8'd3;
 
 `include "build_id.v"
 localparam CONF_STR = {
@@ -114,13 +114,13 @@ localparam CONF_STR = {
 	"S0,DSK,Mount A:;",
 	"S1,DSK,Mount B:;",
 	"-;",
-	"O4,Aspect ratio,4:3,16:9;",
+	"O1,Aspect ratio,4:3,16:9;",
 	"O9A,Scandoubler Fx,None,HQ2x,CRT 25%,CRT 50%;",
 	"OBD,Colors,All,Mono-G,Mono-R,Mono-B,Mono-W;",
 	"O78,Stereo mix,none,25%,50%,100%;",
 	"-;",
-	"O1,Distributor,Amstrad,Schneider;",
-	"OE,Model,CPC 6128,CPC 664;",
+	"O5,Distributor,Amstrad,Schneider;",
+	"O4,Model,CPC 6128,CPC 664;",
 	"O2,Video chip,model 1,model 0;",
 	"O3,CPU timings,Original,Fast;",
 	"-;",
@@ -296,7 +296,7 @@ sdram sdram
 
 	.oe  (reset ? 1'b0      : ram_r & ~mf2_ram_en),
 	.we  (reset ? boot_wr   : ram_w & ~mf2_ram_en & ~mf2_rom_en),
-	.addr(reset ? boot_a    : mf2_rom_en ? { 9'h1ff, addr[13:0] }: ram_a),
+	.addr(reset ? boot_a    : mf2_rom_en ? { 9'h1ff, mb_addr[13:0] }: ram_a),
 	.bank(reset ? boot_bank : model),
 	.din (reset ? boot_dout : ram_din),
 	.dout(sdram_dout),
@@ -317,18 +317,15 @@ always_comb begin
 end
 
 reg model = 0;
-always @(posedge clk_sys) if(reset) model <= status[14];
+always @(posedge clk_sys) if(reset) model <= status[4];
 
 //////////////////////////////////////////////////////////////////////////
 
-wire [3:0] fdc_sel;
-wire       fdc_wr;
-wire       fdc_rd;
-wire [7:0] fdc_din;
+wire [3:0] fdc_sel = {mb_addr[10],mb_addr[8],mb_addr[7],mb_addr[0]};
 
 reg  [7:0] fdc_dout;
 always_comb begin
-	casex({fdc_rd,fdc_sel})
+	casex({io_rd,fdc_sel})
 		'b1_000x: fdc_dout = motor; // motor read 
 		'b1_0100: fdc_dout = {u765_status_a[7] & u765_status_b[7], u765_status_a[6:0] | u765_status_b[6:0]}; // u765 status
 		'b1_0101: fdc_dout = u765_dout_a | u765_dout_b; // u765 data
@@ -340,9 +337,9 @@ reg motor = 0;
 always @(posedge clk_sys) begin
 	reg old_wr;
 	
-	old_wr <= fdc_wr;
-	if(~old_wr && fdc_wr && !fdc_sel[3:1]) begin
-		motor <= fdc_din[0];
+	old_wr <= io_wr;
+	if(~old_wr && io_wr && !fdc_sel[3:1]) begin
+		motor <= mb_dout[0];
 	end
 	
 	if(img_mounted) motor <= 0;
@@ -368,9 +365,9 @@ u765 u765a
 
 	.a0(fdc_sel[0]),
 	.ready(u765_ready_a), // & motor),
-	.nRD(~(u765_sel & fdc_rd)),
-	.nWR(~(u765_sel & fdc_wr)),
-	.din(fdc_din),
+	.nRD(~(u765_sel & io_rd)),
+	.nWR(~(u765_sel & io_wr)),
+	.din(mb_dout),
 	.dout(u765_dout_a),
 
 	.drive(0),
@@ -408,9 +405,9 @@ u765 u765b
 
 	.a0(fdc_sel[0]),
 	.ready(u765_ready_b), // & motor),
-	.nRD(~(u765_sel & fdc_rd)),
-	.nWR(~(u765_sel & fdc_wr)),
-	.din(fdc_din),
+	.nRD(~(u765_sel & io_rd)),
+	.nWR(~(u765_sel & io_wr)),
+	.din(mb_dout),
 	.dout(u765_dout_b),
 
 	.drive(1),
@@ -439,8 +436,8 @@ wire u765_busy = ~(u765_idle_a & u765_idle_b);
 reg         mf2_en = 0;
 reg         mf2_hidden = 0;
 reg   [7:0] mf2_ram[8192];
-wire        mf2_ram_en = mf2_en & addr[15:13] == 3'b001;
-wire        mf2_rom_en = mf2_en & addr[15:13] == 3'b000;
+wire        mf2_ram_en = mf2_en & mb_addr[15:13] == 3'b001;
+wire        mf2_rom_en = mf2_en & mb_addr[15:13] == 3'b000;
 reg   [4:0] mf2_pen_index;
 reg   [3:0] mf2_crtc_register;
 wire [12:0] mf2_store_addr;
@@ -449,7 +446,7 @@ reg         mf2_ram_we;
 reg   [7:0] mf2_ram_in, mf2_ram_out;
 
 always_comb begin
-	casex({ addr[15:8], data[7:6] })
+	casex({ mb_addr[15:8], mb_dout[7:6] })
 		{ 8'h7f, 2'b00 }: mf2_store_addr = 13'h1fcf;  // pen index
 		{ 8'h7f, 2'b01 }: mf2_store_addr = mf2_pen_index[4] ? 13'h1fdf : { 9'h1f9, mf2_pen_index[3:0] }; // border/pen color
 		{ 8'h7f, 2'b10 }: mf2_store_addr = 13'h1fef; // screen mode
@@ -475,7 +472,7 @@ always @(posedge clk_sys) begin
 
 	old_key_nmi <= key_nmi;
 	old_m1 <= m1;
-	old_io_wr <= fdc_wr; //would be better if fdc_rd/wr just called io_rd/wr
+	old_io_wr <= io_wr;
 
 	if (reset) begin
 		mf2_en <= 0;
@@ -484,22 +481,22 @@ always @(posedge clk_sys) begin
 	end
 
 	if(~old_key_nmi & key_nmi & ~mf2_en) NMI <= 1;
-	if (NMI & ~old_m1 & m1 & addr == 'h66) begin
+	if (NMI & ~old_m1 & m1 & mb_addr == 'h66) begin
 		mf2_en <= 1;
 		mf2_hidden <= 0;
 		NMI <= 0;
 	end
-	if (mf2_en & ~old_m1 & m1 & addr == 'h65) begin
+	if (mf2_en & ~old_m1 & m1 & mb_addr == 'h65) begin
 		mf2_hidden <= 1;
 	end
 
-	if (~old_io_wr & fdc_wr & addr[15:2] == 14'b11111110111010) begin //fee8/feea
-		mf2_en <= ~addr[1] & ~mf2_hidden;
-	end else if (~old_io_wr & fdc_wr & |mf2_store_addr[12:0]) begin //store hw register in MF2 RAM
-		if (addr[15:8] == 8'h7f & data[7:6] == 2'b00) mf2_pen_index <= data[4:0];
-		if (addr[15:8] == 8'hbc) mf2_crtc_register <= data[3:0];
+	if (~old_io_wr & io_wr & mb_addr[15:2] == 14'b11111110111010) begin //fee8/feea
+		mf2_en <= ~mb_addr[1] & ~mf2_hidden;
+	end else if (~old_io_wr & io_wr & |mf2_store_addr[12:0]) begin //store hw register in MF2 RAM
+		if (mb_addr[15:8] == 8'h7f & mb_dout[7:6] == 2'b00) mf2_pen_index <= mb_dout[4:0];
+		if (mb_addr[15:8] == 8'hbc) mf2_crtc_register <= mb_dout[3:0];
 		mf2_ram_a <= mf2_store_addr;
-		mf2_ram_in <= data;
+		mf2_ram_in <= mb_dout;
 		mf2_ram_we <= 1;
 	end else if (ram_w & mf2_ram_en) begin //normal MF2 RAM write
 		mf2_ram_a <= ram_a[12:0];
@@ -512,13 +509,15 @@ always @(posedge clk_sys) begin
 
 end
 
-//////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////
 
-wire  [3:0] ppi_jumpers = {2'b11, ~status[1], 1'b1};
+wire  [3:0] ppi_jumpers = {2'b11, ~status[5], 1'b1};
 wire        crtc_type = ~status[2];
-wire [15:0] addr;
-wire  [7:0] data;
+wire [15:0] mb_addr;
+wire  [7:0] mb_dout;
+wire  [7:0] mb_din = fdc_dout;
 wire        m1, key_nmi, NMI;
+wire        io_wr, io_rd;
 
 Amstrad_motherboard motherboard
 (
@@ -537,12 +536,6 @@ Amstrad_motherboard motherboard
 
 	.JOYSTICK1(joy1),
 	.JOYSTICK2(joy2),
-
-	.fdc_sel(fdc_sel),
-	.fdc_wr(fdc_wr),
-	.fdc_rd(fdc_rd),
-	.fdc_din(fdc_dout),
-	.fdc_dout(fdc_din),
 
 	.audio_l(audio_l),
 	.audio_r(audio_r),
@@ -566,8 +559,11 @@ Amstrad_motherboard motherboard
 	.zram_din(zram_dout),
 	.zram_addr(zram_addr),
 
-	.addr(addr),
-	.data(data),
+	.addr(mb_addr),
+	.dout(mb_dout),
+	.din(mb_din),
+	.io_W(io_wr),
+	.io_R(io_rd),
 	.M1(m1),
 	.NMI(NMI),
 	.key_nmi(key_nmi)
@@ -670,7 +666,7 @@ video_mixer #(800) video_mixer
 
 assign CLK_VIDEO = clk_vid;
 
-//////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////
 
 wire [7:0] audio_l, audio_r;
 
