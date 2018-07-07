@@ -356,7 +356,7 @@ set_global_assignment -name QIP_FILE sys/sys.qip
 set_global_assignment -name QSYS_FILE sys/vip.qsys
 set_global_assignment -name QIP_FILE t80/T80.qip
 set_global_assignment -name SYSTEMVERILOG_FILE u765.sv
-set_global_assignment -name VERILOG_FILE zsdram.v
+set_global_assignment -name VERILOG_FILE sdram.v
 set_global_assignment -name VHDL_FILE YM2149_AB_BC.vhd
 set_global_assignment -name VHDL_FILE pio.vhd
 set_global_assignment -name SYSTEMVERILOG_FILE color_mix.sv

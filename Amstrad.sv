@@ -125,7 +125,7 @@ localparam CONF_STR = {
 	"-;",
 	"R0,Reset & apply model;",
 	"J,Fire 1,Fire 2;",
-	"V,v1.20.",`BUILD_DATE
+	"V,v1.30.",`BUILD_DATE
 };
 
 //////////////////////////////////////////////////////////////////////////
@@ -283,7 +283,7 @@ wire [15:0] zram_addr;
 
 assign SDRAM_CLK = clk_sys;
 
-zsdram zsdram
+sdram sdram
 (
 	.*,
 
@@ -298,8 +298,8 @@ zsdram zsdram
 	.din (reset ? boot_dout : ram_din),
 	.dout(ram_dout),
 
-	.zram_addr(zram_addr),
-	.zram_dout(zram_dout)
+	.vram_addr({2'b10,zram_addr}),
+	.vram_dout(zram_dout)
 );
 
 reg [7:0] rom_mask;
