@@ -31,7 +31,8 @@ entity KEYBOARD_driver is
 		keycode : in  STD_LOGIC_VECTOR (9 downto 0); -- e0 & e1 & scancode
 		portA : out  STD_LOGIC_VECTOR (7 downto 0);
 		key_reset : out std_logic:='0';
-		key_reset_space : out std_logic:='0'
+		key_reset_space : out std_logic:='0';
+		key_nmi: out std_logic:='0'
 	);
 end KEYBOARD_driver;
 
@@ -39,6 +40,7 @@ architecture Behavioral of KEYBOARD_driver is
 	type amstrad_decode_type is array(0 to 15,0 to 7) of STD_LOGIC_VECTOR(7 downto 0); --integer range 0 to 127;
 	constant RESET_KEY:STD_LOGIC_VECTOR(7 downto 0):=x"7D"; -- page up
 	constant RESET_KEY_SPACE:STD_LOGIC_VECTOR(7 downto 0):=x"29"; -- SPACE
+	constant NMI_KEY:STD_LOGIC_VECTOR(7 downto 0):=x"78"; -- F11
 	constant NO_KEY:STD_LOGIC_VECTOR(7 downto 0):=x"FF"; -- x"00" is also another candidate of "NO_KEY" in PC 102 keyboard
 	constant amstrad_decode:amstrad_decode_type:=(
 			(x"75",x"74",x"72",x"01",x"0B",x"04",x"69",x"7A"),--  0 ligne 19 /\ -> \/ 9 6 3 Enter . -- Enter is "End" here
@@ -75,6 +77,12 @@ begin
 						key_reset<='0';
 					elsif press='1' then
 						key_reset<='1';
+					end if;
+				elsif NMI_KEY=keycode(7 downto 0) then
+					if unpress='1' then
+						key_nmi<='0';
+					elsif press='1' then
+						key_nmi<='1';
 					end if;
 				elsif unpress='1' then
 					for i in keyb'range loop

@@ -100,7 +100,7 @@ module emu
 assign {DDRAM_CLK, DDRAM_BURSTCNT, DDRAM_ADDR, DDRAM_DIN, DDRAM_BE, DDRAM_RD, DDRAM_WE} = 0;
 assign {SD_SCK, SD_MOSI, SD_CS} = 'Z;
 
-assign LED_USER  = ioctl_download;
+assign LED_USER  = f2_en | ioctl_download;
 assign LED_DISK  = 0;
 assign LED_POWER = 0;
 
@@ -253,15 +253,16 @@ always @(posedge clk_sys) begin
 		boot_a[13:0] <= ioctl_addr[13:0];
 
 		case(ioctl_addr[24:14])
-			   0,3: boot_a[22:14] <= 9'h000;
-			   1,4: boot_a[22:14] <= 9'h100;
-			   2,5: boot_a[22:14] <= 9'h107;
+		   0,4: boot_a[22:14] = 9'h000;
+		   1,5: boot_a[22:14] = 9'h100;
+		   2,6: boot_a[22:14] = 9'h107;
+		   3,7: boot_a[22:14] = 9'h1ff; //MF2
 		  default: ioctl_wait    <= 0;
 		endcase
 
 		case(ioctl_addr[24:14])
-			 0,1,2: boot_bank <= 0;
-			 3,4,5: boot_bank <= 1;
+		 0,1,2,3: boot_bank = 0;
+		 4,5,6,7: boot_bank = 1;
 		endcase
 	end
 
@@ -276,8 +277,9 @@ end
 wire        ram_w;
 wire        ram_r;
 wire [22:0] ram_a;
+wire  [7:0] sdram_dout;
 wire  [7:0] ram_din;
-wire  [7:0] ram_dout;
+wire  [7:0] ram_dout = mf2_ram_en ? mf2_ram_out : sdram_dout;
 
 wire  [7:0] zram_dout;
 wire [15:0] zram_addr;
@@ -292,12 +294,12 @@ sdram sdram
 	.clk(clk_sys),
 	.clkref(ce_ref),
 
-	.oe  (reset ? 1'b0      : ram_r),
-	.we  (reset ? boot_wr   : ram_w),
-	.addr(reset ? boot_a    : ram_a),
+	.oe  (reset ? 1'b0      : ram_r & ~mf2_ram_en),
+	.we  (reset ? boot_wr   : ram_w & ~mf2_ram_en & ~mf2_rom_en),
+	.addr(reset ? boot_a    : mf2_rom_en ? { 9'h1ff, addr[13:0] }: ram_a),
 	.bank(reset ? boot_bank : model),
 	.din (reset ? boot_dout : ram_din),
-	.dout(ram_dout),
+	.dout(sdram_dout),
 
 	.vram_addr({2'b10,zram_addr}),
 	.vram_dout(zram_dout)
@@ -309,6 +311,7 @@ always_comb begin
 	  'h0XX: rom_mask = 0;
 	  'h100: rom_mask = 0;
 	  'h107: rom_mask = 0;
+	  'h1ff: rom_mask = 0;
 	default: rom_mask = 'hFF;
 	endcase
 end
@@ -429,10 +432,93 @@ u765 u765b
 
 wire u765_busy = ~(u765_idle_a & u765_idle_b);
 
+/////////////////////////////////////////////////////////////////////////
+///////////////////////////// Multiface Two /////////////////////////////
+/////////////////////////////////////////////////////////////////////////
+
+reg         mf2_en = 0;
+reg         mf2_hidden = 0;
+reg   [7:0] mf2_ram[8192];
+wire        mf2_ram_en = mf2_en & addr[15:13] == 3'b001;
+wire        mf2_rom_en = mf2_en & addr[15:13] == 3'b000;
+reg   [4:0] mf2_pen_index;
+reg   [3:0] mf2_crtc_register;
+wire [12:0] mf2_store_addr;
+reg  [12:0] mf2_ram_a;
+reg         mf2_ram_we;
+reg   [7:0] mf2_ram_in, mf2_ram_out;
+
+always_comb begin
+	casex({ addr[15:8], data[7:6] })
+		{ 8'h7f, 2'b00 }: mf2_store_addr = 13'h1fcf;  // pen index
+		{ 8'h7f, 2'b01 }: mf2_store_addr = mf2_pen_index[4] ? 13'h1fdf : { 9'h1f9, mf2_pen_index[3:0] }; // border/pen color
+		{ 8'h7f, 2'b10 }: mf2_store_addr = 13'h1fef; // screen mode
+		{ 8'h7f, 2'b11 }: mf2_store_addr = 13'h1fff; // banking
+		{ 8'hbc, 2'bXX }: mf2_store_addr = 13'h1cff; // CRTC register select
+		{ 8'hbd, 2'bXX }: mf2_store_addr = { 9'h1db, mf2_crtc_register[3:0] }; // CRTC register value
+		{ 8'hf7, 2'bXX }: mf2_store_addr = 13'h17ff; //8255
+		{ 8'hdf, 2'bXX }: mf2_store_addr = 13'h1aac; //upper rom
+		default: mf2_store_addr = 0;
+	endcase
+end
+
+always @(posedge clk_sys) begin
+	if (mf2_ram_we) begin
+		mf2_ram[mf2_ram_a] <= mf2_ram_in;
+		mf2_ram_out <= mf2_ram_in;
+	end
+	mf2_ram_out <= mf2_ram[mf2_ram_a];
+end
+
+always @(posedge clk_sys) begin
+	reg old_key_nmi, old_m1, old_io_wr;
+
+	old_key_nmi <= key_nmi;
+	old_m1 <= m1;
+	old_io_wr <= fdc_wr; //would be better if fdc_rd/wr just called io_rd/wr
+
+	if (reset) begin
+		mf2_en <= 0;
+		mf2_hidden <= 0;
+		NMI <= 0;
+	end
+
+	if(~old_key_nmi & key_nmi & ~mf2_en) NMI <= 1;
+	if (NMI & ~old_m1 & m1 & addr == 'h66) begin
+		mf2_en <= 1;
+		mf2_hidden <= 0;
+		NMI <= 0;
+	end
+	if (mf2_en & ~old_m1 & m1 & addr == 'h65) begin
+		mf2_hidden <= 1;
+	end
+
+	if (~old_io_wr & fdc_wr & addr[15:2] == 14'b11111110111010) begin //fee8/feea
+		mf2_en <= ~addr[1] & ~mf2_hidden;
+	end else if (~old_io_wr & fdc_wr & |mf2_store_addr[12:0]) begin //store hw register in MF2 RAM
+		if (addr[15:8] == 8'h7f & data[7:6] == 2'b00) mf2_pen_index <= data[4:0];
+		if (addr[15:8] == 8'hbc) mf2_crtc_register <= data[3:0];
+		mf2_ram_a <= mf2_store_addr;
+		mf2_ram_in <= data;
+		mf2_ram_we <= 1;
+	end else if (ram_w & mf2_ram_en) begin //normal MF2 RAM write
+		mf2_ram_a <= ram_a[12:0];
+		mf2_ram_in <= ram_din;
+		mf2_ram_we <= 1;
+	end else begin //MF2 RAM read
+		mf2_ram_a <= ram_a[12:0];
+		mf2_ram_we <=0;
+	end
+
+end
+
 //////////////////////////////////////////////////////////////////////////
 
 wire  [3:0] ppi_jumpers = {2'b11, ~status[1], 1'b1};
 wire        crtc_type = ~status[2];
+wire [15:0] addr;
+wire  [7:0] data;
+wire        m1, key_nmi, NMI;
 
 Amstrad_motherboard motherboard
 (
@@ -478,7 +564,13 @@ Amstrad_motherboard motherboard
 	.ram_Dout(ram_din),
 
 	.zram_din(zram_dout),
-	.zram_addr(zram_addr)
+	.zram_addr(zram_addr),
+
+	.addr(addr),
+	.data(data),
+	.M1(m1),
+	.NMI(NMI),
+	.key_nmi(key_nmi)
 );
 
 //////////////////////////////////////////////////////////////////////

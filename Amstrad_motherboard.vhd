@@ -29,7 +29,8 @@ entity joykeyb_MUSER_amstrad_motherboard is
 		PPI_portC : in    std_logic_vector (3 downto 0); 
 		PS2_CLK   : in    std_logic; 
 		PS2_DATA  : in    std_logic; 
-		key_reset : out   std_logic_vector(1 downto 0); 
+		key_reset : out   std_logic_vector(1 downto 0);
+		key_nmi   : out   std_logic;
 		PPI_portA : out   std_logic_vector (7 downto 0)
 	);
 end joykeyb_MUSER_amstrad_motherboard;
@@ -57,6 +58,7 @@ begin
 			unpress=>unpress,
 			key_reset=>key_reset(1),
 			key_reset_space=>key_reset(0),
+			key_nmi=>key_nmi,
 			portA(7 downto 0)=>PPI_portA(7 downto 0)
 		);
    
@@ -143,7 +145,14 @@ entity Amstrad_motherboard is
 
 		zram_din   : in  std_logic_vector(7 downto 0); 
 		zram_addr  : out std_logic_vector(15 downto 0);
-		zram_rd    : out std_logic
+		zram_rd    : out std_logic;
+
+      -- Expansion connector (for implementing peripherals)
+		addr       : out std_logic_vector (15 downto 0);
+		data       : out std_logic_vector (7 downto 0);
+		M1         : out std_logic;
+		NMI        : in std_logic;
+		key_nmi    : out std_logic
 	);
 end Amstrad_motherboard;
 
@@ -191,6 +200,10 @@ begin
 	fdc_rd  <= IO_RD;
 	fdc_dout<= D;
 
+	addr<=A;
+	data<=D;
+	M1<=not M1_n;
+
 	CPU : work.T80pa
 		port map (
 			RESET_n=>RESET_n,
@@ -212,7 +225,7 @@ begin
 
 			BUSRQ_n=>'1',
 			INT_n=>not INT,
-			NMI_n=>'1',
+			NMI_n=>not NMI,
 			WAIT_n=>'1'
 		);
 
@@ -328,6 +341,7 @@ begin
 			PS2_CLK=>PS2_CLK,
 			PS2_DATA=>PS2_DATA,
 			key_reset=>key_reset,
+			key_nmi=>key_nmi,
 			PPI_portA=>kbd_out
 		);
 
