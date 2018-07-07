@@ -100,7 +100,7 @@ module emu
 assign {DDRAM_CLK, DDRAM_BURSTCNT, DDRAM_ADDR, DDRAM_DIN, DDRAM_BE, DDRAM_RD, DDRAM_WE} = 0;
 assign {SD_SCK, SD_MOSI, SD_CS} = 'Z;
 
-assign LED_USER  = f2_en | ioctl_download;
+assign LED_USER  = mf2_en | ioctl_download;
 assign LED_DISK  = 0;
 assign LED_POWER = 0;
 
@@ -253,16 +253,16 @@ always @(posedge clk_sys) begin
 		boot_a[13:0] <= ioctl_addr[13:0];
 
 		case(ioctl_addr[24:14])
-		   0,4: boot_a[22:14] = 9'h000;
-		   1,5: boot_a[22:14] = 9'h100;
-		   2,6: boot_a[22:14] = 9'h107;
-		   3,7: boot_a[22:14] = 9'h1ff; //MF2
-		  default: ioctl_wait    <= 0;
+		      0,4: boot_a[22:14] <= 9'h000;
+		      1,5: boot_a[22:14] <= 9'h100;
+		      2,6: boot_a[22:14] <= 9'h107;
+		      3,7: boot_a[22:14] <= 9'h1ff; //MF2
+		  default:    ioctl_wait <= 0;
 		endcase
 
 		case(ioctl_addr[24:14])
-		 0,1,2,3: boot_bank = 0;
-		 4,5,6,7: boot_bank = 1;
+		  0,1,2,3: boot_bank <= 0;
+		  4,5,6,7: boot_bank <= 1;
 		endcase
 	end
 
