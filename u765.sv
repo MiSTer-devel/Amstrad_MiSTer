@@ -48,13 +48,7 @@ module u765
 	input  [8:0] sd_buff_addr,
 	input  [7:0] sd_buff_dout,
 	output [7:0] sd_buff_din,
-	input        sd_buff_wr,
-
-	                          // milti drive signals:
-	input        drive,       // drive number assigned for instance
-	output [7:0] mstatus,     // main status output for external mix for more than 1 drive
-	output reg   idle,        // 
-	input        busy         //
+	input        sd_buff_wr
 );
 
 parameter COMMAND_TIMEOUT = 26'd35000000;
@@ -161,22 +155,6 @@ reg [7:0] buff_data_in, buff_data_out;
 reg [8:0] buff_addr;
 wire sd_buff_type;
 reg hds;
-reg [1:0] uss;
-wire active = (drive == uss[0]);
-
-reg [7:0] dout_r;
-assign dout = active ? dout_r : 8'h00;
-
-reg [7:0] m_status;  //main status register
-assign mstatus = m_status;
-
-reg sd_busy = 0;
-
-wire [7:0] sd_buff_q;
-assign sd_buff_din = sd_busy ? sd_buff_q : 8'h00;
-
-reg [31:0] sd_lba_r;
-assign sd_lba = (sd_wr | sd_rd) ? sd_lba_r : 32'd0;
 
 u765_dpram sbuf
 (
@@ -184,8 +162,8 @@ u765_dpram sbuf
 
 	.address_a({sd_buff_type,hds,sd_buff_addr}),
 	.data_a(sd_buff_dout),
-	.wren_a(sd_buff_wr & sd_ack & sd_busy),
-	.q_a(sd_buff_q),
+	.wren_a(sd_buff_wr & sd_ack),
+	.q_a(sd_buff_din),
 
 	.address_b({sd_buff_type,hds,buff_addr}),
 	.data_b(buff_data_out),
@@ -221,8 +199,10 @@ always @(posedge clk_sys) begin
 	reg old_mounted;
 	reg [15:0] track_offset;
 	reg [5:0] ack;
+	reg sd_busy;
 	reg [26:0] timeout;
 	reg rtrack, write, rw_deleted;
+	reg [7:0] m_status;  //main status register
 	reg [7:0] status[4] = '{0, 0, 0, 0}; //st0-3
 	state_t state, command;
 	reg [7:0] ncn; //new cylinder number
@@ -257,7 +237,6 @@ always @(posedge clk_sys) begin
 		seek_state <= 0;
 		next_weak_sector <= 0;
 		last_readid_sector <= 0;
-		idle <= 0;
 	end
 
    //Process the image file
@@ -268,7 +247,7 @@ always @(posedge clk_sys) begin
 				if (~sd_busy) begin
 					sd_buff_type <= UPD765_SD_BUFF_SECTOR;
 					sd_rd<=1;
-					sd_lba_r<=0;
+					sd_lba<=0;
 					sd_busy<=1;
 					track_offset<=16'h1; //offset 100h
 					image_track_offsets_addr <= 0;
@@ -344,7 +323,6 @@ always @(posedge clk_sys) begin
 		seek_state <= 0;
 		{ack, sd_wr, sd_rd, sd_busy} <= 0;
 		image_track_offsets_wr <= 0;
-		idle <= 0;
 	end else if (ce) begin
 
 		ack <= {ack[4:0], sd_ack};
@@ -356,13 +334,13 @@ always @(posedge clk_sys) begin
 
 		//seek
 		case(seek_state)
-			0: begin m_status[{2'b00, drive}] <= 0;                  end //no seek in progress
-			1: begin m_status[{2'b00, drive}] <= 1; seek_state <= 2; end //wait for image_track_offset_in
+			0: ;//no seek in progress
+			1: seek_state <= 2; //wait for image_track_offset_in
 			2: if (image_ready && image_track_offsets_in) begin
 				    if (~sd_busy) begin
 				        sd_buff_type <= UPD765_SD_BUFF_TRACKINFO;
 				        sd_rd <= 1;
-				        sd_lba_r <= image_track_offsets_in[15:1];
+				        sd_lba <= image_track_offsets_in[15:1];
 				        sd_busy <= 1;
 				        seek_state <= 3;
 				    end
@@ -399,38 +377,35 @@ always @(posedge clk_sys) begin
 		case(state)
 			COMMAND_IDLE:
 			begin
-				m_status[UPD765_MAIN_CB]  <= 0;
-				m_status[UPD765_MAIN_EXM] <= 0;
+				m_status[UPD765_MAIN_CB] <= 0;
 				m_status[UPD765_MAIN_DIO] <= 0;
-				m_status[UPD765_MAIN_RQM] <= !m_status[3:0];
-				idle <= 1;
+				m_status[UPD765_MAIN_RQM] <= 1;
 
-				if (~old_wr & wr & a0 & ~busy) begin
-					idle <= 0;
+				if (~old_wr & wr & a0) begin
 					//mt <= din[7];
 					//mfm <= din[6];
 					sk <= din[5];
 					substate <= 0;
 					casex (din[7:0])
-						8'bXXX_00110: state <= COMMAND_READ_DATA;
-						8'bXXX_01100: state <= COMMAND_READ_DELETED_DATA;
-						8'bXX0_00101: state <= COMMAND_WRITE_DATA;
-						8'bXX0_01001: state <= COMMAND_WRITE_DELETED_DATA;
-						8'b0XX_00010: state <= COMMAND_READ_TRACK;
-						8'b0X0_01010: state <= COMMAND_READ_ID;
-						8'b0X0_01101: state <= COMMAND_FORMAT_TRACK;
-						8'bXXX_10001: state <= COMMAND_SCAN_EQUAL;
-						8'bXXX_11001: state <= COMMAND_SCAN_LOW_OR_EQUAL;
-						8'bXXX_11101: state <= COMMAND_SCAN_HIGH_OR_EQUAL;
-						8'b000_00111: state <= COMMAND_RECALIBRATE;
-						8'b000_01000: state <= COMMAND_SENSE_INTERRUPT_STATUS;
-						8'b000_00011: state <= COMMAND_SPECIFY;
-						8'b000_00100: state <= COMMAND_SENSE_DRIVE_STATUS;
-						8'b000_01111: state <= COMMAND_SEEK;
-						     default: state <= COMMAND_INVALID;
+						8'bXXX00110: state <= COMMAND_READ_DATA;
+						8'bXXX01100: state <= COMMAND_READ_DELETED_DATA;
+						8'bXX000101: state <= COMMAND_WRITE_DATA;
+						8'bXX001001: state <= COMMAND_WRITE_DELETED_DATA;
+						8'b0XX00010: state <= COMMAND_READ_TRACK;
+						8'b0X001010: state <= COMMAND_READ_ID;
+						8'b0X001101: state <= COMMAND_FORMAT_TRACK;
+						8'bXXX10001: state <= COMMAND_SCAN_EQUAL;
+						8'bXXX11001: state <= COMMAND_SCAN_LOW_OR_EQUAL;
+						8'bXXX11101: state <= COMMAND_SCAN_HIGH_OR_EQUAL;
+						8'b00000111: state <= COMMAND_RECALIBRATE;
+						8'b00001000: state <= COMMAND_SENSE_INTERRUPT_STATUS;
+						8'b00000011: state <= COMMAND_SPECIFY;
+						8'b00000100: state <= COMMAND_SENSE_DRIVE_STATUS;
+						8'b00001111: state <= COMMAND_SEEK;
+						default: state <= COMMAND_INVALID;
 					endcase
 				end else if(~old_rd & rd & a0) begin
-					dout_r <= 8'hff;
+					dout <= 8'hff;
 				end
 			end
 
@@ -444,13 +419,13 @@ always @(posedge clk_sys) begin
 
 			COMMAND_SENSE_INTERRUPT_STATUS1:
 			if (~old_rd & rd & a0) begin
-				dout_r <= status[0];
+				dout <= status[0];
 				state <= COMMAND_SENSE_INTERRUPT_STATUS2;
 			end
 
 			COMMAND_SENSE_INTERRUPT_STATUS2:
 			if (~old_rd & rd & a0) begin
-				dout_r <= pcn;
+				dout <= pcn;
 				state <= COMMAND_IDLE;
 			end
 
@@ -458,21 +433,15 @@ always @(posedge clk_sys) begin
 			begin
 				int_state <= 0;
 				if (~old_wr & wr & a0) begin
-					uss <= din[1:0];
-					if(drive == din[0]) begin
-						state <= COMMAND_SENSE_DRIVE_STATUS_RD;
-						m_status[UPD765_MAIN_DIO] <= 1;
-						ds0 <= din[0];
-					end
-					else begin
-						state <= COMMAND_IDLE;
-					end
+					state <= COMMAND_SENSE_DRIVE_STATUS_RD;
+					m_status[UPD765_MAIN_DIO] <= 1;
+					ds0 <= din[0];
 				end
 			end
 
 			COMMAND_SENSE_DRIVE_STATUS_RD:
 			if (~old_rd & rd & a0) begin
-				dout_r <= ds0 ? 8'h1 : status[3];
+				dout <= ds0 ? 8'h1 : status[3];
 				state <= COMMAND_IDLE;
 			end
 
@@ -496,13 +465,10 @@ always @(posedge clk_sys) begin
 				int_state <= 0;
 				m_status[UPD765_MAIN_CB] <= 1;
 				if (~old_wr & wr & a0) begin
-					uss <= din[1:0];
-					if(drive == din[0]) begin
-						hds <= 0;
-						ncn <= 0;
-						image_track_offsets_addr <= 0;
-						seek_state <= 1;
-					end
+					hds <= 0;
+					ncn <= 0;
+					image_track_offsets_addr <= 0;
+					seek_state <= 1;
 					state <= COMMAND_IDLE;
 				end
 			end
@@ -513,14 +479,8 @@ always @(posedge clk_sys) begin
 				int_state <= 0;
 				m_status[UPD765_MAIN_CB] <= 1;
 				if (~old_wr & wr & a0) begin
-					uss <= din[1:0];
-					if(drive == din[0]) begin
-						hds <= 0;
-						state <= COMMAND_SEEK_EXEC1;
-					end
-					else begin
-						state <= COMMAND_IDLE;
-					end
+					hds <= 0;
+					state <= COMMAND_SEEK_EXEC1;
 				end
 			end
 
@@ -544,28 +504,22 @@ always @(posedge clk_sys) begin
 				int_state<=0;
 				m_status[UPD765_MAIN_CB] <= 1;
 				if (~old_wr & wr & a0) begin
-					uss <= din[1:0];
-					if(drive == din[0]) begin
-						if (~ready | ~image_ready) begin
-							status[0] <= 8'h40;
-							status[1] <= 8'b101;
-							status[2] <= 0;
-							state <= COMMAND_READ_RESULTS;
-						end else	if (din[2] & ~image_sides) begin
-							status[0] <= 8'h48; //no side B
-							status[1] <= 0;
-							status[2] <= 0;
-							state <= COMMAND_READ_RESULTS;
-						end else begin
-							hds <= din[2];
-							image_track_offsets_addr <= { pcn, din[2] };
-							buff_wait <= 1;
-							state <= COMMAND_READ_ID_EXEC1;
-							m_status[UPD765_MAIN_RQM] <= 0;
-						end
-					end
-					else begin
-						state <= COMMAND_IDLE;
+					if (~ready | ~image_ready) begin
+						status[0] <= 8'h40;
+						status[1] <= 8'b101;
+						status[2] <= 0;
+						state <= COMMAND_READ_RESULTS;
+					end else	if (din[2] & ~image_sides) begin
+						status[0] <= 8'h48; //no side B
+						status[1] <= 0;
+						status[2] <= 0;
+						state <= COMMAND_READ_RESULTS;
+					end else begin
+						hds <= din[2];
+						image_track_offsets_addr <= { pcn, din[2] };
+						buff_wait <= 1;
+						state <= COMMAND_READ_ID_EXEC1;
+						m_status[UPD765_MAIN_RQM] <= 0;
 					end
 				end
 			end
@@ -757,7 +711,7 @@ always @(posedge clk_sys) begin
 			if (~sd_busy) begin
 				sd_buff_type <= UPD765_SD_BUFF_SECTOR;
 				sd_rd <= 1;
-				sd_lba_r <= seek_pos[31:9];
+				sd_lba <= seek_pos[31:9];
 				sd_busy <= 1;
 				buff_addr <= seek_pos[8:0];
 				buff_wait <= 1;
@@ -771,7 +725,7 @@ always @(posedge clk_sys) begin
 					//end of the current sector
 					m_status[UPD765_MAIN_RQM] <= 0;
 					if (write && buff_addr && seek_pos < image_size) begin
-						sd_lba_r <= seek_pos[31:9];
+						sd_lba <= seek_pos[31:9];
 						sd_wr <= 1;
 						sd_busy <= 1;
 					end
@@ -790,7 +744,7 @@ always @(posedge clk_sys) begin
 					end
 					//Speedlock: randomize 'weak' sectors last bytes
 					//weak sector is cyl 0, head 0, sector 2
-					dout_r <= (current_sector == 2 & !pcn & ~hds &
+					dout <= (current_sector == 2 & !pcn & ~hds &
 					         sector_st1[5] & sector_st2[5] & !bytes_to_read[14:2]) ?
 								timeout[7:0] :
 								buff_data_in;
@@ -823,7 +777,7 @@ always @(posedge clk_sys) begin
 					//sector continues on the next LBA
 					//so write out the current before reading the next
 					if (seek_pos < image_size) begin
-						sd_lba_r <= seek_pos[31:9];
+						sd_lba <= seek_pos[31:9];
 						sd_wr <= 1;
 						sd_busy <= 1;
 					end
@@ -862,16 +816,7 @@ always @(posedge clk_sys) begin
 			begin
 				int_state <= 0;
 				m_status[UPD765_MAIN_CB] <= 1;
-				if (~old_wr & wr & a0) begin
-					uss <= din[1:0];
-					if(drive == din[0]) begin
-						hds <= din[2];
-						state <= COMMAND_FORMAT_TRACK1;
-					end
-					else begin
-						state <= COMMAND_IDLE;
-					end
-				end
+				state <= COMMAND_FORMAT_TRACK1;
 			end
 
 			COMMAND_FORMAT_TRACK1: //doesn't modify the media
@@ -959,14 +904,8 @@ always @(posedge clk_sys) begin
 			if (!old_wr & wr & a0) begin
 				case (substate)
 					0: begin
-							uss <= din[1:0];
-							if(drive == din[0]) begin
-								hds <= din[2];
-								substate <= 1;
-							end
-							else begin
-								state <= COMMAND_IDLE;
-							end
+							hds <= din[2];
+							substate <= 1;
 						end
 					1: begin
 							c <= din;
@@ -1020,31 +959,31 @@ always @(posedge clk_sys) begin
 				if (~old_rd & rd & a0) begin
 					case (substate)
 						0: begin
-								dout_r <= {status[0][7:3], hds, status[0][1:0]};
+								dout <= {status[0][7:3], hds, status[0][1:0]};
 								substate <= 1;
 							end
 						1: begin
-								dout_r <= status[1];
+								dout <= status[1];
 								substate <= 2;
 							end
 						2: begin
-								dout_r <= status[2];
+								dout <= status[2];
 								substate <= 3;
 							end
 						3: begin
-								dout_r <= sector_c;
+								dout <= sector_c;
 								substate <= 4;
 							end
 						4: begin
-								dout_r <= sector_h;
+								dout <= sector_h;
 								substate <= 5;
 							end
 						5: begin
-								dout_r <= sector_r;
+								dout <= sector_r;
 								substate <= 6;
 							end
 						6: begin
-								dout_r <= sector_n;
+								dout <= sector_n;
 								state <= COMMAND_IDLE;
 							end
 						7: ;//not happen
@@ -1063,13 +1002,13 @@ always @(posedge clk_sys) begin
 			COMMAND_INVALID1:
 			if (~old_rd & rd & a0) begin
 				state <= COMMAND_IDLE;
-				dout_r <= status[0];
+				dout <= status[0];
 			end
 
 		endcase //status
 
 		if (~old_rd & rd & ~a0) begin //read main status register
-			dout_r <= m_status;
+			dout <= m_status;
 		end
 	end
 end
