@@ -1,15 +1,24 @@
 # Amstrad CPC 6128 for MiSTer
 This core is port of [CoreAmstrad by Renaud Hélias](https://github.com/renaudhelias/CoreAmstrad).
 
-## Features
-Besides the refactoring, this version has completely rewritten Floppy Disk Controller allowing real write to floppy.
-u765 by Gyorgy Szombathelyi is used as FDC.
+## New features in this port
+* 2 disk drives with real write support.
+* Selectable 6128/664 mode with separate ROM sets
+* Multiface 2
+* Better CPU timings due to more presize model.
 
-Unlike original CoreAmstrad, this core uses consolidated ROM (amstrad.rom) which is hardcoded to use lowROM + highROM0 + highROM7.
-The ROM part probably needs to be improved in order to use custom ROMs split across separate parts. It will depends on future requests.
+## Installation
+place RBF and amstrad.rom into root of SD card. Or you can rename ROM to boot.rom and put it into Amstrad folder.
 
 ## Disk support
 Put some *.DSK files to Amstrad folder and mount it from OSD menu.
 important Basic commands:
 * cat - list the files on mounted disk.
 * run" - load and start the program. ex: run"equinox
+
+## ROM
+Rom has following structure:
+
+OS6128 + BASIC1.1 + AMSDOS + MF2 + OS664 + BASIC664 + AMSDOS + MF2
+
+Every part is 16KB. You can create your own ROM if you have a special preference.
