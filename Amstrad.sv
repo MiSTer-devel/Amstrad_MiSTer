@@ -110,9 +110,10 @@ assign VIDEO_ARY = status[1] ? 8'd9  : 8'd3;
 `include "build_id.v"
 localparam CONF_STR = {
 	"Amstrad;;",
-	"-;",
 	"S0,DSK,Mount A:;",
 	"S1,DSK,Mount B:;",
+	"-;",
+	"F,e??,Load expansion;",
 	"-;",
 	"O1,Aspect ratio,4:3,16:9;",
 	"O9A,Scandoubler Fx,None,HQ2x,CRT 25%,CRT 50%;",
@@ -123,7 +124,6 @@ localparam CONF_STR = {
 	"O4,Model,CPC 6128,CPC 664;",
 	"O2,Video chip,model 1,model 0;",
 	"O3,CPU timings,Original,Fast;",
-	"-;",
 	"R0,Reset & apply model;",
 	"J,Fire 1,Fire 2;",
 	"V,v1.30.",`BUILD_DATE
@@ -188,6 +188,7 @@ wire [24:0] ioctl_addr;
 wire  [7:0] ioctl_dout;
 wire        ioctl_download;
 wire  [7:0] ioctl_index;
+wire [31:0] ioctl_file_ext;
 reg         ioctl_wait;
 
 wire        ps2_clk;
@@ -233,10 +234,11 @@ hps_io #(.STRLEN($size(CONF_STR)>>3), .VDNUM(2)) hps_io
 	.ioctl_dout(ioctl_dout),
 	.ioctl_download(ioctl_download),
 	.ioctl_index(ioctl_index),
+	.ioctl_file_ext(ioctl_file_ext),
 	.ioctl_wait(ioctl_wait)
 );
 
-wire        rom_download = !ioctl_index & ioctl_download;
+wire        rom_download = ioctl_download;
 wire        reset = RESET | status[0] | buttons[1] | rom_download;
 
 reg         boot_wr = 0;
@@ -244,7 +246,13 @@ reg  [22:0] boot_a;
 reg   [1:0] boot_bank;
 reg   [7:0] boot_dout;
 
+reg [255:0] rom_map = '0;
+reg         model = 0;
+
 always @(posedge clk_sys) begin
+	reg [8:0] page = 0;
+	reg       combo = 0;
+	reg       old_download;
 
 	if(rom_download & ioctl_wr) begin
 		ioctl_wait <= 1;
@@ -252,25 +260,64 @@ always @(posedge clk_sys) begin
 
 		boot_a[13:0] <= ioctl_addr[13:0];
 
-		case(ioctl_addr[24:14])
-		      0,4: boot_a[22:14] <= 9'h000;
-		      1,5: boot_a[22:14] <= 9'h100;
-		      2,6: boot_a[22:14] <= 9'h107;
-		      3,7: boot_a[22:14] <= 9'h1ff; //MF2
-		  default:    ioctl_wait <= 0;
-		endcase
+		if(ioctl_index) begin
+			boot_a[22]    <= page[8];
+			boot_a[21:14] <= page[7:0] + ioctl_addr[21:14];
+			boot_bank     <= model;
+		end
+		else begin
+			case(ioctl_addr[24:14])
+					0,4: boot_a[22:14] <= 9'h000;
+					1,5: boot_a[22:14] <= 9'h100;
+					2,6: boot_a[22:14] <= 9'h107;
+					3,7: boot_a[22:14] <= 9'h1ff; //MF2
+			  default:    ioctl_wait <= 0;
+			endcase
 
-		case(ioctl_addr[24:14])
-		  0,1,2,3: boot_bank <= 0;
-		  4,5,6,7: boot_bank <= 1;
-		endcase
+			case(ioctl_addr[24:14])
+			  0,1,2,3: boot_bank <= 0;
+			  4,5,6,7: boot_bank <= 1;
+			endcase
+		end
 	end
 
 	if(ce_ref) begin
 		boot_wr <= ioctl_wait;
-		if(boot_wr & ioctl_wait) {boot_wr, ioctl_wait} <= 0;
+		if(boot_wr & ioctl_wait) begin
+			{boot_wr, ioctl_wait} <= 0;
+			if(boot_a[22]) rom_map[boot_a[21:14]] <= 1;
+			if(combo && &boot_a[13:0]) begin
+				combo <= 0;
+				page  <= 9'h1FF;
+			end
+		end
+	end
+
+	if(reset) begin
+		model <= status[4];
+		if(model != status[4]) begin
+			rom_map <= '0;
+			rom_map[0] <= 1;
+			rom_map[7] <= 1;
+			rom_map[255] <= 1;
+		end
+	end
+	
+	old_download <= ioctl_download;
+	if(~old_download & ioctl_download) begin
+		if(ioctl_index) begin
+			page <= 9'h1EE; // some unused page for malformed file extension
+			combo <= 0;
+			if(ioctl_file_ext[15:8] >= "0" && ioctl_file_ext[15:8] <= "9") page[7:4] <= ioctl_file_ext[11:8];
+			if(ioctl_file_ext[15:8] >= "A" && ioctl_file_ext[15:8] <= "F") page[7:4] <= ioctl_file_ext[11:8]+4'd9;
+			if(ioctl_file_ext[7:0]  >= "0" && ioctl_file_ext[7:0]  <= "9") page[3:0] <= ioctl_file_ext[3:0];
+			if(ioctl_file_ext[7:0]  >= "A" && ioctl_file_ext[7:0]  <= "F") page[3:0] <= ioctl_file_ext[3:0] +4'd9;
+			if(ioctl_file_ext[15:0] == "ZZ") page <= 0;
+			if(ioctl_file_ext[15:0] == "Z0") begin page <= 0; combo <= 1; end
+		end
 	end
 end
+
 
 //////////////////////////////////////////////////////////////////////////
 
@@ -305,19 +352,7 @@ sdram sdram
 	.vram_dout(zram_dout)
 );
 
-reg [7:0] rom_mask;
-always_comb begin
-	casex(ram_a[22:14])
-	  'h0XX: rom_mask = 0;
-	  'h100: rom_mask = 0;
-	  'h107: rom_mask = 0;
-	  'h1ff: rom_mask = 0;
-	default: rom_mask = 'hFF;
-	endcase
-end
-
-reg model = 0;
-always @(posedge clk_sys) if(reset) model <= status[4];
+wire [7:0] rom_mask = (~ram_a[22] | rom_map[ram_a[21:14]]) ? 8'h00 : 8'hFF;
 
 //////////////////////////////////////////////////////////////////////////
 
