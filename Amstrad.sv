@@ -119,7 +119,7 @@ localparam CONF_STR = {
 	"O9A,Scandoubler Fx,None,HQ2x,CRT 25%,CRT 50%;",
 	"OBD,Colors,All,Mono-G,Mono-R,Mono-B,Mono-W;",
 	"O78,Stereo mix,none,25%,50%,100%;",
-	"-;",
+	"OEF,Multiface 2,Enabled,Hidden,Disabled;",
 	"O5,Distributor,Amstrad,Schneider;",
 	"O4,Model,CPC 6128,CPC 664;",
 	"O2,Video chip,model 1,model 0;",
@@ -511,12 +511,12 @@ always @(posedge clk_sys) begin
 
 	if (reset) begin
 		mf2_en <= 0;
-		mf2_hidden <= 0;
+		mf2_hidden <= |status[15:14];
 		NMI <= 0;
 	end
 
-	if(~old_key_nmi & key_nmi & ~mf2_en) NMI <= 1;
-	if (NMI & ~old_m1 & m1 & mb_addr == 'h66) begin
+	if(~old_key_nmi & key_nmi & ~mf2_en & ~status[15]) NMI <= 1;
+	if (NMI & ~old_m1 & m1 & (mb_addr == 'h66)) begin
 		mf2_en <= 1;
 		mf2_hidden <= 0;
 		NMI <= 0;
