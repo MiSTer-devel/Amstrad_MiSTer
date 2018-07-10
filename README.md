@@ -42,7 +42,7 @@ You will need to re-load expansions after change the model.
 
 CPC664 model has only 64KB RAM - use this model for programs not compatible with 128KB RAM.
 
-CPC6128 model has 128+512KB RAM. 512KB is visible in special OS ROM or application aware of 512KB expansion.
+CPC6128 model has 64KB+512KB RAM. Upper 448KB are visible in special OS ROM or application aware of 512KB expansion.
 
 ## Multiface 2
 * Multiface 2 can be activated with F11.
