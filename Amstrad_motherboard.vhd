@@ -179,6 +179,22 @@ architecture BEHAVIORAL of Amstrad_motherboard is
 	signal M1_n          : std_logic;
 	signal SOUND_CE      : std_logic;
 
+	component Amstrad_MMU is Port
+	(
+		CLK        : in  STD_LOGIC;
+		reset      : in  STD_LOGIC;
+		
+		ram64k     : in  STD_LOGIC;
+
+		io_WR      : in  STD_LOGIC;
+		mem_WR     : in  STD_LOGIC;
+
+		D          : in  STD_LOGIC_VECTOR (7 downto 0);
+		A          : in  STD_LOGIC_VECTOR (15 downto 0);
+		ram_A      : out STD_LOGIC_VECTOR (22 downto 0)
+	);
+	end component;
+	
 begin
 
 	IO_RD <=not RD_n and not IORQ_n;
@@ -291,15 +307,15 @@ begin
 			DO=>ppi_dout
 		);
 
-   MMU : work.Amstrad_MMU
+   MMU : Amstrad_MMU
       port map (
 			CLK=>CLK,
 			reset=>not RESET_n,
 			ram64k=>ram64k,
 			A=>A,
 			D=>D,
-			wr_io_z80=>IO_WR,
-			wr_z80=>MEM_WR,
+			io_WR=>IO_WR,
+			mem_WR=>MEM_WR,
 			ram_A=>ram_A
 		);
 
