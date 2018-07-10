@@ -26,8 +26,7 @@ module Amstrad_motherboard
 
 	input   [5:0] joy1,
 	input   [5:0] joy2,
-	input         ps2_clk,
-	input         ps2_data,
+	input  [10:0] ps2_key,
 	output        key_nmi,
 
 	input   [3:0] ppi_jumpers,
@@ -207,17 +206,16 @@ YM2149 PSG
 	.i_iob(8'hFF)
 );
 
-joykeyb KBD
+keyboard KBD
 (
 	.clk(clk),
-	.ce_4mhz(ce_4p),
+	.ce(ce_4p),
 	.joystick1(joy1),
 	.joystick2(joy2),
-	.ppi_portc(portC[3:0]),
-	.ps2_clk(ps2_clk),
-	.ps2_data(ps2_data),
+	.portc(portC[3:0]),
+	.ps2_key(ps2_key),
 	.key_nmi(key_nmi),
-	.ppi_porta(kbd_out)
+	.porta(kbd_out)
 );
 
 endmodule

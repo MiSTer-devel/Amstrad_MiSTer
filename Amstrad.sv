@@ -191,8 +191,7 @@ wire  [7:0] ioctl_index;
 wire [31:0] ioctl_file_ext;
 reg         ioctl_wait;
 
-wire        ps2_clk;
-wire        ps2_data;
+wire [10:0] ps2_key;
 
 wire  [1:0] buttons;
 wire  [5:0] joy1;
@@ -219,8 +218,7 @@ hps_io #(.STRLEN($size(CONF_STR)>>3), .VDNUM(2)) hps_io
 	.sd_buff_din(sd_buff_din),
 	.sd_buff_wr(sd_buff_wr),
 
-	.ps2_kbd_clk_out(ps2_clk),
-	.ps2_kbd_data_out(ps2_data),
+	.ps2_key(ps2_key),
 
 	.joystick_0(joy1),
 	.joystick_1(joy2),
@@ -561,8 +559,7 @@ Amstrad_motherboard motherboard
 	.ce_4n(ce_4n),
 	.ce_16(ce_16),
 
-	.ps2_clk(ps2_clk),
-	.ps2_data(ps2_data),
+	.ps2_key(ps2_key),
 
 	.no_wait(status[3]),
 	.ppi_jumpers(ppi_jumpers),
