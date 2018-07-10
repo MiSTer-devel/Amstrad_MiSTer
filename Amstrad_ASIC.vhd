@@ -118,7 +118,7 @@ entity Amstrad_ASIC is
 		WAIT_n    : out STD_LOGIC:='1';
 
 		-- YM2149 is using rising_edge(CLK)
-		SOUND_CLK : out STD_LOGIC; -- calibrated with Sim City/Abracadabra et les voleurs du temps/CPCRulez -CIRCLES demo
+		SOUND_CE  : out STD_LOGIC; -- calibrated with Sim City/Abracadabra et les voleurs du temps/CPCRulez -CIRCLES demo
 
 		crtc_D    : in  STD_LOGIC_VECTOR (7 downto 0);
 		palette_A : out STD_LOGIC_VECTOR (13 downto 0):=(others=>'0');
@@ -709,17 +709,18 @@ begin
 		crtc_R<='0';
 		bvram_D<=(others=>'0');
 		bvram_W<='0';
+
+		SOUND_CE<='0';
 	--it's Z80 time !
 	elsif rising_edge(CLK) then
+		SOUND_CE<='0';
+
 		if CE_4='1' then
 		
 			compteur1MHz:=(compteur1MHz+1) mod 4;
 			
 			if compteur1MHz=SOUND_OFFSET then
-				SOUND_CLK<='0';
-			else 
-				-- it's a falling_edge Yamaha
-				SOUND_CLK<='1';
+				SOUND_CE<='1';
 			end if;
 		
 			--crtc_DISP<='0';

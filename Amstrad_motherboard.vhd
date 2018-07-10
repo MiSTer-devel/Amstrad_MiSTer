@@ -177,7 +177,7 @@ architecture BEHAVIORAL of Amstrad_motherboard is
 	signal WAIT_n        : std_logic;
 	signal INT           : std_logic;
 	signal M1_n          : std_logic;
-	signal SOUND_CLK     : std_logic;
+	signal SOUND_CE      : std_logic;
 
 begin
 
@@ -256,7 +256,7 @@ begin
 			palette_D=>palette_D,
 			palette_W=>palette_W,
 			WAIT_n=>WAIT_n,
-			SOUND_CLK=>SOUND_CLK,
+			SOUND_CE=>SOUND_CE,
 			Dout=>asic_dout,
 			RED=>RED,
 			GREEN=>GREEN,
@@ -308,7 +308,7 @@ begin
 			RESET_L=>RESET_n,
 
 			CLK=>CLK,
-			ENA=>not SOUND_CLK and CE_4P,
+			ENA=>SOUND_CE,
 			I_SEL_L=>'1',
 
 			I_A8=>'1',
