@@ -14,80 +14,6 @@
 -- As it is about auto-generated code, you'll find no comments by here
 --------------------------------------------------------------------------------
 
-library IEEE;
-use IEEE.STD_LOGIC_1164.ALL;
-use IEEE.STD_LOGIC_ARITH.ALL;
-use IEEE.STD_LOGIC_UNSIGNED.ALL;
-use ieee.numeric_std.ALL;
-
-entity joykeyb_MUSER_amstrad_motherboard is
-	port (
-		CLK       : in    std_logic; 
-		CE_4MHz   : in    std_logic; 
-		joystick1 : in    std_logic_vector (5 downto 0); 
-		joystick2 : in    std_logic_vector (5 downto 0); 
-		PPI_portC : in    std_logic_vector (3 downto 0); 
-		PS2_CLK   : in    std_logic; 
-		PS2_DATA  : in    std_logic; 
-		key_reset : out   std_logic_vector(1 downto 0);
-		key_nmi   : out   std_logic;
-		PPI_portA : out   std_logic_vector (7 downto 0)
-	);
-end joykeyb_MUSER_amstrad_motherboard;
-
-architecture BEHAVIORAL of joykeyb_MUSER_amstrad_motherboard is
-   attribute BOX_TYPE: string ;
-   signal PPI_enable : std_logic;
-   signal keycode    : std_logic_vector (9 downto 0);
-   signal scancode   : std_logic_vector (7 downto 0);
-   signal press      : std_logic;
-   signal unpress    : std_logic;
-   signal fok        : std_logic;
-   
-begin
-	drvr : work.KEYBOARD_driver
-		port map (
-			CLK=>CLK,
-			CE=>CE_4MHz,
-			enable=>'1', --PPI_enable
-			joystick1(5 downto 0)=>joystick1(5 downto 0),
-			joystick2(5 downto 0)=>joystick2(5 downto 0),
-			keycode(9 downto 0)=>keycode(9 downto 0),
-			portC(3 downto 0)=>PPI_portC(3 downto 0),
-			press=>press,
-			unpress=>unpress,
-			key_reset=>key_reset(1),
-			key_reset_space=>key_reset(0),
-			key_nmi=>key_nmi,
-			portA(7 downto 0)=>PPI_portA(7 downto 0)
-		);
-   
-	cntrl : work.KEYBOARD_controller
-		port map (
-			CLK=>CLK,
-			CE=>CE_4MHz,
-			fok=>fok,
-			scancode_in(7 downto 0)=>scancode(7 downto 0),
-			keycode(9 downto 0)=>keycode(9 downto 0),
-			press=>press,
-			unpress=>unpress
-		);
-
-	kbd : work.Keyboard
-		port map (
-			fclk=>CLK,
-			fce=>CE_4MHz,
-			clkin=>PS2_CLK,
-			datain=>PS2_DATA,
-			rst=>'0',
-			fok=>fok,
-			scancode(7 downto 0)=>scancode(7 downto 0)
-		);
-
-end BEHAVIORAL;
-
-
-
 library ieee;
 use ieee.std_logic_1164.ALL;
 use ieee.numeric_std.ALL;
@@ -342,7 +268,7 @@ begin
 			I_IOB=>X"FF"
 		);
 
-   KBD : work.joykeyb_MUSER_amstrad_motherboard
+   KBD : work.joykeyb
 		port map (
 			CLK=>CLK,
 			CE_4MHz=>CE_4P,

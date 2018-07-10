@@ -360,8 +360,6 @@ set_global_assignment -name VERILOG_FILE sdram.v
 set_global_assignment -name VHDL_FILE YM2149_AB_BC.vhd
 set_global_assignment -name VHDL_FILE pio.vhd
 set_global_assignment -name SYSTEMVERILOG_FILE color_mix.sv
-set_global_assignment -name VHDL_FILE KEYBOARD_driver.vhd
-set_global_assignment -name VHDL_FILE KEYBOARD_controller.vhd
 set_global_assignment -name VHDL_FILE Keyboard.vhd
 set_global_assignment -name VHDL_FILE Amstrad_ASIC.vhd
 set_global_assignment -name VERILOG_FILE Amstrad_MMU.v
