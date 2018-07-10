@@ -122,7 +122,7 @@ localparam CONF_STR = {
 	"OEF,Multiface 2,Enabled,Hidden,Disabled;",
 	"O5,Distributor,Amstrad,Schneider;",
 	"O4,Model,CPC 6128,CPC 664;",
-	"O2,Video chip,model 1,model 0;",
+	"O2,CRTC,Type 1,Type 0;",
 	"O3,CPU timings,Original,Fast;",
 	"R0,Reset & apply model;",
 	"J,Fire 1,Fire 2;",
