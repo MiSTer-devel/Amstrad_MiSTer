@@ -37,6 +37,14 @@ Every page is 16KB. It's possible to load larger ROM. In this case every 16KB bl
 You can load several expansions. With every load the system will reboot. System ROM also can be replaced the same way.
 To restore original ROM you have to reload the core (Alt-F12).
 
+You can define boot extensions to automatically load at start of core. Use following name rules:
+* boot.eXX - load to both 664 and 6128 configs
+* boot0.eXX - load to 6128 config
+* boot1.eXX - load to 664 config
+
+whehe XX is 00-FF, ZZ, Z0.
+
+
 CPC664 model has only 64KB RAM - use this model for programs not compatible with 128KB RAM.
 
 CPC6128 model has 64KB+512KB RAM. Upper 448KB are visible in special OS ROM or application aware of 512KB expansion.

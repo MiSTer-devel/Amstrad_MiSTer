@@ -260,7 +260,7 @@ always @(posedge clk_sys) begin
 		if(ioctl_index) begin
 			boot_a[22]    <= page[8];
 			boot_a[21:14] <= page[7:0] + ioctl_addr[21:14];
-			boot_bank     <= 0;
+			boot_bank     <= {1'b0, &ioctl_index[7:6]};
 		end
 		else begin
 			case(ioctl_addr[24:14])
@@ -282,7 +282,8 @@ always @(posedge clk_sys) begin
 		boot_wr <= ioctl_wait;
 		if(boot_wr & ioctl_wait) begin
 			boot_wr <= 0;
-			if(ioctl_index && !boot_bank) boot_bank <= 1; // load expansion ROM into both banks.
+			// load expansion ROM into both banks if manually loaded or boot name is boot.eXX
+			if((ioctl_index[7:6]==1 || ioctl_index[5:0]) && !boot_bank) boot_bank <= 1;
 			else begin
 				{boot_wr, ioctl_wait} <= 0;
 				if(boot_a[22]) rom_map[boot_a[21:14]] <= 1;
