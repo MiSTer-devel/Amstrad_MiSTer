@@ -245,7 +245,6 @@ reg   [1:0] boot_bank;
 reg   [7:0] boot_dout;
 
 reg [255:0] rom_map = '0;
-reg         model = 0;
 
 always @(posedge clk_sys) begin
 	reg [8:0] page = 0;
@@ -261,7 +260,7 @@ always @(posedge clk_sys) begin
 		if(ioctl_index) begin
 			boot_a[22]    <= page[8];
 			boot_a[21:14] <= page[7:0] + ioctl_addr[21:14];
-			boot_bank     <= model;
+			boot_bank     <= 0;
 		end
 		else begin
 			case(ioctl_addr[24:14])
@@ -282,25 +281,19 @@ always @(posedge clk_sys) begin
 	if(ce_ref) begin
 		boot_wr <= ioctl_wait;
 		if(boot_wr & ioctl_wait) begin
-			{boot_wr, ioctl_wait} <= 0;
-			if(boot_a[22]) rom_map[boot_a[21:14]] <= 1;
-			if(combo && &boot_a[13:0]) begin
-				combo <= 0;
-				page  <= 9'h1FF;
+			boot_wr <= 0;
+			if(ioctl_index && !boot_bank) boot_bank <= 1; // load expansion ROM into both banks.
+			else begin
+				{boot_wr, ioctl_wait} <= 0;
+				if(boot_a[22]) rom_map[boot_a[21:14]] <= 1;
+				if(combo && &boot_a[13:0]) begin
+					combo <= 0;
+					page  <= 9'h1FF;
+				end
 			end
 		end
 	end
 
-	if(reset) begin
-		model <= status[4];
-		if(model != status[4]) begin
-			rom_map <= '0;
-			rom_map[0] <= 1;
-			rom_map[7] <= 1;
-			rom_map[255] <= 1;
-		end
-	end
-	
 	old_download <= ioctl_download;
 	if(~old_download & ioctl_download) begin
 		if(ioctl_index) begin
@@ -351,6 +344,9 @@ sdram sdram
 );
 
 wire [7:0] rom_mask = (~ram_a[22] | rom_map[ram_a[21:14]]) ? 8'h00 : 8'hFF;
+
+reg model = 0;
+always @(posedge clk_sys) if(reset) model <= status[4];
 
 //////////////////////////////////////////////////////////////////////////
 

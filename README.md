@@ -37,9 +37,6 @@ Every page is 16KB. It's possible to load larger ROM. In this case every 16KB bl
 You can load several expansions. With every load the system will reboot. System ROM also can be replaced the same way.
 To restore original ROM you have to reload the core (Alt-F12).
 
-Core has separate memory spaces for CPC664 and CPC6128. So, expansions will load to currently selected model's memory only!
-You will need to re-load expansions after change the model.
-
 CPC664 model has only 64KB RAM - use this model for programs not compatible with 128KB RAM.
 
 CPC6128 model has 64KB+512KB RAM. Upper 448KB are visible in special OS ROM or application aware of 512KB expansion.
