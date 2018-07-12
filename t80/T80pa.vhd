@@ -47,6 +47,8 @@
 --
 -- v2.1: Output Address 0 during non-bus MCycle (fix ZX contention)
 --
+-- v2.2: Interrupt cycle has been corrected
+--
 
 library IEEE;
 use IEEE.std_logic_1164.all;
@@ -84,6 +86,7 @@ end T80pa;
 architecture rtl of T80pa is
 
 	signal IntCycle_n		: std_logic;
+	signal IntCycleD_n	: std_logic_vector(1 downto 0);
 	signal IORQ				: std_logic;
 	signal NoRead			: std_logic;
 	signal Write			: std_logic;
@@ -146,6 +149,7 @@ begin
 				CEN_pol <= '1';
 				if MCycle = "001" then
 					if TState = "010" then
+						IORQ_n <= '1';
 						MREQ_n <= '1';
 						RD_n   <= '1';
 					end if;
@@ -164,13 +168,14 @@ begin
 				end if;
 				if MCycle = "001" then
 					if TState = "001" then
+						IntCycleD_n <= IntCycleD_n(0) & IntCycle_n;
 						RD_n   <= not IntCycle_n;
 						MREQ_n <= not IntCycle_n;
-						IORQ_n <= IntCycle_n;
+						IORQ_n <= IntCycleD_n(1);
 					end if;
 					if TState = "011" then
+						IntCycleD_n <= "11";
 						RD_n   <= '1';
-						IORQ_n <= '1';
 						MREQ_n <= '0';
 					end if;
 					if TState = "100" then
