@@ -112,13 +112,10 @@ entity Amstrad_ASIC is
 		D         : in  STD_LOGIC_VECTOR (7 downto 0);
 		M1_n      : in  STD_LOGIC;
 		IORQ_n    : in  STD_LOGIC;
-		MREQ_n    : in  STD_LOGIC;
 		RD_n      : in  STD_LOGIC;
 		WR_n      : in  STD_LOGIC;
-		WAIT_n    : out STD_LOGIC:='1';
 
-		-- YM2149 is using rising_edge(CLK)
-		SOUND_CE  : out STD_LOGIC; -- calibrated with Sim City/Abracadabra et les voleurs du temps/CPCRulez -CIRCLES demo
+		cyc1MHz   : out STD_LOGIC;
 
 		crtc_D    : in  STD_LOGIC_VECTOR (7 downto 0);
 		palette_A : out STD_LOGIC_VECTOR (13 downto 0):=(others=>'0');
@@ -139,14 +136,6 @@ entity Amstrad_ASIC is
 end Amstrad_ASIC;
 
 architecture Behavioral of Amstrad_ASIC is
-
-	signal IO_REQ_W : std_logic;
-	signal IO_REQ_R : std_logic;
-	signal IO_ACK   : std_logic;
-	signal MEM_RD   : std_logic;
-	
-	signal old_MREQ : std_logic;
-	signal old_IORQ : std_logic;
 
 	-- init values are for test bench javacpc ! + Grimware
 	signal RHtot:std_logic_vector(7 downto 0):="00111111";
@@ -173,15 +162,15 @@ architecture Behavioral of Amstrad_ASIC is
 	-- Grimware A PAL 50Hz video-frame on the Amstrad is 312 rasterlines. 
 	-- Grimware screenshoot :
 	--R0 RHtot     =63 : 0..63                            (donc 64 pas)
-	--R1 RHdisp    =40 : 0..39 si HCC=R1 alors DISPEN=OFF (donc 40 pas laissÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â© passÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â©)
-	--R2 RHsyncpos =46 : si HCC=R2 alors HSYNC=ON         (donc 46 pas laissÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â© passÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â©)
-	--R3 RHwidth   =14 : si (HCC-R2=)R3 alors HSYNC=OFF   (donc 60 pas laissÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â© passÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â©)
+	--R1 RHdisp    =40 : 0..39 si HCC=R1 alors DISPEN=OFF (donc 40 pas laissР вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРІР‚В Р Р†Р вЂљРІвЂћСћР вЂњРЎвЂњР Р†Р вЂљР’В Р вЂњРЎС›Р Р†РІР‚С™Р’В¬Р Р†РІР‚С›РЎС›Р вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРЎС›Р Р†РІР‚С™Р’В¬Р вЂўР Р‹Р вЂњРЎвЂњР Р†Р вЂљРЎв„ўР вЂњРІР‚С™Р вЂ™Р’В© passР вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРІР‚В Р Р†Р вЂљРІвЂћСћР вЂњРЎвЂњР Р†Р вЂљР’В Р вЂњРЎС›Р Р†РІР‚С™Р’В¬Р Р†РІР‚С›РЎС›Р вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРЎС›Р Р†РІР‚С™Р’В¬Р вЂўР Р‹Р вЂњРЎвЂњР Р†Р вЂљРЎв„ўР вЂњРІР‚С™Р вЂ™Р’В©)
+	--R2 RHsyncpos =46 : si HCC=R2 alors HSYNC=ON         (donc 46 pas laissР вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРІР‚В Р Р†Р вЂљРІвЂћСћР вЂњРЎвЂњР Р†Р вЂљР’В Р вЂњРЎС›Р Р†РІР‚С™Р’В¬Р Р†РІР‚С›РЎС›Р вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРЎС›Р Р†РІР‚С™Р’В¬Р вЂўР Р‹Р вЂњРЎвЂњР Р†Р вЂљРЎв„ўР вЂњРІР‚С™Р вЂ™Р’В© passР вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРІР‚В Р Р†Р вЂљРІвЂћСћР вЂњРЎвЂњР Р†Р вЂљР’В Р вЂњРЎС›Р Р†РІР‚С™Р’В¬Р Р†РІР‚С›РЎС›Р вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРЎС›Р Р†РІР‚С™Р’В¬Р вЂўР Р‹Р вЂњРЎвЂњР Р†Р вЂљРЎв„ўР вЂњРІР‚С™Р вЂ™Р’В©)
+	--R3 RHwidth   =14 : si (HCC-R2=)R3 alors HSYNC=OFF   (donc 60 pas laissР вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРІР‚В Р Р†Р вЂљРІвЂћСћР вЂњРЎвЂњР Р†Р вЂљР’В Р вЂњРЎС›Р Р†РІР‚С™Р’В¬Р Р†РІР‚С›РЎС›Р вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРЎС›Р Р†РІР‚С™Р’В¬Р вЂўР Р‹Р вЂњРЎвЂњР Р†Р вЂљРЎв„ўР вЂњРІР‚С™Р вЂ™Р’В© passР вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРІР‚В Р Р†Р вЂљРІвЂћСћР вЂњРЎвЂњР Р†Р вЂљР’В Р вЂњРЎС›Р Р†РІР‚С™Р’В¬Р Р†РІР‚С›РЎС›Р вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРЎС›Р Р†РІР‚С™Р’В¬Р вЂўР Р‹Р вЂњРЎвЂњР Р†Р вЂљРЎв„ўР вЂњРІР‚С™Р вЂ™Р’В©)
 	--R4 RVtot     =38 : 0..38                            (donc 39 pas)
-	--R6 RVdisp    =25 : 0..24 si VCC=R6 alors DISPEN=OFF (donc 25 pas laissÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â© passÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â©)
-	--R7 RVsyncpos =30 : si VCC=R7 alors VSYNC=ON         (donc 30 pas laissÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â© passÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â©)
-	--R3 RVwidth   =8  : VSYNC=OFF aprÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¨s un certain temps...
+	--R6 RVdisp    =25 : 0..24 si VCC=R6 alors DISPEN=OFF (donc 25 pas laissР вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРІР‚В Р Р†Р вЂљРІвЂћСћР вЂњРЎвЂњР Р†Р вЂљР’В Р вЂњРЎС›Р Р†РІР‚С™Р’В¬Р Р†РІР‚С›РЎС›Р вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРЎС›Р Р†РІР‚С™Р’В¬Р вЂўР Р‹Р вЂњРЎвЂњР Р†Р вЂљРЎв„ўР вЂњРІР‚С™Р вЂ™Р’В© passР вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРІР‚В Р Р†Р вЂљРІвЂћСћР вЂњРЎвЂњР Р†Р вЂљР’В Р вЂњРЎС›Р Р†РІР‚С™Р’В¬Р Р†РІР‚С›РЎС›Р вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРЎС›Р Р†РІР‚С™Р’В¬Р вЂўР Р‹Р вЂњРЎвЂњР Р†Р вЂљРЎв„ўР вЂњРІР‚С™Р вЂ™Р’В©)
+	--R7 RVsyncpos =30 : si VCC=R7 alors VSYNC=ON         (donc 30 pas laissР вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРІР‚В Р Р†Р вЂљРІвЂћСћР вЂњРЎвЂњР Р†Р вЂљР’В Р вЂњРЎС›Р Р†РІР‚С™Р’В¬Р Р†РІР‚С›РЎС›Р вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРЎС›Р Р†РІР‚С™Р’В¬Р вЂўР Р‹Р вЂњРЎвЂњР Р†Р вЂљРЎв„ўР вЂњРІР‚С™Р вЂ™Р’В© passР вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРІР‚В Р Р†Р вЂљРІвЂћСћР вЂњРЎвЂњР Р†Р вЂљР’В Р вЂњРЎС›Р Р†РІР‚С™Р’В¬Р Р†РІР‚С›РЎС›Р вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРЎС›Р Р†РІР‚С™Р’В¬Р вЂўР Р‹Р вЂњРЎвЂњР Р†Р вЂљРЎв„ўР вЂњРІР‚С™Р вЂ™Р’В©)
+	--R3 RVwidth   =8  : VSYNC=OFF aprР вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРІР‚В Р Р†Р вЂљРІвЂћСћР вЂњРЎвЂњР Р†Р вЂљР’В Р вЂњРЎС›Р Р†РІР‚С™Р’В¬Р Р†РІР‚С›РЎС›Р вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРЎС›Р Р†РІР‚С™Р’В¬Р вЂ™Р’В Р вЂњРЎвЂњР вЂ™РЎС›Р вЂњРЎС›Р Р†Р вЂљРЎв„ўР вЂ™Р’В¬Р вЂњРЎС›Р Р†Р вЂљРЎвЂєР вЂ™РЎС›Р вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРІР‚В Р Р†Р вЂљРІвЂћСћР вЂњРЎвЂњР вЂ™РЎС›Р вЂњРЎС›Р Р†Р вЂљРЎв„ўР вЂ™Р’В¬Р вЂњРІР‚С™Р вЂ™Р’В Р вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРІР‚С™Р вЂ™РЎС›Р вЂњРЎвЂњР вЂ™РЎС›Р вЂњРЎС›Р Р†РІР‚С™Р’В¬Р вЂўР Р‹Р вЂњРІР‚С™Р вЂ™Р’В¬Р вЂњРЎвЂњР вЂ™РЎС›Р вЂњРЎС›Р Р†РІР‚С™Р’В¬Р вЂўРЎвЂўР вЂњРІР‚С™Р вЂ™РЎС›Р вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРІР‚В Р Р†Р вЂљРІвЂћСћР вЂњРЎвЂњР Р†Р вЂљР’В Р вЂњРЎС›Р Р†РІР‚С™Р’В¬Р Р†РІР‚С›РЎС›Р вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРІР‚С™Р вЂ™РЎС›Р вЂњРЎвЂњР вЂ™РЎС›Р вЂњРЎС›Р Р†РІР‚С™Р’В¬Р вЂўР Р‹Р вЂњРІР‚С™Р вЂ™Р’В¬Р вЂњРЎвЂњР Р†Р вЂљР’В¦Р вЂњРІР‚С™Р вЂ™Р Р‹Р вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРІР‚В Р Р†Р вЂљРІвЂћСћР вЂњРЎвЂњР вЂ™РЎС›Р вЂњРЎС›Р Р†Р вЂљРЎв„ўР вЂ™Р’В¬Р вЂњРІР‚В¦Р вЂ™Р Р‹Р вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРЎС›Р Р†РІР‚С™Р’В¬Р вЂўР Р‹Р вЂњРЎвЂњР Р†Р вЂљРЎв„ўР вЂњРІР‚С™Р вЂ™Р Рѓs un certain temps...
 	--R9 RRmax     =7  : 0..7                             (donc  8 pas)
-	--caractÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¨res de 8*8, donc verticalement : 1024 et horizontalement : 312.
+	--caractР вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРІР‚В Р Р†Р вЂљРІвЂћСћР вЂњРЎвЂњР Р†Р вЂљР’В Р вЂњРЎС›Р Р†РІР‚С™Р’В¬Р Р†РІР‚С›РЎС›Р вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРЎС›Р Р†РІР‚С™Р’В¬Р вЂўР Р‹Р вЂњРЎвЂњР Р†Р вЂљРЎв„ўР вЂњРІР‚С™Р вЂ™Р Рѓres de 8*8, donc verticalement : 1024 et horizontalement : 312.
 
 	--minus one : R0, R4, R9
 
@@ -261,19 +250,29 @@ architecture Behavioral of Amstrad_ASIC is
 	signal etat_rgb : integer range 0 to 2:=DO_NOTHING_OUT;
 	signal DATA_action : std_logic:='0'; -- if rising_edge then DATA just is filled.
 	signal DATA : std_logic_vector(7 downto 0):=(others=>'0');
-	
+
+	signal IO_ACK   : std_logic;
+	signal IO_REQ_W, old_REQ_W, IO_W : std_logic;
+	signal IO_REQ_R, old_REQ_R, IO_R : std_logic;
 begin
 
 	IO_ACK  <= not M1_n and not IORQ_n;
 	IO_REQ_R<= not RD_n and not IORQ_n;
 	IO_REQ_W<= not WR_n and not IORQ_n;
 
+	old_REQ_W <= IO_REQ_W when rising_edge(CLK);
+	old_REQ_R <= IO_REQ_R when rising_edge(CLK);
+
+	-- Strobed IO R/W
+	IO_W <= not old_REQ_W and IO_REQ_W;
+	IO_R <= not old_REQ_R and IO_REQ_R;
+
 	process(reset,CLK) is
 	begin
 		if reset='1' then
 			MODE_select<="00";
 		elsif rising_edge(CLK) then
-			if CE_4='1' and IO_REQ_W='1' and A15_A14_A9_A8(3 downto 2) = "01" and D(7 downto 6) ="10" then --7Fxx gate array --
+			if IO_W='1' and A15_A14_A9_A8(3 downto 2) = "01" and D(7 downto 6) ="10" then --7Fxx gate array --
 				--http://www.cpctech.org.uk/docs/garray.html
 				if D(1 downto 0)="11" then
 					MODE_select<="00";
@@ -282,31 +281,6 @@ begin
 				end if;
 			end if;
 		end if;	
-	end process;
-
-	process(reset,CLK) is
-		variable cpu1MHz:integer range 0 to 3:=2;
-	begin
-		if reset = '1' then
-			WAIT_n <= '1';
-			old_IORQ <= '1';
-			old_MREQ <= '1';
-		elsif rising_edge(CLK) then
-			if CE_4='1' then
-				cpu1MHz:=(cpu1MHz+1) mod 4;
-
-				old_IORQ <= IORQ_n;
-				old_MREQ <= MREQ_n;
-				
-				if(old_MREQ='1' and MREQ_n='0') or (old_IORQ='1' and IORQ_n='0') then
-					WAIT_n <= '0';
-				end if;
-				
-				if cpu1MHz=M1_OFFSET then
-					WAIT_n <= '1';
-				end if;
-			end if;
-		end if;
 	end process;
 
 ctrcConfig_process:process(reset,CLK) is
@@ -326,296 +300,297 @@ begin
 	if reset='1' then
 		Dout<=(others=>'1');
 	elsif rising_edge(CLK) then
-		if CE_4='1' then
-			if IO_REQ_W='1' and A15_A14_A9_A8(3) = '0' and A15_A14_A9_A8(2) = '1' then
-				if D(7) ='0' then
-					-- ink -- osef
-					if D(6)='0' then
-						border_ink:=D(4);
-						ink:=D(3 downto 0);
+		if IO_W='1' and A15_A14_A9_A8(3) = '0' and A15_A14_A9_A8(2) = '1' then
+			if D(7) ='0' then
+				-- ink -- osef
+				if D(6)='0' then
+					border_ink:=D(4);
+					ink:=D(3 downto 0);
+				else
+					ink_color:=D(4 downto 0);
+					if border_ink='0' then
+						pen_mem(conv_integer(ink)):=conv_integer(ink_color);
+						pen<=pen_mem;
 					else
-						ink_color:=D(4 downto 0);
-						if border_ink='0' then
-							pen_mem(conv_integer(ink)):=conv_integer(ink_color);
-							pen<=pen_mem;
-						else
-							border_mem:=conv_integer(ink_color);
-							border<=border_mem;
-						end if;
+						border_mem:=conv_integer(ink_color);
+						border<=border_mem;
 					end if;
 				end if;
 			end if;
-		
-			if (IO_REQ_W or IO_REQ_R)='1' then -- EN port (enable)
-				--On type 0 and 1, if a Write Only register is read from, "0" is returned. 
-					--type 0		
-				--			b1 	b0 	Function 	Read/Write
-				--0 	0 	Select internal 6845 register 	Write Only
-				--0 	1 	Write to selected internal 6845 register 	Write Only
-				--1 	0 	- 	-
-				--1 	1 	Read from selected internal 6845 register 	Read only 
+		end if;
+	
+		if (IO_R or IO_W) ='1' then -- EN port (enable)
+			--On type 0 and 1, if a Write Only register is read from, "0" is returned. 
+				--type 0		
+			--			b1 	b0 	Function 	Read/Write
+			--0 	0 	Select internal 6845 register 	Write Only
+			--0 	1 	Write to selected internal 6845 register 	Write Only
+			--1 	0 	- 	-
+			--1 	1 	Read from selected internal 6845 register 	Read only 
 
-					--type 1
-				--b1 	b0 	Function 	Read/Write
-				--0 	0 	Select internal 6845 register 	Write Only
-				--0 	1 	Write to selected internal 6845 register 	Write Only
-				--1 	0 	Read Status Register 	Read Only
-				--1 	1 	Read from selected internal 6845 register 	Read only 
-				Dout<=(others=>'1'); -- pull up (no command)
-				if A15_A14_A9_A8(2)='0' and A15_A14_A9_A8(1)='0' then -- A9_WRITE
-					if A15_A14_A9_A8(0)='0' then
-						if IO_REQ_W='1' then
-							-- DÃƒÆ’Ã‚Â©codage complet du numÃƒÆ’Ã‚Â©ro de registre sur le port &BFxx : Oui
-							reg_select32:=D and x"1F";
-							if reg_select32<=x"11" then -- < 17
-								reg_select:=conv_integer(reg_select32);
-							else
-								reg_select:=17; -- out of range :p
-							end if;
+				--type 1
+			--b1 	b0 	Function 	Read/Write
+			--0 	0 	Select internal 6845 register 	Write Only
+			--0 	1 	Write to selected internal 6845 register 	Write Only
+			--1 	0 	Read Status Register 	Read Only
+			--1 	1 	Read from selected internal 6845 register 	Read only 
+			Dout<=(others=>'1'); -- pull up (no command)
+			if A15_A14_A9_A8(2)='0' and A15_A14_A9_A8(1)='0' then -- A9_WRITE
+				if A15_A14_A9_A8(0)='0' then
+					if IO_W='1' then
+						-- DР вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРІР‚В Р Р†Р вЂљРІвЂћСћР вЂњРЎвЂњР Р†Р вЂљРЎв„ўР вЂњРІР‚С™Р вЂ™Р’В©codage complet du numР вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРІР‚В Р Р†Р вЂљРІвЂћСћР вЂњРЎвЂњР Р†Р вЂљРЎв„ўР вЂњРІР‚С™Р вЂ™Р’В©ro de registre sur le port &BFxx : Oui
+						reg_select32:=D and x"1F";
+						if reg_select32<=x"11" then -- < 17
+							reg_select:=conv_integer(reg_select32);
 						else
-							-- parasite : pull up
-							reg_select32:=x"1F";
-						end if;
-					elsif reg_select32<=x"11" then
-						if IO_REQ_W='1' then
-							registres(reg_select):=D;
-						else
-							-- parasite : pull up
-							registres(reg_select):=x"FF";
-						end if;
-						
-						-- rien ici de pertinant...
-						-- see arnoldemu's crtc.c file :
-						-- CRTC0_UpdateState
-						-- CRTC1_UpdateState
-						-- CRTC2_UpdateState
-						-- ASICCRTC_UpdateState
-						-- JavaCPC Basic6845[CRTC].setRegister().setEvents()
-						
-						--HD6845S_WriteMaskTable idem que UM6845R_WriteMaskTable sauf pour R8 (skew)
-						
-						case reg_select is
-							when 0=>
-								RHtot<=registres(0);
-								--hChars = reg[0] + 1;
-								--halfR0 = hChars >> 1;
-								halfR0_mem:=registres(0)+1;
-								halfR0<="0" & halfR0_mem(7 downto 1);
-							when 1=>
-								RHdisp<=registres(1);
-							when 2=>
-								RHsyncpos<=registres(2);
-							when 3=>
-								-- following DataSheet and Arnold emulator (Arnold says it exists a conversion table HSYNC crtc.c.GA_HSyncWidth)
-								--hSyncWidth = value & 0x0f;
-								RHwidth<=registres(3)(3 downto 0); -- DataSheet
-								--RVwidth<=conv_std_logic_vector(NB_LINEH_BY_VSYNC,5);-- (24+1) using Arnold formula
-								-- Arnold formula ctrct.c.MONITOR_VSYNC_COUNT "01111";
-								-- Arkanoid does use width VSYNC while hurting a monster or firing with bonus gun
-								-- RVwidth<=registres(3)(7 downto 4); -- JavaCPC 2015 puis freemac
-								-- http://quasar.cpcscene.net/doku.php?id=coding:test_crtc#fn__24
-								
-								-- VSync width can only be changed on type 3 and 4 (???)
-								-- The Vsync has a fixed length for CRTC 2, which is 16 scan lines (and not 8 as programmed by the firmware, implicitly using CRTC 0). 
-								--http://cpctech.cpc-live.com/source/split.html
-								if crtc_type='1' then
-									--CRTC1 MC6845/MC6845R/UM6845R have a fixed Vertical Sync Width of 16 scanlines.
-									--vSyncWidth = 0;
-									RVwidth<=x"0"; --registres(3)(6 downto 4) & "0";
-								else
-									--CRTC0 HD6845S allows the Vertical Sync Width to be programmed
-									--vSyncWidth = (value >> 4) & 0x0f;
-									RVwidth<=registres(3)(7 downto 4);
-								end if;
-								
-								--CRTC0 HD6845: Register 3: Sync Width Bit 7 Vertical Sync Width bit 3 Bit 6 Vertical Sync Width bit 2 Bit 5 Vertical Sync Width bit 1 Bit 4 Vertical Sync Width bit 0 Bit 3 Horizontal Sync Width bit 3 Bit 2 Horizontal Sync Width bit 2 Bit 1 Horizontal Sync Width bit 1 Bit 0 Horizontal Sync Width bit 0 
-								--CRTC1 MC6845/UM6845: Note for UM6845: When the Horizontal Sync width is set to 0, then no Horizontal Syncs will be generated. (This feature can be used to distinguish between the UM6845 and MC6845).
-								
-								
-								--CRTC0 Programming Horizontal Sync Width with 0: HD6845S: The data sheets says that the Horizontal Sync Width cannot be programmed with 0. The effect of doing this is not documented. MC6845: If the Horizontal Sync Width register is programmed with 0, no horizontal syncs are generated.
-								
-							when 4=>
-								-- Validation des registres 9 et 4 aprÃƒÆ’Ã‚Â¨s reprogrammation (Pendant que C4 = 0, buffÃƒÆ’Ã‚Â©risÃƒÆ’Ã‚Â©s sinon)
-								-- Rupture ligne-ÃƒÆ’Ã‚Â -ligne possible (R9 = R4 =0 ) >>oui<<
-								RVtot<=registres(4) and x"7f";
-							when 5=>
-								RVtotAdjust<=registres(5) and x"1f";
-							when 6=>
-								--The DISPTMG (Activation du split-border) can be forced using R8 (DISPTMG Skew) on type 0,3 and 4 or by setting R6=0 on type 1.
-								RVdisp<=registres(6) and x"7f";
-							when 7=>
-								RVsyncpos<=registres(7) and x"7f";
-							when 8=>-- and x"f3"; and x"03" (type 1)
-								-- interlace & skew
-								-- arnoldemu's crtc.c
-								-- Delay = (CRTCRegisters[8]>>4) & 0x03;
-								-- CRTC_InternalState.HDelayReg8 = (unsigned char)Delay;
-								--There are only two bits in R8:
-								-- bit 0: interlace enable.
-								-- bit 1: interlace type (when enabled)
-								--Interlace and Skew 	xxxxxx00
-								-- 00 : No interlace
-								-- 01 : Interlace Sync Raster Scan Mode
-								-- 10 : No Interlace
-								-- 11 : Interlace Sync and Video Raster Scan Mode 
-								
-								-- CRTC0 HD6845S: Register 8: Interlace and Skew Bit 7 Cursor Display timing Skew Bit 1 Bit 6 Cursor Display timing Skew Bit 0 Bit 5 Display timing Skew Bit 1 (DTSKB1) Bit 4 Display timing SKew Bit 0 (DTSKB0) Bit 3 not used Bit 2 not used Bit 1 Video Mode Bit 0 Interlace Sync Mode Display timing skew: The data can be skewed by 0 characters, 1 character or 2 characters. When both bits are 1 the display is stopped and border is displayed. This is used in the BSC Megademo in the Crazy Cars II part. 
-								-- CRTC1 MC6845/UM6845 : Bit 1 Video Mode Bit 0 Interlace Sync Mode
-								
-								-- Type 0,1a (and 4 ?) have an extra feature in R8, which seems to be the basis for the "register 8 border technique". These CRTCs use bits 4 and 5 of R8 for character delay: that is, to account for the fact, that in a typical low-cost system, the memory fetches (RAM and then font ROM) would be slow and would make the raster out of sync with "Display Enable" (DE, the frame, or border) which is wired directly to the color generator. 
-								-- So they implemented a programmable DE delay (the "Skew") which is to be set a the duration of the raster fetch (counted in CRTC clock cycles, or mode 1 characters). The same thing is done for the "Cursor" line, because it is also shorter than the raster data-path. 
-								--To implement this, you can by-pass or enable couple of registers on the concerned lines. Because these registers probably get reset when they're bypassed, if you reenable them while DE is true, it will take them as many characters as the DE delay, before they echo "true": you get a bit of border color in the middle of the screen ! 
-								--Of course, when the delay is elapsed, the raster comes back, but you could repeatedly turn the delay on and off. 
-								--interlace = (value & 0x01) != 0;
-								interlace<=registres(8)(0);
-								--interlaceVideo = (value & 0x03) == 3 ? 1 : 0;
-								interlaceVideo<=registres(8)(1);
-								--scanAdd = interlaceVideo + 1;
-								if registres(8)(1) = '0' then
-									scanAdd<=x"01";
-								else
-									scanAdd<=x"02";
-								end if;
-								--maxRaster = reg[9] | interlaceVideo;
-								RRmax<=(registres(9) and x"1f") or "0000000" & registres(8)(1);
-								--CRTC3 hDispDelay = ((reg[8] >> 4) & 0x04);
-								Skew<=registres(8)(5 downto 4);
-								
-								
-							when 9=> -- max raster adress
-								-- Validation des registres 9 et 4 aprÃƒÆ’Ã‚Â¨s reprogrammation (Pendant que C4 = 0, buffÃƒÆ’Ã‚Â©risÃƒÆ’Ã‚Â©s sinon)
-								--maxRaster = value | interlaceVideo;
-								RRmax<=(registres(9) and x"1f") or "0000000" & interlaceVideo;
-							when 10=>NULL; -- and x"7f";
-								-- cursor start raster 
-							when 11=>NULL; -- and x"1f";
-								-- cursor end raster
-							when 12=>
-								--Validation de l'offset aprÃƒÆ’Ã‚Â¨s reprogrammation des registres 12 et 13 : >>ImmÃƒÆ’Ã‚Â©diatement<< (Pendant que C4 = 0, ÃƒÆ’Ã‚Â  l'ÃƒÆ’Ã‚Â©cran suivant sinon)
-								
-								--NULL;  (read/write type 0) (write only type 1)
-								-- start adress H
-								--maRegister = (reg[13] + (reg[12] << 8)) & 0x3fff;
-								-- and x"3f" donc (5 downto 0)
-								ADRESSE_maRegister<=registres(12)(5 downto 0) & registres(13);
-							when 13=> --NULL;  (read/write type 0) (write only type 1)
-								-- start adress L
-								--maRegister = (reg[13] + (reg[12] << 8)) & 0x3fff;
-								ADRESSE_maRegister<=registres(12)(5 downto 0) & registres(13);
-							when 14=>NULL; -- and x"3f"
-								-- cursor H (read/write)
-							when 15=>NULL;
-								-- cursor L (read/write)
-							when 16=>NULL;
-								--light pen H (read only)
-							when 17=>NULL;
-								--light pen L (read only)
-						end case;
-					end if;
-				elsif A15_A14_A9_A8(2)='0' and A15_A14_A9_A8(1)='1' then-- A9_READ
-					-- type 0 : status is not implemented
-					if A15_A14_A9_A8(0)='0' then
-						-- STATUS REGISTER (CRTC 1 only)
-						-- U (bit 7) : Update Ready
-						-- L (bit 6) : LPEN Reegister Full
-						-- V (bit 5) : Vertical Blanking (VDISP ?)
-						-- in type 3 & 4, status_reg=reg
-						
-						-- Bit 6 LPEN REGISTER FULL 1: A light pen strobe has occured (light pen has put to screen and button has been pressed), 0: R16 or R17 has been read by the CPU 
-						-- Bit 5	VERTICAL BLANKING 1: CRTC is scanning in the vertical blanking time, 0: CRTC is not scanning in the vertical blanking time.
-						--Vertical BLanking (VBL)
-						--This is a time interval during a video-frame required by the electron gun in a CRT monitor to move back up to the top of the tube. While the vertical blank, the electron beam is off, hence no data is displayed on the screen.
-						--As soon as the electron gun is back to the top, the monitor will hold it there until a VSync appears to indicate the start of a new frame. If no VSync appears, the monitor will release the gun by itself after some time (depending on it's VHold) and will usually produce a rolling/jumping image because the monitor vertical synchronisation is no longer done with the CPC video-frame but with the monitor hardware limits (and they won't be the same).
-						--The VBL is a monitor specific time interval, it can not be software controlled (on the Amstrad), unlike the VSync, which is a signal produced by the CRTC we can control. The monitor expect a VSync at regular interval to produce a stable image.
-						
-						--Bit 5, VERTB, causes an interrupt at line 0 (start of vertical blank) of
-						--the video display frame. The system is often required to perform many
-						--different tasks during the vertical blanking interval. Among these tasks
-						--are the updating of various pointer registers, rewriting lists of Copper
-						--tasks when necessary, and other system-control operations.
-						
-						--Registre de status accessible sur le port &BExx (VBL, border)
-						
-						-- Le bit 7 du registre 3 change la durÃƒÆ’Ã‚Â©e de la VBL >>NON<<(valeur : toujours double)
-						-- CRTC 3 et 4 : lecture de la derniÃƒÆ’Ã‚Â¨re ligne de VBL sur le registre 10
-						--if (LineCounter == 0) {
-						--  return (1 << 5); x"20"
-						if crtc_type='0' then
-							Dout<=x"FF";
-						elsif LineCounter_is0 then
-							--if (LineCounter == 0) {
-							--Bit 5 is set to 1 when CRTC is in "vertical blanking". Vertical blanking is when the vertical border is active. i.e. VCC>=R6.
-							--It is cleared when the frame is started (VCC=0). It is not directly related to the DISPTMG output (used by the CPC to display the border colour) because that output is a combination of horizontal and vertical blanking. This bit will be 0 when pixels are being displayed.
-							Dout<=x"20";
-						else
-							Dout<=x"00"; 
+							reg_select:=17; -- out of range :p
 						end if;
 					else
-						-- type 0 : nothing (return x"00")
-						-- type 1 : read status
-						if reg_select32 = x"0A" then -- R10
-							Dout<=registres(10) and x"7f"; -- applying the write mask here
-						elsif reg_select32 = x"0B" then -- R11
-							Dout<=registres(11) and x"1f"; -- applying the write mask here
-						elsif reg_select32 = x"0C" then -- R12
-							if crtc_type='0' then
-								--CRTC0 HD6845S/MC6845: Start Address Registers (R12 and R13) can be read.
-								Dout<=registres(12) and x"3f";  -- applying the write mask here
+						-- parasite : pull up
+						reg_select32:=x"1F";
+					end if;
+				elsif reg_select32<=x"11" then
+					if IO_W='1' then
+						registres(reg_select):=D;
+					else
+						-- parasite : pull up
+						registres(reg_select):=x"FF";
+					end if;
+					
+					-- rien ici de pertinant...
+					-- see arnoldemu's crtc.c file :
+					-- CRTC0_UpdateState
+					-- CRTC1_UpdateState
+					-- CRTC2_UpdateState
+					-- ASICCRTC_UpdateState
+					-- JavaCPC Basic6845[CRTC].setRegister().setEvents()
+					
+					--HD6845S_WriteMaskTable idem que UM6845R_WriteMaskTable sauf pour R8 (skew)
+					
+					case reg_select is
+						when 0=>
+							RHtot<=registres(0);
+							--hChars = reg[0] + 1;
+							--halfR0 = hChars >> 1;
+							halfR0_mem:=registres(0)+1;
+							halfR0<="0" & halfR0_mem(7 downto 1);
+						when 1=>
+							RHdisp<=registres(1);
+						when 2=>
+							RHsyncpos<=registres(2);
+						when 3=>
+							-- following DataSheet and Arnold emulator (Arnold says it exists a conversion table HSYNC crtc.c.GA_HSyncWidth)
+							--hSyncWidth = value & 0x0f;
+							RHwidth<=registres(3)(3 downto 0); -- DataSheet
+							--RVwidth<=conv_std_logic_vector(NB_LINEH_BY_VSYNC,5);-- (24+1) using Arnold formula
+							-- Arnold formula ctrct.c.MONITOR_VSYNC_COUNT "01111";
+							-- Arkanoid does use width VSYNC while hurting a monster or firing with bonus gun
+							-- RVwidth<=registres(3)(7 downto 4); -- JavaCPC 2015 puis freemac
+							-- http://quasar.cpcscene.net/doku.php?id=coding:test_crtc#fn__24
+							
+							-- VSync width can only be changed on type 3 and 4 (???)
+							-- The Vsync has a fixed length for CRTC 2, which is 16 scan lines (and not 8 as programmed by the firmware, implicitly using CRTC 0). 
+							--http://cpctech.cpc-live.com/source/split.html
+							if crtc_type='1' then
+								--CRTC1 MC6845/MC6845R/UM6845R have a fixed Vertical Sync Width of 16 scanlines.
+								--vSyncWidth = 0;
+								RVwidth<=x"0"; --registres(3)(6 downto 4) & "0";
 							else
-								-- Lecture des registres 12 and 13 sur le port &BFxx : >>non<<
-								--CRTC1 UM6845R: Start Address Registers cannot be read.
-								Dout<=x"00"; -- type 1
+								--CRTC0 HD6845S allows the Vertical Sync Width to be programmed
+								--vSyncWidth = (value >> 4) & 0x0f;
+								RVwidth<=registres(3)(7 downto 4);
 							end if;
 							
-						elsif reg_select32 = x"0D" then -- R13
-							if crtc_type='0' then
-								Dout<=registres(13); -- type 0
-								--CRTC0 HD6845S/MC6845: Start Address Registers (R12 and R13) can be read.
+							--CRTC0 HD6845: Register 3: Sync Width Bit 7 Vertical Sync Width bit 3 Bit 6 Vertical Sync Width bit 2 Bit 5 Vertical Sync Width bit 1 Bit 4 Vertical Sync Width bit 0 Bit 3 Horizontal Sync Width bit 3 Bit 2 Horizontal Sync Width bit 2 Bit 1 Horizontal Sync Width bit 1 Bit 0 Horizontal Sync Width bit 0 
+							--CRTC1 MC6845/UM6845: Note for UM6845: When the Horizontal Sync width is set to 0, then no Horizontal Syncs will be generated. (This feature can be used to distinguish between the UM6845 and MC6845).
+							
+							
+							--CRTC0 Programming Horizontal Sync Width with 0: HD6845S: The data sheets says that the Horizontal Sync Width cannot be programmed with 0. The effect of doing this is not documented. MC6845: If the Horizontal Sync Width register is programmed with 0, no horizontal syncs are generated.
+							
+						when 4=>
+							-- Validation des registres 9 et 4 aprР вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРІР‚В Р Р†Р вЂљРІвЂћСћР вЂњРЎвЂњР Р†Р вЂљРЎв„ўР вЂњРІР‚С™Р вЂ™Р Рѓs reprogrammation (Pendant que C4 = 0, buffР вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРІР‚В Р Р†Р вЂљРІвЂћСћР вЂњРЎвЂњР Р†Р вЂљРЎв„ўР вЂњРІР‚С™Р вЂ™Р’В©risР вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРІР‚В Р Р†Р вЂљРІвЂћСћР вЂњРЎвЂњР Р†Р вЂљРЎв„ўР вЂњРІР‚С™Р вЂ™Р’В©s sinon)
+							-- Rupture ligne-Р вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРІР‚В Р Р†Р вЂљРІвЂћСћР вЂњРЎвЂњР Р†Р вЂљРЎв„ўР вЂњРІР‚С™Р вЂ™Р’В -ligne possible (R9 = R4 =0 ) >>oui<<
+							RVtot<=registres(4) and x"7f";
+						when 5=>
+							RVtotAdjust<=registres(5) and x"1f";
+						when 6=>
+							--The DISPTMG (Activation du split-border) can be forced using R8 (DISPTMG Skew) on type 0,3 and 4 or by setting R6=0 on type 1.
+							RVdisp<=registres(6) and x"7f";
+						when 7=>
+							RVsyncpos<=registres(7) and x"7f";
+						when 8=>-- and x"f3"; and x"03" (type 1)
+							-- interlace & skew
+							-- arnoldemu's crtc.c
+							-- Delay = (CRTCRegisters[8]>>4) & 0x03;
+							-- CRTC_InternalState.HDelayReg8 = (unsigned char)Delay;
+							--There are only two bits in R8:
+							-- bit 0: interlace enable.
+							-- bit 1: interlace type (when enabled)
+							--Interlace and Skew 	xxxxxx00
+							-- 00 : No interlace
+							-- 01 : Interlace Sync Raster Scan Mode
+							-- 10 : No Interlace
+							-- 11 : Interlace Sync and Video Raster Scan Mode 
+							
+							-- CRTC0 HD6845S: Register 8: Interlace and Skew Bit 7 Cursor Display timing Skew Bit 1 Bit 6 Cursor Display timing Skew Bit 0 Bit 5 Display timing Skew Bit 1 (DTSKB1) Bit 4 Display timing SKew Bit 0 (DTSKB0) Bit 3 not used Bit 2 not used Bit 1 Video Mode Bit 0 Interlace Sync Mode Display timing skew: The data can be skewed by 0 characters, 1 character or 2 characters. When both bits are 1 the display is stopped and border is displayed. This is used in the BSC Megademo in the Crazy Cars II part. 
+							-- CRTC1 MC6845/UM6845 : Bit 1 Video Mode Bit 0 Interlace Sync Mode
+							
+							-- Type 0,1a (and 4 ?) have an extra feature in R8, which seems to be the basis for the "register 8 border technique". These CRTCs use bits 4 and 5 of R8 for character delay: that is, to account for the fact, that in a typical low-cost system, the memory fetches (RAM and then font ROM) would be slow and would make the raster out of sync with "Display Enable" (DE, the frame, or border) which is wired directly to the color generator. 
+							-- So they implemented a programmable DE delay (the "Skew") which is to be set a the duration of the raster fetch (counted in CRTC clock cycles, or mode 1 characters). The same thing is done for the "Cursor" line, because it is also shorter than the raster data-path. 
+							--To implement this, you can by-pass or enable couple of registers on the concerned lines. Because these registers probably get reset when they're bypassed, if you reenable them while DE is true, it will take them as many characters as the DE delay, before they echo "true": you get a bit of border color in the middle of the screen ! 
+							--Of course, when the delay is elapsed, the raster comes back, but you could repeatedly turn the delay on and off. 
+							--interlace = (value & 0x01) != 0;
+							interlace<=registres(8)(0);
+							--interlaceVideo = (value & 0x03) == 3 ? 1 : 0;
+							interlaceVideo<=registres(8)(1);
+							--scanAdd = interlaceVideo + 1;
+							if registres(8)(1) = '0' then
+								scanAdd<=x"01";
 							else
-								--CRTC1 UM6845R: Start Address Registers cannot be read.
-								-- Lecture des registres 12 and 13 sur le port &BFxx : >>non<<
-								Dout<=x"00"; -- type 1 & 2
+								scanAdd<=x"02";
 							end if;
-						elsif reg_select32 = x"0E" then -- R14
-							--if crtc_type='0' then
-							Dout<=registres(14) and x"3f"; -- applying the write mask here
-							--else
-							--	Dout<=registres(14);
-							--end if;
-						elsif reg_select32 = x"0F" then -- R15	
-							Dout<=registres(15);-- all types
-						elsif reg_select32 = x"10" then -- R16
-							--	Light Pen Address (read only, don't dependant on write !!!) - "Emulator Sucks"
-							Dout<=x"00"; --registres(16) and x"3f";-- all types
-						elsif reg_select32 = x"11" then -- R17
-							--	Light Pen Address (read only, don't dependant on write !!!) - "Emulator Sucks"
-							Dout<=x"00"; --registres(17);-- all types
-						elsif reg_select32 = x"FF" then
-							if crtc_type='0' then
-								-- registers 18-30 read as 0 on type1, register 31 reads as 0x0ff.
-								Dout<=x"FF";
-							else
-								Dout<=x"00";
-							end if;
-						else
-							-- 1. On type 0 and 1, if a Write Only register is read from, "0" is returned.
-							-- registers 18-31 read as 0, on type 0 and 2.
-							-- registers 18-30 read as 0 on type1
-							Dout<=x"00";
-						end if;
+							--maxRaster = reg[9] | interlaceVideo;
+							RRmax<=(registres(9) and x"1f") or "0000000" & registres(8)(1);
+							--CRTC3 hDispDelay = ((reg[8] >> 4) & 0x04);
+							Skew<=registres(8)(5 downto 4);
+							
+							
+						when 9=> -- max raster adress
+							-- Validation des registres 9 et 4 aprР вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРІР‚В Р Р†Р вЂљРІвЂћСћР вЂњРЎвЂњР Р†Р вЂљРЎв„ўР вЂњРІР‚С™Р вЂ™Р Рѓs reprogrammation (Pendant que C4 = 0, buffР вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРІР‚В Р Р†Р вЂљРІвЂћСћР вЂњРЎвЂњР Р†Р вЂљРЎв„ўР вЂњРІР‚С™Р вЂ™Р’В©risР вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРІР‚В Р Р†Р вЂљРІвЂћСћР вЂњРЎвЂњР Р†Р вЂљРЎв„ўР вЂњРІР‚С™Р вЂ™Р’В©s sinon)
+							--maxRaster = value | interlaceVideo;
+							RRmax<=(registres(9) and x"1f") or "0000000" & interlaceVideo;
+						when 10=>NULL; -- and x"7f";
+							-- cursor start raster 
+						when 11=>NULL; -- and x"1f";
+							-- cursor end raster
+						when 12=>
+							--Validation de l'offset aprР вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРІР‚В Р Р†Р вЂљРІвЂћСћР вЂњРЎвЂњР Р†Р вЂљРЎв„ўР вЂњРІР‚С™Р вЂ™Р Рѓs reprogrammation des registres 12 et 13 : >>ImmР вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРІР‚В Р Р†Р вЂљРІвЂћСћР вЂњРЎвЂњР Р†Р вЂљРЎв„ўР вЂњРІР‚С™Р вЂ™Р’В©diatement<< (Pendant que C4 = 0, Р вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРІР‚В Р Р†Р вЂљРІвЂћСћР вЂњРЎвЂњР Р†Р вЂљРЎв„ўР вЂњРІР‚С™Р вЂ™Р’В  l'Р вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРІР‚В Р Р†Р вЂљРІвЂћСћР вЂњРЎвЂњР Р†Р вЂљРЎв„ўР вЂњРІР‚С™Р вЂ™Р’В©cran suivant sinon)
+							
+							--NULL;  (read/write type 0) (write only type 1)
+							-- start adress H
+							--maRegister = (reg[13] + (reg[12] << 8)) & 0x3fff;
+							-- and x"3f" donc (5 downto 0)
+							ADRESSE_maRegister<=registres(12)(5 downto 0) & registres(13);
+						when 13=> --NULL;  (read/write type 0) (write only type 1)
+							-- start adress L
+							--maRegister = (reg[13] + (reg[12] << 8)) & 0x3fff;
+							ADRESSE_maRegister<=registres(12)(5 downto 0) & registres(13);
+						when 14=>NULL; -- and x"3f"
+							-- cursor H (read/write)
+						when 15=>NULL;
+							-- cursor L (read/write)
+						when 16=>NULL;
+							--light pen H (read only)
+						when 17=>NULL;
+							--light pen L (read only)
+					end case;
+				end if;
+			elsif A15_A14_A9_A8(2)='0' and A15_A14_A9_A8(1)='1' then-- A9_READ
+				-- type 0 : status is not implemented
+				if A15_A14_A9_A8(0)='0' then
+					-- STATUS REGISTER (CRTC 1 only)
+					-- U (bit 7) : Update Ready
+					-- L (bit 6) : LPEN Reegister Full
+					-- V (bit 5) : Vertical Blanking (VDISP ?)
+					-- in type 3 & 4, status_reg=reg
+					
+					-- Bit 6 LPEN REGISTER FULL 1: A light pen strobe has occured (light pen has put to screen and button has been pressed), 0: R16 or R17 has been read by the CPU 
+					-- Bit 5	VERTICAL BLANKING 1: CRTC is scanning in the vertical blanking time, 0: CRTC is not scanning in the vertical blanking time.
+					--Vertical BLanking (VBL)
+					--This is a time interval during a video-frame required by the electron gun in a CRT monitor to move back up to the top of the tube. While the vertical blank, the electron beam is off, hence no data is displayed on the screen.
+					--As soon as the electron gun is back to the top, the monitor will hold it there until a VSync appears to indicate the start of a new frame. If no VSync appears, the monitor will release the gun by itself after some time (depending on it's VHold) and will usually produce a rolling/jumping image because the monitor vertical synchronisation is no longer done with the CPC video-frame but with the monitor hardware limits (and they won't be the same).
+					--The VBL is a monitor specific time interval, it can not be software controlled (on the Amstrad), unlike the VSync, which is a signal produced by the CRTC we can control. The monitor expect a VSync at regular interval to produce a stable image.
+					
+					--Bit 5, VERTB, causes an interrupt at line 0 (start of vertical blank) of
+					--the video display frame. The system is often required to perform many
+					--different tasks during the vertical blanking interval. Among these tasks
+					--are the updating of various pointer registers, rewriting lists of Copper
+					--tasks when necessary, and other system-control operations.
+					
+					--Registre de status accessible sur le port &BExx (VBL, border)
+					
+					-- Le bit 7 du registre 3 change la durР вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРІР‚В Р Р†Р вЂљРІвЂћСћР вЂњРЎвЂњР Р†Р вЂљРЎв„ўР вЂњРІР‚С™Р вЂ™Р’В©e de la VBL >>NON<<(valeur : toujours double)
+					-- CRTC 3 et 4 : lecture de la derniР вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРІР‚В Р Р†Р вЂљРІвЂћСћР вЂњРЎвЂњР Р†Р вЂљРЎв„ўР вЂњРІР‚С™Р вЂ™Р Рѓre ligne de VBL sur le registre 10
+					--if (LineCounter == 0) {
+					--  return (1 << 5); x"20"
+					if crtc_type='0' then
+						Dout<=x"FF";
+					elsif LineCounter_is0 then
+						--if (LineCounter == 0) {
+						--Bit 5 is set to 1 when CRTC is in "vertical blanking". Vertical blanking is when the vertical border is active. i.e. VCC>=R6.
+						--It is cleared when the frame is started (VCC=0). It is not directly related to the DISPTMG output (used by the CPC to display the border colour) because that output is a combination of horizontal and vertical blanking. This bit will be 0 when pixels are being displayed.
+						Dout<=x"20";
+					else
+						Dout<=x"00"; 
 					end if;
 				else
-					--JavaCPC readPort() not implemented
-					-- CS (chip select) OFF
-					-- no read : pull-up
-					Dout<=x"FF";
+					-- type 0 : nothing (return x"00")
+					-- type 1 : read status
+					if reg_select32 = x"0A" then -- R10
+						Dout<=registres(10) and x"7f"; -- applying the write mask here
+					elsif reg_select32 = x"0B" then -- R11
+						Dout<=registres(11) and x"1f"; -- applying the write mask here
+					elsif reg_select32 = x"0C" then -- R12
+						if crtc_type='0' then
+							--CRTC0 HD6845S/MC6845: Start Address Registers (R12 and R13) can be read.
+							Dout<=registres(12) and x"3f";  -- applying the write mask here
+						else
+							-- Lecture des registres 12 and 13 sur le port &BFxx : >>non<<
+							--CRTC1 UM6845R: Start Address Registers cannot be read.
+							Dout<=x"00"; -- type 1
+						end if;
+						
+					elsif reg_select32 = x"0D" then -- R13
+						if crtc_type='0' then
+							Dout<=registres(13); -- type 0
+							--CRTC0 HD6845S/MC6845: Start Address Registers (R12 and R13) can be read.
+						else
+							--CRTC1 UM6845R: Start Address Registers cannot be read.
+							-- Lecture des registres 12 and 13 sur le port &BFxx : >>non<<
+							Dout<=x"00"; -- type 1 & 2
+						end if;
+					elsif reg_select32 = x"0E" then -- R14
+						--if crtc_type='0' then
+						Dout<=registres(14) and x"3f"; -- applying the write mask here
+						--else
+						--	Dout<=registres(14);
+						--end if;
+					elsif reg_select32 = x"0F" then -- R15	
+						Dout<=registres(15);-- all types
+					elsif reg_select32 = x"10" then -- R16
+						--	Light Pen Address (read only, don't dependant on write !!!) - "Emulator Sucks"
+						Dout<=x"00"; --registres(16) and x"3f";-- all types
+					elsif reg_select32 = x"11" then -- R17
+						--	Light Pen Address (read only, don't dependant on write !!!) - "Emulator Sucks"
+						Dout<=x"00"; --registres(17);-- all types
+					elsif reg_select32 = x"FF" then
+						if crtc_type='0' then
+							-- registers 18-30 read as 0 on type1, register 31 reads as 0x0ff.
+							Dout<=x"FF";
+						else
+							Dout<=x"00";
+						end if;
+					else
+						-- 1. On type 0 and 1, if a Write Only register is read from, "0" is returned.
+						-- registers 18-31 read as 0, on type 0 and 2.
+						-- registers 18-30 read as 0 on type1
+						Dout<=x"00";
+					end if;
 				end if;
-	--		elsif IO_ACK='1' then
-	--			-- IO_ACK DATA_BUS
-	--			Dout<=(others=>'1'); -- value to check... cpcwiki seem down at the moment I write this sentence :P
 			else
-				Dout<=(others=>'1');
+				--JavaCPC readPort() not implemented
+				-- CS (chip select) OFF
+				-- no read : pull-up
+				Dout<=x"FF";
 			end if;
+--		elsif IO_ACK='1' then
+--			-- IO_ACK DATA_BUS
+--			Dout<=(others=>'1'); -- value to check... cpcwiki seem down at the moment I write this sentence :P
+		end if;
+		
+		-- Remove data from bus if not reading
+		if IO_REQ_R = '0' then
+			Dout<=x"FF";
 		end if;
 	end if;
 end process ctrcConfig_process;
@@ -710,19 +685,18 @@ begin
 		bvram_D<=(others=>'0');
 		bvram_W<='0';
 
-		SOUND_CE<='0';
 	--it's Z80 time !
 	elsif rising_edge(CLK) then
-		SOUND_CE<='0';
 
 		if CE_4='1' then
-		
+
 			compteur1MHz:=(compteur1MHz+1) mod 4;
-			
-			if compteur1MHz=SOUND_OFFSET then
-				SOUND_CE<='1';
+			if compteur1MHz=0 then
+				cyc1MHz <= '1';
+			else
+				cyc1MHz <= '0';
 			end if;
-		
+
 			--crtc_DISP<='0';
 			palette_W<='0';
 			--bvram
@@ -880,14 +854,14 @@ begin
 				-- and vertical blanking. This bit will be 0 when pixels are being displayed.
 				
 				-- http://quasar.cpcscene.net/doku.php?id=coding:test_crtc
-				-- Lecture de l'ÃƒÆ’Ã‚Â©tat de la VBL sur le bit 5 du registre 10 sur le port &BFxx	Non	>>Non<<	Non	Oui	Oui
+				-- Lecture de l'Р вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРІР‚В Р Р†Р вЂљРІвЂћСћР вЂњРЎвЂњР Р†Р вЂљРЎв„ўР вЂњРІР‚С™Р вЂ™Р’В©tat de la VBL sur le bit 5 du registre 10 sur le port &BFxx	Non	>>Non<<	Non	Oui	Oui
 				
 				-- Only R5 still needs to be explained. To allow a finer adjustment of the screen length than by the number of character lines (R4), R5 adds a number of blank scanlines at the end of the screen timing.
 				
 				--DISPTMG signal defines the border. When DISPTMG is "1" the border colour is output by the Gate-Array to the display.
 				--The DISPTMG can be forced using R8 (DISPTMG Skew) on type 0,3 and 4 or by setting R6=0 on type 1.
 				if LineCounter=RVDisp and RasterCounter=0 and crtc_type='1' then
-					--redondance ici de cas newFrame() (déjà traité ailleur)
+					--redondance ici de cas newFrame() (dР вЂњР’В©jР вЂњР’В  traitР вЂњР’В© ailleur)
 					--checkHDisp() -- if (reg[6] != 0) { --listener.hDispStart();
 					dispV:='0';
 					-- Scan is not currently running in vertical blanking time-span.
@@ -897,7 +871,7 @@ begin
 					-- Scan currently is in vertical blanking time-span.
 					--VBLANK<='0';
 				elsif LineCounter=RVDisp and RasterCounter=0 and crtc_type='0' then
-					--redondance ici de cas newFrame() (déjà traité ailleur)
+					--redondance ici de cas newFrame() (dР вЂњР’В©jР вЂњР’В  traitР вЂњР’В© ailleur)
 					dispV:='0';
 				end if;
 				if LineCounter=0 then
@@ -913,7 +887,7 @@ begin
 					
 					-- newFrame() :  ma = maBase = ADRESSE_maRegister;
 					
-					-- je suis relatif ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¾Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¾ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â  RHdisp, alors qu'ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¾Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¾ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â  chaque scanStart() RHdisp est relu et += ADRESSE_maStore_mem
+					-- je suis relatif Р вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРІР‚В Р Р†Р вЂљРІвЂћСћР вЂњРЎвЂњР Р†Р вЂљР’В Р вЂњРЎС›Р Р†РІР‚С™Р’В¬Р Р†РІР‚С›РЎС›Р вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРЎС›Р Р†РІР‚С™Р’В¬Р вЂ™Р’В Р вЂњРЎвЂњР вЂ™РЎС›Р вЂњРЎС›Р Р†Р вЂљРЎв„ўР вЂ™Р’В¬Р вЂњРЎС›Р Р†Р вЂљРЎвЂєР вЂ™РЎС›Р вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРІР‚В Р Р†Р вЂљРІвЂћСћР вЂњРЎвЂњР вЂ™РЎС›Р вЂњРЎС›Р Р†Р вЂљРЎв„ўР вЂ™Р’В¬Р вЂњРІР‚С™Р вЂ™Р’В Р вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРІР‚С™Р вЂ™РЎС›Р вЂњРЎвЂњР вЂ™РЎС›Р вЂњРЎС›Р Р†РІР‚С™Р’В¬Р вЂўР Р‹Р вЂњРІР‚С™Р вЂ™Р’В¬Р вЂњРЎвЂњР вЂ™РЎС›Р вЂњРЎС›Р Р†РІР‚С™Р’В¬Р вЂўРЎвЂўР вЂњРІР‚С™Р вЂ™РЎС›Р вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРІР‚В Р Р†Р вЂљРІвЂћСћР вЂњРЎвЂњР Р†Р вЂљР’В Р вЂњРЎС›Р Р†РІР‚С™Р’В¬Р Р†РІР‚С›РЎС›Р вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРІР‚С™Р вЂ™РЎС›Р вЂњРЎвЂњР вЂ™РЎС›Р вЂњРЎС›Р Р†РІР‚С™Р’В¬Р вЂўР Р‹Р вЂњРІР‚С™Р вЂ™Р’В¬Р вЂњРЎвЂњР Р†Р вЂљРЎв„ўР вЂњРІР‚С™Р вЂ™Р’В Р вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРІР‚В Р Р†Р вЂљРІвЂћСћР вЂњРЎвЂњР Р†Р вЂљРЎв„ўР вЂњРІР‚С™Р вЂ™РЎС›Р вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРІР‚С™Р вЂ™РЎС›Р вЂњРЎвЂњР вЂ™РЎС›Р вЂњРЎС›Р Р†Р вЂљРЎв„ўР вЂ™Р’В¬Р вЂњРІР‚В¦Р вЂ™Р Р‹Р вЂњРЎвЂњР Р†Р вЂљРЎв„ўР вЂњРІР‚С™Р вЂ™Р’В¬Р вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРІР‚С™Р вЂ™РЎС›Р вЂњРЎвЂњР вЂ™РЎС›Р вЂњРЎС›Р Р†Р вЂљРЎв„ўР вЂ™Р’В¬Р вЂњРІР‚В¦Р вЂ™РЎвЂўР вЂњРЎвЂњР Р†Р вЂљРЎв„ўР вЂњРІР‚С™Р вЂ™РЎС›Р вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРІР‚В Р Р†Р вЂљРІвЂћСћР вЂњРЎвЂњР Р†Р вЂљР’В Р вЂњРЎС›Р Р†РІР‚С™Р’В¬Р Р†РІР‚С›РЎС›Р вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРЎС›Р Р†РІР‚С™Р’В¬Р вЂ™Р’В Р вЂњРЎвЂњР вЂ™РЎС›Р вЂњРЎС›Р Р†Р вЂљРЎв„ўР вЂ™Р’В¬Р вЂњРЎС›Р Р†Р вЂљРЎвЂєР вЂ™РЎС›Р вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРІР‚В Р Р†Р вЂљРІвЂћСћР вЂњРЎвЂњР Р†Р вЂљРЎв„ўР вЂњРІР‚С™Р вЂ™РЎС›Р вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРІР‚С™Р вЂ™РЎС›Р вЂњРЎвЂњР вЂ™РЎС›Р вЂњРЎС›Р Р†Р вЂљРЎв„ўР вЂ™Р’В¬Р вЂњРІР‚В¦Р вЂ™Р Р‹Р вЂњРЎвЂњР Р†Р вЂљРЎв„ўР вЂњРІР‚С™Р вЂ™Р’В¬Р вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРЎС›Р Р†РІР‚С™Р’В¬Р вЂўР Р‹Р вЂњРЎвЂњР Р†Р вЂљРЎв„ўР вЂњРІР‚С™Р вЂ™Р’В Р вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРІР‚В Р Р†Р вЂљРІвЂћСћР вЂњРЎвЂњР Р†Р вЂљР’В Р вЂњРЎС›Р Р†РІР‚С™Р’В¬Р Р†РІР‚С›РЎС›Р вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРЎС›Р Р†РІР‚С™Р’В¬Р вЂўР Р‹Р вЂњРЎвЂњР Р†Р вЂљРЎв„ўР вЂњРІР‚С™Р вЂ™РЎС›Р вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРІР‚В Р Р†Р вЂљРІвЂћСћР вЂњРЎвЂњР Р†Р вЂљРЎв„ўР вЂњРІР‚С™Р вЂ™РЎС›Р вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРІР‚С™Р вЂ™РЎС›Р вЂњРЎвЂњР вЂ™РЎС›Р вЂњРЎС›Р Р†РІР‚С™Р’В¬Р вЂўР Р‹Р вЂњРІР‚С™Р вЂ™Р’В¬Р вЂњРЎвЂњР Р†Р вЂљР’В¦Р вЂњРІР‚С™Р вЂ™Р Р‹Р вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРЎС›Р Р†РІР‚С™Р’В¬Р вЂўР Р‹Р вЂњРЎвЂњР Р†Р вЂљРЎв„ўР вЂњРІР‚С™Р вЂ™Р’В¬Р вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРІР‚В Р Р†Р вЂљРІвЂћСћР вЂњРЎвЂњР Р†Р вЂљРЎв„ўР вЂњРІР‚С™Р вЂ™РЎС›Р вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРІР‚С™Р вЂ™РЎС›Р вЂњРЎвЂњР вЂ™РЎС›Р вЂњРЎС›Р Р†РІР‚С™Р’В¬Р вЂўР Р‹Р вЂњРІР‚С™Р вЂ™Р’В¬Р вЂњРЎвЂњР Р†Р вЂљР’В¦Р вЂњРІР‚С™Р вЂ™РЎвЂўР вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРЎС›Р Р†РІР‚С™Р’В¬Р вЂўР Р‹Р вЂњРЎвЂњР Р†Р вЂљРЎв„ўР вЂњРІР‚С™Р вЂ™РЎС›Р вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРІР‚В Р Р†Р вЂљРІвЂћСћР вЂњРЎвЂњР Р†Р вЂљР’В Р вЂњРЎС›Р Р†РІР‚С™Р’В¬Р Р†РІР‚С›РЎС›Р вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРЎС›Р Р†РІР‚С™Р’В¬Р вЂ™Р’В Р вЂњРЎвЂњР вЂ™РЎС›Р вЂњРЎС›Р Р†Р вЂљРЎв„ўР вЂ™Р’В¬Р вЂњРЎС›Р Р†Р вЂљРЎвЂєР вЂ™РЎС›Р вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРІР‚В Р Р†Р вЂљРІвЂћСћР вЂњРЎвЂњР вЂ™РЎС›Р вЂњРЎС›Р Р†Р вЂљРЎв„ўР вЂ™Р’В¬Р вЂњРІР‚С™Р вЂ™Р’В Р вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРІР‚С™Р вЂ™РЎС›Р вЂњРЎвЂњР вЂ™РЎС›Р вЂњРЎС›Р Р†РІР‚С™Р’В¬Р вЂўР Р‹Р вЂњРІР‚С™Р вЂ™Р’В¬Р вЂњРЎвЂњР вЂ™РЎС›Р вЂњРЎС›Р Р†РІР‚С™Р’В¬Р вЂўРЎвЂўР вЂњРІР‚С™Р вЂ™РЎС›Р вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРІР‚В Р Р†Р вЂљРІвЂћСћР вЂњРЎвЂњР Р†Р вЂљР’В Р вЂњРЎС›Р Р†РІР‚С™Р’В¬Р Р†РІР‚С›РЎС›Р вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРЎС›Р Р†РІР‚С™Р’В¬Р вЂўР Р‹Р вЂњРЎвЂњР Р†Р вЂљРЎв„ўР вЂњРІР‚С™Р вЂ™РЎС›Р вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРІР‚В Р Р†Р вЂљРІвЂћСћР вЂњРЎвЂњР Р†Р вЂљРЎв„ўР вЂњРІР‚С™Р вЂ™РЎС›Р вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРІР‚С™Р вЂ™РЎС›Р вЂњРЎвЂњР вЂ™РЎС›Р вЂњРЎС›Р Р†РІР‚С™Р’В¬Р вЂўР Р‹Р вЂњРІР‚С™Р вЂ™Р’В¬Р вЂњРЎвЂњР Р†Р вЂљР’В¦Р вЂњРІР‚С™Р вЂ™Р Р‹Р вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРЎС›Р Р†РІР‚С™Р’В¬Р вЂўР Р‹Р вЂњРЎвЂњР Р†Р вЂљРЎв„ўР вЂњРІР‚С™Р вЂ™Р’В¬Р вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРІР‚В Р Р†Р вЂљРІвЂћСћР вЂњРЎвЂњР вЂ™РЎС›Р вЂњРЎС›Р Р†Р вЂљРЎв„ўР вЂ™Р’В¬Р вЂњРІР‚В¦Р вЂ™Р Р‹Р вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРЎС›Р Р†РІР‚С™Р’В¬Р вЂўР Р‹Р вЂњРЎвЂњР Р†Р вЂљРЎв„ўР вЂњРІР‚С™Р вЂ™Р’В Р вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРІР‚В Р Р†Р вЂљРІвЂћСћР вЂњРЎвЂњР Р†Р вЂљР’В Р вЂњРЎС›Р Р†РІР‚С™Р’В¬Р Р†РІР‚С›РЎС›Р вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРЎС›Р Р†РІР‚С™Р’В¬Р вЂ™Р’В Р вЂњРЎвЂњР вЂ™РЎС›Р вЂњРЎС›Р Р†Р вЂљРЎв„ўР вЂ™Р’В¬Р вЂњРЎС›Р Р†Р вЂљРЎвЂєР вЂ™РЎС›Р вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРІР‚В Р Р†Р вЂљРІвЂћСћР вЂњРЎвЂњР вЂ™РЎС›Р вЂњРЎС›Р Р†Р вЂљРЎв„ўР вЂ™Р’В¬Р вЂњРІР‚В¦Р вЂ™Р Р‹Р вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРЎС›Р Р†РІР‚С™Р’В¬Р вЂўР Р‹Р вЂњРЎвЂњР Р†Р вЂљРЎв„ўР вЂњРІР‚С™Р вЂ™РЎС›Р вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРІР‚В Р Р†Р вЂљРІвЂћСћР вЂњРЎвЂњР Р†Р вЂљР’В Р вЂњРЎС›Р Р†РІР‚С™Р’В¬Р Р†РІР‚С›РЎС›Р вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРЎС›Р Р†РІР‚С™Р’В¬Р вЂўР Р‹Р вЂњРЎвЂњР Р†Р вЂљРЎв„ўР вЂњРІР‚С™Р вЂ™РЎС›Р вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРІР‚В Р Р†Р вЂљРІвЂћСћР вЂњРЎвЂњР Р†Р вЂљРЎв„ўР вЂњРІР‚С™Р вЂ™РЎС›Р вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРІР‚С™Р вЂ™РЎС›Р вЂњРЎвЂњР вЂ™РЎС›Р вЂњРЎС›Р Р†Р вЂљРЎв„ўР вЂ™Р’В¬Р вЂњРІР‚В¦Р вЂ™Р Р‹Р вЂњРЎвЂњР Р†Р вЂљРЎв„ўР вЂњРІР‚С™Р вЂ™Р’В¬Р вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРЎС›Р Р†РІР‚С™Р’В¬Р вЂ™Р’В¦Р вЂњРЎвЂњР Р†Р вЂљРЎв„ўР вЂњРІР‚С™Р вЂ™Р Р‹Р вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРІР‚В Р Р†Р вЂљРІвЂћСћР вЂњРЎвЂњР вЂ™РЎС›Р вЂњРЎС›Р Р†Р вЂљРЎв„ўР вЂ™Р’В¬Р вЂњРІР‚В¦Р вЂ™Р Р‹Р вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРЎС›Р Р†РІР‚С™Р’В¬Р вЂўР Р‹Р вЂњРЎвЂњР Р†Р вЂљРЎв„ўР вЂњРІР‚С™Р вЂ™Р’В¬Р вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРІР‚В Р Р†Р вЂљРІвЂћСћР вЂњРЎвЂњР Р†Р вЂљР’В Р вЂњРЎС›Р Р†РІР‚С™Р’В¬Р Р†РІР‚С›РЎС›Р вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРЎС›Р Р†РІР‚С™Р’В¬Р вЂўР Р‹Р вЂњРЎвЂњР Р†Р вЂљРЎв„ўР вЂњРІР‚С™Р вЂ™РЎС›Р вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРІР‚В Р Р†Р вЂљРІвЂћСћР вЂњРЎвЂњР Р†Р вЂљРЎв„ўР вЂњРІР‚С™Р вЂ™РЎС›Р вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРІР‚С™Р вЂ™РЎС›Р вЂњРЎвЂњР вЂ™РЎС›Р вЂњРЎС›Р Р†Р вЂљРЎв„ўР вЂ™Р’В¬Р вЂњРІР‚В¦Р вЂ™Р Р‹Р вЂњРЎвЂњР Р†Р вЂљРЎв„ўР вЂњРІР‚С™Р вЂ™Р’В¬Р вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРЎС›Р Р†РІР‚С™Р’В¬Р вЂ™Р’В¦Р вЂњРЎвЂњР Р†Р вЂљРЎв„ўР вЂњРІР‚С™Р вЂ™РЎвЂўР вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРІР‚В Р Р†Р вЂљРІвЂћСћР вЂњРЎвЂњР вЂ™РЎС›Р вЂњРЎС›Р Р†Р вЂљРЎв„ўР вЂ™Р’В¬Р вЂњРІР‚В¦Р вЂ™Р Р‹Р вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРЎС›Р Р†РІР‚С™Р’В¬Р вЂўР Р‹Р вЂњРЎвЂњР Р†Р вЂљРЎв„ўР вЂњРІР‚С™Р вЂ™РЎС›Р вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРІР‚В Р Р†Р вЂљРІвЂћСћР вЂњРЎвЂњР Р†Р вЂљР’В Р вЂњРЎС›Р Р†РІР‚С™Р’В¬Р Р†РІР‚С›РЎС›Р вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРЎС›Р Р†РІР‚С™Р’В¬Р вЂ™Р’В Р вЂњРЎвЂњР вЂ™РЎС›Р вЂњРЎС›Р Р†Р вЂљРЎв„ўР вЂ™Р’В¬Р вЂњРЎС›Р Р†Р вЂљРЎвЂєР вЂ™РЎС›Р вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРІР‚В Р Р†Р вЂљРІвЂћСћР вЂњРЎвЂњР вЂ™РЎС›Р вЂњРЎС›Р Р†Р вЂљРЎв„ўР вЂ™Р’В¬Р вЂњРІР‚С™Р вЂ™Р’В Р вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРІР‚С™Р вЂ™РЎС›Р вЂњРЎвЂњР вЂ™РЎС›Р вЂњРЎС›Р Р†РІР‚С™Р’В¬Р вЂўР Р‹Р вЂњРІР‚С™Р вЂ™Р’В¬Р вЂњРЎвЂњР вЂ™РЎС›Р вЂњРЎС›Р Р†РІР‚С™Р’В¬Р вЂўРЎвЂўР вЂњРІР‚С™Р вЂ™РЎС›Р вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРІР‚В Р Р†Р вЂљРІвЂћСћР вЂњРЎвЂњР Р†Р вЂљР’В Р вЂњРЎС›Р Р†РІР‚С™Р’В¬Р Р†РІР‚С›РЎС›Р вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРІР‚С™Р вЂ™РЎС›Р вЂњРЎвЂњР вЂ™РЎС›Р вЂњРЎС›Р Р†РІР‚С™Р’В¬Р вЂўР Р‹Р вЂњРІР‚С™Р вЂ™Р’В¬Р вЂњРЎвЂњР Р†Р вЂљРЎв„ўР вЂњРІР‚С™Р вЂ™Р’В Р вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРІР‚В Р Р†Р вЂљРІвЂћСћР вЂњРЎвЂњР Р†Р вЂљРЎв„ўР вЂњРІР‚С™Р вЂ™РЎС›Р вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРІР‚С™Р вЂ™РЎС›Р вЂњРЎвЂњР вЂ™РЎС›Р вЂњРЎС›Р Р†Р вЂљРЎв„ўР вЂ™Р’В¬Р вЂњРІР‚В¦Р вЂ™Р Р‹Р вЂњРЎвЂњР Р†Р вЂљРЎв„ўР вЂњРІР‚С™Р вЂ™Р’В¬Р вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРІР‚С™Р вЂ™РЎС›Р вЂњРЎвЂњР вЂ™РЎС›Р вЂњРЎС›Р Р†Р вЂљРЎв„ўР вЂ™Р’В¬Р вЂњРІР‚В¦Р вЂ™РЎвЂўР вЂњРЎвЂњР Р†Р вЂљРЎв„ўР вЂњРІР‚С™Р вЂ™РЎС›Р вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРІР‚В Р Р†Р вЂљРІвЂћСћР вЂњРЎвЂњР Р†Р вЂљР’В Р вЂњРЎС›Р Р†РІР‚С™Р’В¬Р Р†РІР‚С›РЎС›Р вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРЎС›Р Р†РІР‚С™Р’В¬Р вЂ™Р’В Р вЂњРЎвЂњР вЂ™РЎС›Р вЂњРЎС›Р Р†Р вЂљРЎв„ўР вЂ™Р’В¬Р вЂњРЎС›Р Р†Р вЂљРЎвЂєР вЂ™РЎС›Р вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРІР‚В Р Р†Р вЂљРІвЂћСћР вЂњРЎвЂњР вЂ™РЎС›Р вЂњРЎС›Р Р†Р вЂљРЎв„ўР вЂ™Р’В¬Р вЂњРІР‚В¦Р вЂ™Р Р‹Р вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРЎС›Р Р†РІР‚С™Р’В¬Р вЂўР Р‹Р вЂњРЎвЂњР Р†Р вЂљРЎв„ўР вЂњРІР‚С™Р вЂ™РЎС›Р вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРІР‚В Р Р†Р вЂљРІвЂћСћР вЂњРЎвЂњР Р†Р вЂљР’В Р вЂњРЎС›Р Р†РІР‚С™Р’В¬Р Р†РІР‚С›РЎС›Р вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРЎС›Р Р†РІР‚С™Р’В¬Р вЂўР Р‹Р вЂњРЎвЂњР Р†Р вЂљРЎв„ўР вЂњРІР‚С™Р вЂ™РЎС›Р вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРІР‚В Р Р†Р вЂљРІвЂћСћР вЂњРЎвЂњР Р†Р вЂљРЎв„ўР вЂњРІР‚С™Р вЂ™РЎС›Р вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРІР‚С™Р вЂ™РЎС›Р вЂњРЎвЂњР вЂ™РЎС›Р вЂњРЎС›Р Р†Р вЂљРЎв„ўР вЂ™Р’В¬Р вЂњРІР‚В¦Р вЂ™Р Р‹Р вЂњРЎвЂњР Р†Р вЂљРЎв„ўР вЂњРІР‚С™Р вЂ™Р’В¬Р вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРЎС›Р Р†РІР‚С™Р’В¬Р вЂ™Р’В¦Р вЂњРЎвЂњР Р†Р вЂљРЎв„ўР вЂњРІР‚С™Р вЂ™Р Р‹Р вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРІР‚В Р Р†Р вЂљРІвЂћСћР вЂњРЎвЂњР вЂ™РЎС›Р вЂњРЎС›Р Р†Р вЂљРЎв„ўР вЂ™Р’В¬Р вЂњРІР‚В¦Р вЂ™Р Р‹Р вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРЎС›Р Р†РІР‚С™Р’В¬Р вЂўР Р‹Р вЂњРЎвЂњР Р†Р вЂљРЎв„ўР вЂњРІР‚С™Р вЂ™Р’В¬Р вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРІР‚В Р Р†Р вЂљРІвЂћСћР вЂњРЎвЂњР Р†Р вЂљР’В Р вЂњРЎС›Р Р†РІР‚С™Р’В¬Р Р†РІР‚С›РЎС›Р вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРІР‚С™Р вЂ™РЎС›Р вЂњРЎвЂњР вЂ™РЎС›Р вЂњРЎС›Р Р†РІР‚С™Р’В¬Р вЂўР Р‹Р вЂњРІР‚С™Р вЂ™Р’В¬Р вЂњРЎвЂњР Р†Р вЂљРЎв„ўР вЂњРІР‚С™Р вЂ™Р’В¦Р вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРІР‚В Р Р†Р вЂљРІвЂћСћР вЂњРЎвЂњР вЂ™РЎС›Р вЂњРЎС›Р Р†Р вЂљРЎв„ўР вЂ™Р’В¬Р вЂњРІР‚В¦Р вЂ™Р Р‹Р вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРЎС›Р Р†РІР‚С™Р’В¬Р вЂўР Р‹Р вЂњРЎвЂњР Р†Р вЂљРЎв„ўР вЂњРІР‚С™Р вЂ™Р Р‹Р вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРІР‚В Р Р†Р вЂљРІвЂћСћР вЂњРЎвЂњР Р†Р вЂљР’В Р вЂњРЎС›Р Р†РІР‚С™Р’В¬Р Р†РІР‚С›РЎС›Р вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРЎС›Р Р†РІР‚С™Р’В¬Р вЂ™Р’В Р вЂњРЎвЂњР вЂ™РЎС›Р вЂњРЎС›Р Р†Р вЂљРЎв„ўР вЂ™Р’В¬Р вЂњРЎС›Р Р†Р вЂљРЎвЂєР вЂ™РЎС›Р вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРІР‚В Р Р†Р вЂљРІвЂћСћР вЂњРЎвЂњР вЂ™РЎС›Р вЂњРЎС›Р Р†Р вЂљРЎв„ўР вЂ™Р’В¬Р вЂњРІР‚С™Р вЂ™Р’В Р вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРІР‚С™Р вЂ™РЎС›Р вЂњРЎвЂњР вЂ™РЎС›Р вЂњРЎС›Р Р†РІР‚С™Р’В¬Р вЂўР Р‹Р вЂњРІР‚С™Р вЂ™Р’В¬Р вЂњРЎвЂњР вЂ™РЎС›Р вЂњРЎС›Р Р†РІР‚С™Р’В¬Р вЂўРЎвЂўР вЂњРІР‚С™Р вЂ™РЎС›Р вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРІР‚В Р Р†Р вЂљРІвЂћСћР вЂњРЎвЂњР Р†Р вЂљР’В Р вЂњРЎС›Р Р†РІР‚С™Р’В¬Р Р†РІР‚С›РЎС›Р вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРЎС›Р Р†РІР‚С™Р’В¬Р вЂўР Р‹Р вЂњРЎвЂњР Р†Р вЂљРЎв„ўР вЂњРІР‚С™Р вЂ™РЎС›Р вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРІР‚В Р Р†Р вЂљРІвЂћСћР вЂњРЎвЂњР Р†Р вЂљРЎв„ўР вЂњРІР‚С™Р вЂ™РЎС›Р вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРІР‚С™Р вЂ™РЎС›Р вЂњРЎвЂњР вЂ™РЎС›Р вЂњРЎС›Р Р†РІР‚С™Р’В¬Р вЂўР Р‹Р вЂњРІР‚С™Р вЂ™Р’В¬Р вЂњРЎвЂњР Р†Р вЂљР’В¦Р вЂњРІР‚С™Р вЂ™Р Р‹Р вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРЎС›Р Р†РІР‚С™Р’В¬Р вЂўР Р‹Р вЂњРЎвЂњР Р†Р вЂљРЎв„ўР вЂњРІР‚С™Р вЂ™Р’В¬Р вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРІР‚В Р Р†Р вЂљРІвЂћСћР вЂњРЎвЂњР вЂ™РЎС›Р вЂњРЎС›Р Р†Р вЂљРЎв„ўР вЂ™Р’В¬Р вЂњРІР‚С™Р вЂ™Р’В¦Р вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРЎС›Р Р†РІР‚С™Р’В¬Р вЂўР Р‹Р вЂњРЎвЂњР Р†Р вЂљРЎв„ўР вЂњРІР‚С™Р вЂ™Р Р‹Р вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРІР‚В Р Р†Р вЂљРІвЂћСћР вЂњРЎвЂњР Р†Р вЂљР’В Р вЂњРЎС›Р Р†РІР‚С™Р’В¬Р Р†РІР‚С›РЎС›Р вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРЎС›Р Р†РІР‚С™Р’В¬Р вЂ™Р’В Р вЂњРЎвЂњР вЂ™РЎС›Р вЂњРЎС›Р Р†Р вЂљРЎв„ўР вЂ™Р’В¬Р вЂњРЎС›Р Р†Р вЂљРЎвЂєР вЂ™РЎС›Р вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРІР‚В Р Р†Р вЂљРІвЂћСћР вЂњРЎвЂњР Р†Р вЂљРЎв„ўР вЂњРІР‚С™Р вЂ™РЎС›Р вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРІР‚С™Р вЂ™РЎС›Р вЂњРЎвЂњР вЂ™РЎС›Р вЂњРЎС›Р Р†Р вЂљРЎв„ўР вЂ™Р’В¬Р вЂњРІР‚В¦Р вЂ™Р Р‹Р вЂњРЎвЂњР Р†Р вЂљРЎв„ўР вЂњРІР‚С™Р вЂ™Р’В¬Р вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРЎС›Р Р†РІР‚С™Р’В¬Р вЂ™Р’В¦Р вЂњРЎвЂњР Р†Р вЂљРЎв„ўР вЂњРІР‚С™Р вЂ™Р Р‹Р вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРІР‚В Р Р†Р вЂљРІвЂћСћР вЂњРЎвЂњР Р†Р вЂљР’В Р вЂњРЎС›Р Р†РІР‚С™Р’В¬Р Р†РІР‚С›РЎС›Р вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРІР‚С™Р вЂ™РЎС›Р вЂњРЎвЂњР вЂ™РЎС›Р вЂњРЎС›Р Р†РІР‚С™Р’В¬Р вЂўР Р‹Р вЂњРІР‚С™Р вЂ™Р’В¬Р вЂњРЎвЂњР Р†Р вЂљР’В¦Р вЂњРІР‚С™Р вЂ™Р Р‹Р вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРІР‚В Р Р†Р вЂљРІвЂћСћР вЂњРЎвЂњР вЂ™РЎС›Р вЂњРЎС›Р Р†Р вЂљРЎв„ўР вЂ™Р’В¬Р вЂњРІР‚В¦Р вЂ™Р Р‹Р вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРЎС›Р Р†РІР‚С™Р’В¬Р вЂўР Р‹Р вЂњРЎвЂњР Р†Р вЂљРЎв„ўР вЂњРІР‚С™Р вЂ™Р’В  RHdisp, alors qu'Р вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРІР‚В Р Р†Р вЂљРІвЂћСћР вЂњРЎвЂњР Р†Р вЂљР’В Р вЂњРЎС›Р Р†РІР‚С™Р’В¬Р Р†РІР‚С›РЎС›Р вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРЎС›Р Р†РІР‚С™Р’В¬Р вЂ™Р’В Р вЂњРЎвЂњР вЂ™РЎС›Р вЂњРЎС›Р Р†Р вЂљРЎв„ўР вЂ™Р’В¬Р вЂњРЎС›Р Р†Р вЂљРЎвЂєР вЂ™РЎС›Р вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРІР‚В Р Р†Р вЂљРІвЂћСћР вЂњРЎвЂњР вЂ™РЎС›Р вЂњРЎС›Р Р†Р вЂљРЎв„ўР вЂ™Р’В¬Р вЂњРІР‚С™Р вЂ™Р’В Р вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРІР‚С™Р вЂ™РЎС›Р вЂњРЎвЂњР вЂ™РЎС›Р вЂњРЎС›Р Р†РІР‚С™Р’В¬Р вЂўР Р‹Р вЂњРІР‚С™Р вЂ™Р’В¬Р вЂњРЎвЂњР вЂ™РЎС›Р вЂњРЎС›Р Р†РІР‚С™Р’В¬Р вЂўРЎвЂўР вЂњРІР‚С™Р вЂ™РЎС›Р вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРІР‚В Р Р†Р вЂљРІвЂћСћР вЂњРЎвЂњР Р†Р вЂљР’В Р вЂњРЎС›Р Р†РІР‚С™Р’В¬Р Р†РІР‚С›РЎС›Р вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРІР‚С™Р вЂ™РЎС›Р вЂњРЎвЂњР вЂ™РЎС›Р вЂњРЎС›Р Р†РІР‚С™Р’В¬Р вЂўР Р‹Р вЂњРІР‚С™Р вЂ™Р’В¬Р вЂњРЎвЂњР Р†Р вЂљРЎв„ўР вЂњРІР‚С™Р вЂ™Р’В Р вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРІР‚В Р Р†Р вЂљРІвЂћСћР вЂњРЎвЂњР Р†Р вЂљРЎв„ўР вЂњРІР‚С™Р вЂ™РЎС›Р вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРІР‚С™Р вЂ™РЎС›Р вЂњРЎвЂњР вЂ™РЎС›Р вЂњРЎС›Р Р†Р вЂљРЎв„ўР вЂ™Р’В¬Р вЂњРІР‚В¦Р вЂ™Р Р‹Р вЂњРЎвЂњР Р†Р вЂљРЎв„ўР вЂњРІР‚С™Р вЂ™Р’В¬Р вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРІР‚С™Р вЂ™РЎС›Р вЂњРЎвЂњР вЂ™РЎС›Р вЂњРЎС›Р Р†Р вЂљРЎв„ўР вЂ™Р’В¬Р вЂњРІР‚В¦Р вЂ™РЎвЂўР вЂњРЎвЂњР Р†Р вЂљРЎв„ўР вЂњРІР‚С™Р вЂ™РЎС›Р вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРІР‚В Р Р†Р вЂљРІвЂћСћР вЂњРЎвЂњР Р†Р вЂљР’В Р вЂњРЎС›Р Р†РІР‚С™Р’В¬Р Р†РІР‚С›РЎС›Р вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРЎС›Р Р†РІР‚С™Р’В¬Р вЂ™Р’В Р вЂњРЎвЂњР вЂ™РЎС›Р вЂњРЎС›Р Р†Р вЂљРЎв„ўР вЂ™Р’В¬Р вЂњРЎС›Р Р†Р вЂљРЎвЂєР вЂ™РЎС›Р вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРІР‚В Р Р†Р вЂљРІвЂћСћР вЂњРЎвЂњР Р†Р вЂљРЎв„ўР вЂњРІР‚С™Р вЂ™РЎС›Р вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРІР‚С™Р вЂ™РЎС›Р вЂњРЎвЂњР вЂ™РЎС›Р вЂњРЎС›Р Р†Р вЂљРЎв„ўР вЂ™Р’В¬Р вЂњРІР‚В¦Р вЂ™Р Р‹Р вЂњРЎвЂњР Р†Р вЂљРЎв„ўР вЂњРІР‚С™Р вЂ™Р’В¬Р вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРЎС›Р Р†РІР‚С™Р’В¬Р вЂўР Р‹Р вЂњРЎвЂњР Р†Р вЂљРЎв„ўР вЂњРІР‚С™Р вЂ™Р’В Р вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРІР‚В Р Р†Р вЂљРІвЂћСћР вЂњРЎвЂњР Р†Р вЂљР’В Р вЂњРЎС›Р Р†РІР‚С™Р’В¬Р Р†РІР‚С›РЎС›Р вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРЎС›Р Р†РІР‚С™Р’В¬Р вЂўР Р‹Р вЂњРЎвЂњР Р†Р вЂљРЎв„ўР вЂњРІР‚С™Р вЂ™РЎС›Р вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРІР‚В Р Р†Р вЂљРІвЂћСћР вЂњРЎвЂњР Р†Р вЂљРЎв„ўР вЂњРІР‚С™Р вЂ™РЎС›Р вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРІР‚С™Р вЂ™РЎС›Р вЂњРЎвЂњР вЂ™РЎС›Р вЂњРЎС›Р Р†РІР‚С™Р’В¬Р вЂўР Р‹Р вЂњРІР‚С™Р вЂ™Р’В¬Р вЂњРЎвЂњР Р†Р вЂљР’В¦Р вЂњРІР‚С™Р вЂ™Р Р‹Р вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРЎС›Р Р†РІР‚С™Р’В¬Р вЂўР Р‹Р вЂњРЎвЂњР Р†Р вЂљРЎв„ўР вЂњРІР‚С™Р вЂ™Р’В¬Р вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРІР‚В Р Р†Р вЂљРІвЂћСћР вЂњРЎвЂњР Р†Р вЂљРЎв„ўР вЂњРІР‚С™Р вЂ™РЎС›Р вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРІР‚С™Р вЂ™РЎС›Р вЂњРЎвЂњР вЂ™РЎС›Р вЂњРЎС›Р Р†РІР‚С™Р’В¬Р вЂўР Р‹Р вЂњРІР‚С™Р вЂ™Р’В¬Р вЂњРЎвЂњР Р†Р вЂљР’В¦Р вЂњРІР‚С™Р вЂ™РЎвЂўР вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРЎС›Р Р†РІР‚С™Р’В¬Р вЂўР Р‹Р вЂњРЎвЂњР Р†Р вЂљРЎв„ўР вЂњРІР‚С™Р вЂ™РЎС›Р вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРІР‚В Р Р†Р вЂљРІвЂћСћР вЂњРЎвЂњР Р†Р вЂљР’В Р вЂњРЎС›Р Р†РІР‚С™Р’В¬Р Р†РІР‚С›РЎС›Р вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРЎС›Р Р†РІР‚С™Р’В¬Р вЂ™Р’В Р вЂњРЎвЂњР вЂ™РЎС›Р вЂњРЎС›Р Р†Р вЂљРЎв„ўР вЂ™Р’В¬Р вЂњРЎС›Р Р†Р вЂљРЎвЂєР вЂ™РЎС›Р вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРІР‚В Р Р†Р вЂљРІвЂћСћР вЂњРЎвЂњР вЂ™РЎС›Р вЂњРЎС›Р Р†Р вЂљРЎв„ўР вЂ™Р’В¬Р вЂњРІР‚С™Р вЂ™Р’В Р вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРІР‚С™Р вЂ™РЎС›Р вЂњРЎвЂњР вЂ™РЎС›Р вЂњРЎС›Р Р†РІР‚С™Р’В¬Р вЂўР Р‹Р вЂњРІР‚С™Р вЂ™Р’В¬Р вЂњРЎвЂњР вЂ™РЎС›Р вЂњРЎС›Р Р†РІР‚С™Р’В¬Р вЂўРЎвЂўР вЂњРІР‚С™Р вЂ™РЎС›Р вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРІР‚В Р Р†Р вЂљРІвЂћСћР вЂњРЎвЂњР Р†Р вЂљР’В Р вЂњРЎС›Р Р†РІР‚С™Р’В¬Р Р†РІР‚С›РЎС›Р вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРЎС›Р Р†РІР‚С™Р’В¬Р вЂўР Р‹Р вЂњРЎвЂњР Р†Р вЂљРЎв„ўР вЂњРІР‚С™Р вЂ™РЎС›Р вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРІР‚В Р Р†Р вЂљРІвЂћСћР вЂњРЎвЂњР Р†Р вЂљРЎв„ўР вЂњРІР‚С™Р вЂ™РЎС›Р вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРІР‚С™Р вЂ™РЎС›Р вЂњРЎвЂњР вЂ™РЎС›Р вЂњРЎС›Р Р†РІР‚С™Р’В¬Р вЂўР Р‹Р вЂњРІР‚С™Р вЂ™Р’В¬Р вЂњРЎвЂњР Р†Р вЂљР’В¦Р вЂњРІР‚С™Р вЂ™Р Р‹Р вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРЎС›Р Р†РІР‚С™Р’В¬Р вЂўР Р‹Р вЂњРЎвЂњР Р†Р вЂљРЎв„ўР вЂњРІР‚С™Р вЂ™Р’В¬Р вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРІР‚В Р Р†Р вЂљРІвЂћСћР вЂњРЎвЂњР вЂ™РЎС›Р вЂњРЎС›Р Р†Р вЂљРЎв„ўР вЂ™Р’В¬Р вЂњРІР‚В¦Р вЂ™Р Р‹Р вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРЎС›Р Р†РІР‚С™Р’В¬Р вЂўР Р‹Р вЂњРЎвЂњР Р†Р вЂљРЎв„ўР вЂњРІР‚С™Р вЂ™Р’В Р вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРІР‚В Р Р†Р вЂљРІвЂћСћР вЂњРЎвЂњР Р†Р вЂљР’В Р вЂњРЎС›Р Р†РІР‚С™Р’В¬Р Р†РІР‚С›РЎС›Р вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРЎС›Р Р†РІР‚С™Р’В¬Р вЂ™Р’В Р вЂњРЎвЂњР вЂ™РЎС›Р вЂњРЎС›Р Р†Р вЂљРЎв„ўР вЂ™Р’В¬Р вЂњРЎС›Р Р†Р вЂљРЎвЂєР вЂ™РЎС›Р вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРІР‚В Р Р†Р вЂљРІвЂћСћР вЂњРЎвЂњР вЂ™РЎС›Р вЂњРЎС›Р Р†Р вЂљРЎв„ўР вЂ™Р’В¬Р вЂњРІР‚В¦Р вЂ™Р Р‹Р вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРЎС›Р Р†РІР‚С™Р’В¬Р вЂўР Р‹Р вЂњРЎвЂњР Р†Р вЂљРЎв„ўР вЂњРІР‚С™Р вЂ™РЎС›Р вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРІР‚В Р Р†Р вЂљРІвЂћСћР вЂњРЎвЂњР Р†Р вЂљР’В Р вЂњРЎС›Р Р†РІР‚С™Р’В¬Р Р†РІР‚С›РЎС›Р вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРЎС›Р Р†РІР‚С™Р’В¬Р вЂўР Р‹Р вЂњРЎвЂњР Р†Р вЂљРЎв„ўР вЂњРІР‚С™Р вЂ™РЎС›Р вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРІР‚В Р Р†Р вЂљРІвЂћСћР вЂњРЎвЂњР Р†Р вЂљРЎв„ўР вЂњРІР‚С™Р вЂ™РЎС›Р вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРІР‚С™Р вЂ™РЎС›Р вЂњРЎвЂњР вЂ™РЎС›Р вЂњРЎС›Р Р†Р вЂљРЎв„ўР вЂ™Р’В¬Р вЂњРІР‚В¦Р вЂ™Р Р‹Р вЂњРЎвЂњР Р†Р вЂљРЎв„ўР вЂњРІР‚С™Р вЂ™Р’В¬Р вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРЎС›Р Р†РІР‚С™Р’В¬Р вЂ™Р’В¦Р вЂњРЎвЂњР Р†Р вЂљРЎв„ўР вЂњРІР‚С™Р вЂ™Р Р‹Р вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРІР‚В Р Р†Р вЂљРІвЂћСћР вЂњРЎвЂњР вЂ™РЎС›Р вЂњРЎС›Р Р†Р вЂљРЎв„ўР вЂ™Р’В¬Р вЂњРІР‚В¦Р вЂ™Р Р‹Р вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРЎС›Р Р†РІР‚С™Р’В¬Р вЂўР Р‹Р вЂњРЎвЂњР Р†Р вЂљРЎв„ўР вЂњРІР‚С™Р вЂ™Р’В¬Р вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРІР‚В Р Р†Р вЂљРІвЂћСћР вЂњРЎвЂњР Р†Р вЂљР’В Р вЂњРЎС›Р Р†РІР‚С™Р’В¬Р Р†РІР‚С›РЎС›Р вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРЎС›Р Р†РІР‚С™Р’В¬Р вЂўР Р‹Р вЂњРЎвЂњР Р†Р вЂљРЎв„ўР вЂњРІР‚С™Р вЂ™РЎС›Р вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРІР‚В Р Р†Р вЂљРІвЂћСћР вЂњРЎвЂњР Р†Р вЂљРЎв„ўР вЂњРІР‚С™Р вЂ™РЎС›Р вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРІР‚С™Р вЂ™РЎС›Р вЂњРЎвЂњР вЂ™РЎС›Р вЂњРЎС›Р Р†Р вЂљРЎв„ўР вЂ™Р’В¬Р вЂњРІР‚В¦Р вЂ™Р Р‹Р вЂњРЎвЂњР Р†Р вЂљРЎв„ўР вЂњРІР‚С™Р вЂ™Р’В¬Р вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРЎС›Р Р†РІР‚С™Р’В¬Р вЂ™Р’В¦Р вЂњРЎвЂњР Р†Р вЂљРЎв„ўР вЂњРІР‚С™Р вЂ™РЎвЂўР вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРІР‚В Р Р†Р вЂљРІвЂћСћР вЂњРЎвЂњР вЂ™РЎС›Р вЂњРЎС›Р Р†Р вЂљРЎв„ўР вЂ™Р’В¬Р вЂњРІР‚В¦Р вЂ™Р Р‹Р вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРЎС›Р Р†РІР‚С™Р’В¬Р вЂўР Р‹Р вЂњРЎвЂњР Р†Р вЂљРЎв„ўР вЂњРІР‚С™Р вЂ™РЎС›Р вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРІР‚В Р Р†Р вЂљРІвЂћСћР вЂњРЎвЂњР Р†Р вЂљР’В Р вЂњРЎС›Р Р†РІР‚С™Р’В¬Р Р†РІР‚С›РЎС›Р вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРЎС›Р Р†РІР‚С™Р’В¬Р вЂ™Р’В Р вЂњРЎвЂњР вЂ™РЎС›Р вЂњРЎС›Р Р†Р вЂљРЎв„ўР вЂ™Р’В¬Р вЂњРЎС›Р Р†Р вЂљРЎвЂєР вЂ™РЎС›Р вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРІР‚В Р Р†Р вЂљРІвЂћСћР вЂњРЎвЂњР вЂ™РЎС›Р вЂњРЎС›Р Р†Р вЂљРЎв„ўР вЂ™Р’В¬Р вЂњРІР‚С™Р вЂ™Р’В Р вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРІР‚С™Р вЂ™РЎС›Р вЂњРЎвЂњР вЂ™РЎС›Р вЂњРЎС›Р Р†РІР‚С™Р’В¬Р вЂўР Р‹Р вЂњРІР‚С™Р вЂ™Р’В¬Р вЂњРЎвЂњР вЂ™РЎС›Р вЂњРЎС›Р Р†РІР‚С™Р’В¬Р вЂўРЎвЂўР вЂњРІР‚С™Р вЂ™РЎС›Р вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРІР‚В Р Р†Р вЂљРІвЂћСћР вЂњРЎвЂњР Р†Р вЂљР’В Р вЂњРЎС›Р Р†РІР‚С™Р’В¬Р Р†РІР‚С›РЎС›Р вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРІР‚С™Р вЂ™РЎС›Р вЂњРЎвЂњР вЂ™РЎС›Р вЂњРЎС›Р Р†РІР‚С™Р’В¬Р вЂўР Р‹Р вЂњРІР‚С™Р вЂ™Р’В¬Р вЂњРЎвЂњР Р†Р вЂљРЎв„ўР вЂњРІР‚С™Р вЂ™Р’В Р вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРІР‚В Р Р†Р вЂљРІвЂћСћР вЂњРЎвЂњР Р†Р вЂљРЎв„ўР вЂњРІР‚С™Р вЂ™РЎС›Р вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРІР‚С™Р вЂ™РЎС›Р вЂњРЎвЂњР вЂ™РЎС›Р вЂњРЎС›Р Р†Р вЂљРЎв„ўР вЂ™Р’В¬Р вЂњРІР‚В¦Р вЂ™Р Р‹Р вЂњРЎвЂњР Р†Р вЂљРЎв„ўР вЂњРІР‚С™Р вЂ™Р’В¬Р вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРІР‚С™Р вЂ™РЎС›Р вЂњРЎвЂњР вЂ™РЎС›Р вЂњРЎС›Р Р†Р вЂљРЎв„ўР вЂ™Р’В¬Р вЂњРІР‚В¦Р вЂ™РЎвЂўР вЂњРЎвЂњР Р†Р вЂљРЎв„ўР вЂњРІР‚С™Р вЂ™РЎС›Р вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРІР‚В Р Р†Р вЂљРІвЂћСћР вЂњРЎвЂњР Р†Р вЂљР’В Р вЂњРЎС›Р Р†РІР‚С™Р’В¬Р Р†РІР‚С›РЎС›Р вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРЎС›Р Р†РІР‚С™Р’В¬Р вЂ™Р’В Р вЂњРЎвЂњР вЂ™РЎС›Р вЂњРЎС›Р Р†Р вЂљРЎв„ўР вЂ™Р’В¬Р вЂњРЎС›Р Р†Р вЂљРЎвЂєР вЂ™РЎС›Р вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРІР‚В Р Р†Р вЂљРІвЂћСћР вЂњРЎвЂњР вЂ™РЎС›Р вЂњРЎС›Р Р†Р вЂљРЎв„ўР вЂ™Р’В¬Р вЂњРІР‚В¦Р вЂ™Р Р‹Р вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРЎС›Р Р†РІР‚С™Р’В¬Р вЂўР Р‹Р вЂњРЎвЂњР Р†Р вЂљРЎв„ўР вЂњРІР‚С™Р вЂ™РЎС›Р вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРІР‚В Р Р†Р вЂљРІвЂћСћР вЂњРЎвЂњР Р†Р вЂљР’В Р вЂњРЎС›Р Р†РІР‚С™Р’В¬Р Р†РІР‚С›РЎС›Р вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРЎС›Р Р†РІР‚С™Р’В¬Р вЂўР Р‹Р вЂњРЎвЂњР Р†Р вЂљРЎв„ўР вЂњРІР‚С™Р вЂ™РЎС›Р вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРІР‚В Р Р†Р вЂљРІвЂћСћР вЂњРЎвЂњР Р†Р вЂљРЎв„ўР вЂњРІР‚С™Р вЂ™РЎС›Р вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРІР‚С™Р вЂ™РЎС›Р вЂњРЎвЂњР вЂ™РЎС›Р вЂњРЎС›Р Р†Р вЂљРЎв„ўР вЂ™Р’В¬Р вЂњРІР‚В¦Р вЂ™Р Р‹Р вЂњРЎвЂњР Р†Р вЂљРЎв„ўР вЂњРІР‚С™Р вЂ™Р’В¬Р вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРЎС›Р Р†РІР‚С™Р’В¬Р вЂ™Р’В¦Р вЂњРЎвЂњР Р†Р вЂљРЎв„ўР вЂњРІР‚С™Р вЂ™Р Р‹Р вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРІР‚В Р Р†Р вЂљРІвЂћСћР вЂњРЎвЂњР вЂ™РЎС›Р вЂњРЎС›Р Р†Р вЂљРЎв„ўР вЂ™Р’В¬Р вЂњРІР‚В¦Р вЂ™Р Р‹Р вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРЎС›Р Р†РІР‚С™Р’В¬Р вЂўР Р‹Р вЂњРЎвЂњР Р†Р вЂљРЎв„ўР вЂњРІР‚С™Р вЂ™Р’В¬Р вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРІР‚В Р Р†Р вЂљРІвЂћСћР вЂњРЎвЂњР Р†Р вЂљР’В Р вЂњРЎС›Р Р†РІР‚С™Р’В¬Р Р†РІР‚С›РЎС›Р вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРІР‚С™Р вЂ™РЎС›Р вЂњРЎвЂњР вЂ™РЎС›Р вЂњРЎС›Р Р†РІР‚С™Р’В¬Р вЂўР Р‹Р вЂњРІР‚С™Р вЂ™Р’В¬Р вЂњРЎвЂњР Р†Р вЂљРЎв„ўР вЂњРІР‚С™Р вЂ™Р’В¦Р вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРІР‚В Р Р†Р вЂљРІвЂћСћР вЂњРЎвЂњР вЂ™РЎС›Р вЂњРЎС›Р Р†Р вЂљРЎв„ўР вЂ™Р’В¬Р вЂњРІР‚В¦Р вЂ™Р Р‹Р вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРЎС›Р Р†РІР‚С™Р’В¬Р вЂўР Р‹Р вЂњРЎвЂњР Р†Р вЂљРЎв„ўР вЂњРІР‚С™Р вЂ™Р Р‹Р вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРІР‚В Р Р†Р вЂљРІвЂћСћР вЂњРЎвЂњР Р†Р вЂљР’В Р вЂњРЎС›Р Р†РІР‚С™Р’В¬Р Р†РІР‚С›РЎС›Р вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРЎС›Р Р†РІР‚С™Р’В¬Р вЂ™Р’В Р вЂњРЎвЂњР вЂ™РЎС›Р вЂњРЎС›Р Р†Р вЂљРЎв„ўР вЂ™Р’В¬Р вЂњРЎС›Р Р†Р вЂљРЎвЂєР вЂ™РЎС›Р вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРІР‚В Р Р†Р вЂљРІвЂћСћР вЂњРЎвЂњР вЂ™РЎС›Р вЂњРЎС›Р Р†Р вЂљРЎв„ўР вЂ™Р’В¬Р вЂњРІР‚С™Р вЂ™Р’В Р вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРІР‚С™Р вЂ™РЎС›Р вЂњРЎвЂњР вЂ™РЎС›Р вЂњРЎС›Р Р†РІР‚С™Р’В¬Р вЂўР Р‹Р вЂњРІР‚С™Р вЂ™Р’В¬Р вЂњРЎвЂњР вЂ™РЎС›Р вЂњРЎС›Р Р†РІР‚С™Р’В¬Р вЂўРЎвЂўР вЂњРІР‚С™Р вЂ™РЎС›Р вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРІР‚В Р Р†Р вЂљРІвЂћСћР вЂњРЎвЂњР Р†Р вЂљР’В Р вЂњРЎС›Р Р†РІР‚С™Р’В¬Р Р†РІР‚С›РЎС›Р вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРЎС›Р Р†РІР‚С™Р’В¬Р вЂўР Р‹Р вЂњРЎвЂњР Р†Р вЂљРЎв„ўР вЂњРІР‚С™Р вЂ™РЎС›Р вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРІР‚В Р Р†Р вЂљРІвЂћСћР вЂњРЎвЂњР Р†Р вЂљРЎв„ўР вЂњРІР‚С™Р вЂ™РЎС›Р вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРІР‚С™Р вЂ™РЎС›Р вЂњРЎвЂњР вЂ™РЎС›Р вЂњРЎС›Р Р†РІР‚С™Р’В¬Р вЂўР Р‹Р вЂњРІР‚С™Р вЂ™Р’В¬Р вЂњРЎвЂњР Р†Р вЂљР’В¦Р вЂњРІР‚С™Р вЂ™Р Р‹Р вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРЎС›Р Р†РІР‚С™Р’В¬Р вЂўР Р‹Р вЂњРЎвЂњР Р†Р вЂљРЎв„ўР вЂњРІР‚С™Р вЂ™Р’В¬Р вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРІР‚В Р Р†Р вЂљРІвЂћСћР вЂњРЎвЂњР вЂ™РЎС›Р вЂњРЎС›Р Р†Р вЂљРЎв„ўР вЂ™Р’В¬Р вЂњРІР‚С™Р вЂ™Р’В¦Р вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРЎС›Р Р†РІР‚С™Р’В¬Р вЂўР Р‹Р вЂњРЎвЂњР Р†Р вЂљРЎв„ўР вЂњРІР‚С™Р вЂ™Р Р‹Р вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРІР‚В Р Р†Р вЂљРІвЂћСћР вЂњРЎвЂњР Р†Р вЂљР’В Р вЂњРЎС›Р Р†РІР‚С™Р’В¬Р Р†РІР‚С›РЎС›Р вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРЎС›Р Р†РІР‚С™Р’В¬Р вЂ™Р’В Р вЂњРЎвЂњР вЂ™РЎС›Р вЂњРЎС›Р Р†Р вЂљРЎв„ўР вЂ™Р’В¬Р вЂњРЎС›Р Р†Р вЂљРЎвЂєР вЂ™РЎС›Р вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРІР‚В Р Р†Р вЂљРІвЂћСћР вЂњРЎвЂњР Р†Р вЂљРЎв„ўР вЂњРІР‚С™Р вЂ™РЎС›Р вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРІР‚С™Р вЂ™РЎС›Р вЂњРЎвЂњР вЂ™РЎС›Р вЂњРЎС›Р Р†Р вЂљРЎв„ўР вЂ™Р’В¬Р вЂњРІР‚В¦Р вЂ™Р Р‹Р вЂњРЎвЂњР Р†Р вЂљРЎв„ўР вЂњРІР‚С™Р вЂ™Р’В¬Р вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРЎС›Р Р†РІР‚С™Р’В¬Р вЂ™Р’В¦Р вЂњРЎвЂњР Р†Р вЂљРЎв„ўР вЂњРІР‚С™Р вЂ™Р Р‹Р вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРІР‚В Р Р†Р вЂљРІвЂћСћР вЂњРЎвЂњР Р†Р вЂљР’В Р вЂњРЎС›Р Р†РІР‚С™Р’В¬Р Р†РІР‚С›РЎС›Р вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРІР‚С™Р вЂ™РЎС›Р вЂњРЎвЂњР вЂ™РЎС›Р вЂњРЎС›Р Р†РІР‚С™Р’В¬Р вЂўР Р‹Р вЂњРІР‚С™Р вЂ™Р’В¬Р вЂњРЎвЂњР Р†Р вЂљР’В¦Р вЂњРІР‚С™Р вЂ™Р Р‹Р вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРІР‚В Р Р†Р вЂљРІвЂћСћР вЂњРЎвЂњР вЂ™РЎС›Р вЂњРЎС›Р Р†Р вЂљРЎв„ўР вЂ™Р’В¬Р вЂњРІР‚В¦Р вЂ™Р Р‹Р вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРЎС›Р Р†РІР‚С™Р’В¬Р вЂўР Р‹Р вЂњРЎвЂњР Р†Р вЂљРЎв„ўР вЂњРІР‚С™Р вЂ™Р’В  chaque scanStart() RHdisp est relu et += ADRESSE_maStore_mem
 					--ADRESSE_hCC_mem:=conv_integer(hCC) mod (16*1024);
 					
 					-- .------- REG 12 --------.   .------- REG 13 --------.
@@ -1078,7 +1052,7 @@ begin
 							--updateScreen()
 							--ma = maBase = ADRESSE_maRegister;
 							--maCurrent = maStore = maRegister;
-							--Validation de l'offset après reprogrammation des registres 12 et 13
+							--Validation de l'offset aprР вЂњР Рѓs reprogrammation des registres 12 et 13
 							ADRESSE_maStore_mem:=ADRESSE_maRegister(13 downto 0);
 							
 							LineCounter:=(others=>'0');
@@ -1111,7 +1085,7 @@ begin
 						--0x3fff est ok : ADRESSE_maStore_mem(13:0)
 
 						--hDispStart()
-						--maCurrent = maStore & 0x03fff; (cas 1 et 2 1/2) -- cas 1 hCC=0 cas 2 hDispStart() -- hDispStart() est lancé lors vDisp dans JavaCPC
+						--maCurrent = maStore & 0x03fff; (cas 1 et 2 1/2) -- cas 1 hCC=0 cas 2 hDispStart() -- hDispStart() est lancР вЂњР’В© lors vDisp dans JavaCPC
 						ADRESSE_MAcurrent_mem:=ADRESSE_maStore_mem;
 						--} else if (vcc && -- if (vtAdj == 0 || (CRTCType == 1)) { -- "vcc" est un boolean ici (un RRmax atteind)
 						--if (vcc && vtAdj == 0) { -- "vcc" est un boolean ici (un RRmax atteind)
@@ -1130,11 +1104,11 @@ begin
 							--When VCC=0, R12/R13 is re-read at the start of each line. R12/R13 can therefore be changed for each scanline when VCC=0. 
 							--updateScreen()
 							--maCurrent = maStore = maRegister;
-							--Validation de l'offset après reprogrammation des registres 12 et 13
+							--Validation de l'offset aprР вЂњР Рѓs reprogrammation des registres 12 et 13
 							ADRESSE_maStore_mem:=ADRESSE_maRegister(13 downto 0);
 						end if;
 						--hDispStart()
-						--maCurrent = maStore & 0x03fff; (cas 1 et 2 2/2) -- cas 1 hCC=0 cas 2 hDispStart() -- hDispStart() est lancé lors vDisp dans JavaCPC
+						--maCurrent = maStore & 0x03fff; (cas 1 et 2 2/2) -- cas 1 hCC=0 cas 2 hDispStart() -- hDispStart() est lancР вЂњР’В© lors vDisp dans JavaCPC
 						ADRESSE_MAcurrent_mem:=ADRESSE_maStore_mem;
 					end if;
 					
@@ -1308,91 +1282,89 @@ begin
 		
 	--it's Z80 time !
 	elsif rising_edge(CLK) then
-		if CE_4='1' then
 
-			-- no IO_ACK_old => CPCTEST ok
-			if IO_ACK='1' then --and IO_ACK_old='0' then
-				--the Gate Array will reset bit5 of the counter
-				--Once the Z80 acknowledges the interrupt, the GA clears bit 5 of the scan line counter.
-				-- When the interrupt is acknowledged, this is sensed by the Gate-Array. The top bit (bit 5), of the counter is set to "0" and the interrupt request is cleared. This prevents the next interrupt from occuring closer than 32 HSYNCs time. http://cpctech.cpc-live.com/docs/ints.html
-				--InterruptLineCount &= 0x1f;
-				InterruptLineCount(5):= '0';
-				-- following Grimware legends : When the CPU acknowledge the interrupt (eg. it is going to jump to the interrupt vector), the Gate Array will reset bit5 of the counter, so the next interrupt can't occur closer than 32 HSync.
-				--compteur52(5 downto 1):= (others=>'0'); -- following JavaCPC 2015
-				-- the interrupt request remains active until the Z80 acknowledges it. http://cpctech.cpc-live.com/docs/ints.html
-				int<='0'; -- following JavaCPC 2015
-			end if;
-			--IO_ACK_old:=IO_ACK;
-		
-			-- InterruptLineCount begin
-			--http://www.cpcwiki.eu/index.php/Synchronising_with_the_CRTC_and_display
-			if IO_REQ_W='1' and A15_A14_A9_A8(3) = '0' and A15_A14_A9_A8(2) = '1' then
-				if D(7) ='0' then
-					-- ink -- osef
-				else
-					if D(6) = '0' then
-						-- It only applies once
-						if D(4) = '1' then
-							InterruptLineCount:=(others=>'0');
-							--Grimware : if set (1), this will (only) reset the interrupt counter. --int<='0'; -- JavaCPC 2015
-							--the interrupt request is cleared and the 6-bit counter is reset to "0".  -- http://cpctech.cpc-live.com/docs/ints.html
-							int<='0';
-						end if;
-						-- JavaCPC 2015 : always old_delay_feature:=D(4); -- It only applies once ????
-					else 
-						-- rambank -- osef pour 464
+		-- no IO_ACK_old => CPCTEST ok
+		if IO_ACK='1' then --and IO_ACK_old='0' then
+			--the Gate Array will reset bit5 of the counter
+			--Once the Z80 acknowledges the interrupt, the GA clears bit 5 of the scan line counter.
+			-- When the interrupt is acknowledged, this is sensed by the Gate-Array. The top bit (bit 5), of the counter is set to "0" and the interrupt request is cleared. This prevents the next interrupt from occuring closer than 32 HSYNCs time. http://cpctech.cpc-live.com/docs/ints.html
+			--InterruptLineCount &= 0x1f;
+			InterruptLineCount(5):= '0';
+			-- following Grimware legends : When the CPU acknowledge the interrupt (eg. it is going to jump to the interrupt vector), the Gate Array will reset bit5 of the counter, so the next interrupt can't occur closer than 32 HSync.
+			--compteur52(5 downto 1):= (others=>'0'); -- following JavaCPC 2015
+			-- the interrupt request remains active until the Z80 acknowledges it. http://cpctech.cpc-live.com/docs/ints.html
+			int<='0'; -- following JavaCPC 2015
+		end if;
+		--IO_ACK_old:=IO_ACK;
+	
+		-- InterruptLineCount begin
+		--http://www.cpcwiki.eu/index.php/Synchronising_with_the_CRTC_and_display
+		if IO_W='1' and A15_A14_A9_A8(3) = '0' and A15_A14_A9_A8(2) = '1' then
+			if D(7) ='0' then
+				-- ink -- osef
+			else
+				if D(6) = '0' then
+					-- It only applies once
+					if D(4) = '1' then
+						InterruptLineCount:=(others=>'0');
+						--Grimware : if set (1), this will (only) reset the interrupt counter. --int<='0'; -- JavaCPC 2015
+						--the interrupt request is cleared and the 6-bit counter is reset to "0".  -- http://cpctech.cpc-live.com/docs/ints.html
+						int<='0';
 					end if;
+					-- JavaCPC 2015 : always old_delay_feature:=D(4); -- It only applies once ????
+				else 
+					-- rambank -- osef pour 464
 				end if;
 			end if;
+		end if;
 
-			--The GA has a counter that increments on every falling edge of the CRTC generated HSYNC signal.
-			--hSyncEnd()
-			if etat_hsync_old=DO_HSYNC and hsync_int=DO_NOTHING then
-				-- It triggers 6 interrupts per frame http://pushnpop.net/topic-452-1.html
-				-- JavaCPC interrupt style...
-				--if (++InterruptLineCount == 52) {
-				InterruptLineCount:=InterruptLineCount+1;
-				if conv_integer(InterruptLineCount)=52 then -- Asphalt ? -- 52="110100"
-					--Once this counter reaches 52, the GA raises the INT signal and resets the counter to 0.
+		--The GA has a counter that increments on every falling edge of the CRTC generated HSYNC signal.
+		--hSyncEnd()
+		if etat_hsync_old=DO_HSYNC and hsync_int=DO_NOTHING then
+			-- It triggers 6 interrupts per frame http://pushnpop.net/topic-452-1.html
+			-- JavaCPC interrupt style...
+			--if (++InterruptLineCount == 52) {
+			InterruptLineCount:=InterruptLineCount+1;
+			if conv_integer(InterruptLineCount)=52 then -- Asphalt ? -- 52="110100"
+				--Once this counter reaches 52, the GA raises the INT signal and resets the counter to 0.
+				--InterruptLineCount = 0;
+				InterruptLineCount:=(others=>'0');
+				--GateArray_Interrupt();
+				int<='1';
+			end if;
+			
+			--if (InterruptSyncCount > 0 && --InterruptSyncCount == 0) {
+			if InterruptSyncCount < 2 then
+				InterruptSyncCount := InterruptSyncCount + 1;
+				if InterruptSyncCount = 2 then
+					--if (InterruptLineCount >= 32) {
+					if conv_integer(InterruptLineCount)>=32 then
+						--GateArray_Interrupt();
+						int<='1';
+					--else
+						--int<='0'; -- Circle- DEMO ? / Markus JavaCPC doesn't have this instruction
+					end if;
 					--InterruptLineCount = 0;
 					InterruptLineCount:=(others=>'0');
-					--GateArray_Interrupt();
-					int<='1';
 				end if;
-				
-				--if (InterruptSyncCount > 0 && --InterruptSyncCount == 0) {
-				if InterruptSyncCount < 2 then
-					InterruptSyncCount := InterruptSyncCount + 1;
-					if InterruptSyncCount = 2 then
-						--if (InterruptLineCount >= 32) {
-						if conv_integer(InterruptLineCount)>=32 then
-							--GateArray_Interrupt();
-							int<='1';
-						--else
-							--int<='0'; -- Circle- DEMO ? / Markus JavaCPC doesn't have this instruction
-						end if;
-						--InterruptLineCount = 0;
-						InterruptLineCount:=(others=>'0');
-					end if;
-				end if;
-				
-				newMode_mem:=MODE_select;
-				newMode<=newMode_mem;
 			end if;
 			
-			--vSyncStart()
-			if vsync_int=DO_VSYNC and etat_vsync_old=DO_NOTHING then
-				--A VSYNC triggers a delay action of 2 HSYNCs in the GA
-				--In both cases the following interrupt requests are synchronised with the VSYNC. 
-				-- JavaCPC
-				--InterruptSyncCount = 2;
-				InterruptSyncCount := 0;
-			end if;
-			-- InterruptLineCount end
-			
-			etat_hsync_old:=hsync_int;
-			etat_vsync_old:=vsync_int;
+			newMode_mem:=MODE_select;
+			newMode<=newMode_mem;
 		end if;
+		
+		--vSyncStart()
+		if vsync_int=DO_VSYNC and etat_vsync_old=DO_NOTHING then
+			--A VSYNC triggers a delay action of 2 HSYNCs in the GA
+			--In both cases the following interrupt requests are synchronised with the VSYNC. 
+			-- JavaCPC
+			--InterruptSyncCount = 2;
+			InterruptSyncCount := 0;
+		end if;
+		-- InterruptLineCount end
+		
+		etat_hsync_old:=hsync_int;
+		etat_vsync_old:=vsync_int;
 	end if;
 end process Markus_interrupt_process;
 	

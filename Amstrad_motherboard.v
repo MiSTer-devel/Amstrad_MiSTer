@@ -77,10 +77,9 @@ wire  [7:0] ppi_dout;
 wire  [7:0] portAout;
 wire  [7:0] kbd_out;
 wire  [7:0] portAin;
-wire        WAIT_n;
 wire        INT;
 wire        M1_n;
-wire        ce_psg;
+wire        cyc1MHz;
 
 assign io_rd = (~RD_n) & (~IORQ_n);
 assign io_wr = (~WR_n) & (~IORQ_n);
@@ -115,8 +114,23 @@ T80pa CPU
 	.busrq_n(1),
 	.int_n(~INT),
 	.nmi_n(~nmi),
-	.wait_n(1)
+	.wait_n(1) // (cyc1MHz | (IORQ_n & MREQ_n) | no_wait)
 );
+
+// Current WAIT_n generation is not correct!
+// It should use WAIT_n instead (see commented out code above ^^)
+reg WAIT_n;
+
+wire acc = (MREQ_n | ~RFSH_n) & IORQ_n;
+always @(posedge clk) begin
+	reg old_acc;
+
+	if(ce_4p) begin
+		old_acc <= acc;
+		if(old_acc & ~acc) WAIT_n <= 0;
+		if(cyc1MHz) WAIT_n <= 1;
+	end
+end
 
 Amstrad_ASIC ASIC
 (
@@ -126,19 +140,17 @@ Amstrad_ASIC ASIC
 	.ce_4(ce_4p),
 	.ce_16(ce_16),
 
-	.SOUND_CE(ce_psg),
+	.cyc1MHz(cyc1MHz),
 
 	.vmode(vmode),
 
 	.a15_a14_a9_a8({A[15], A[14], A[9], A[8]}),
 	.d(D),
 	.m1_n(M1_n),
-	.mreq_n(MREQ_n | ~RFSH_n),
 	.iorq_n(IORQ_n),
 	.rd_n(RD_n),
 	.wr_n(WR_n),
 	.int(INT),
-	.wait_n(WAIT_n),
 	.dout(asic_dout),
 
 	.crtc_a(vram_addr),
@@ -188,7 +200,7 @@ YM2149 PSG
 	.reset_l(~reset),
 
 	.clk(clk),
-	.ena(ce_psg),
+	.ena(cyc1MHz & ce_4n),
 	.i_sel_l(1),
 
 	.i_a8(1),
