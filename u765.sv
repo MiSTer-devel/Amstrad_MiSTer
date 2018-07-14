@@ -33,19 +33,20 @@ module u765 #(parameter CYCLES = 27'd4000)
 	input            clk_sys,   // sys clock
 	input            ce,        // chip enable
 	input            reset,	    // reset
-	input            ready[2],     // disk is inserted in MiST(er)
-	input            available[2], // drive available (fake ready signal for SENSE DRIVE command)
+	input      [1:0] ready,     // disk is inserted in MiST(er)
+	input      [1:0] available, // drive available (fake ready signal for SENSE DRIVE command)
 	input            a0,
 	input            nRD,       // i/o read
 	input            nWR,       // i/o write
 	input      [7:0] din,       // i/o data in
 	output     [7:0] dout,      // i/o data out
 
-	input            img_mounted[2], // signaling that new image has been mounted
+	input      [1:0] img_mounted, // signaling that new image has been mounted
+	input            img_wp,      // write protect. latched at img_mounted
 	input     [31:0] img_size,    // size of image in bytes
 	output    [31:0] sd_lba,
-	output reg       sd_rd[2],
-	output reg       sd_wr[2],
+	output reg [1:0] sd_rd,
+	output reg [1:0] sd_wr,
 	input            sd_ack,
 	input      [8:0] sd_buff_addr,
 	input      [7:0] sd_buff_dout,
@@ -60,7 +61,7 @@ localparam UPD765_MAIN_D0B = 0;
 localparam UPD765_MAIN_D1B = 1;
 localparam UPD765_MAIN_D2B = 2;
 localparam UPD765_MAIN_D3B = 3;
-localparam UPD765_MAIN_CB = 4;
+localparam UPD765_MAIN_CB  = 4;
 localparam UPD765_MAIN_EXM = 5;
 localparam UPD765_MAIN_DIO = 6;
 localparam UPD765_MAIN_RQM = 7;
@@ -140,27 +141,12 @@ typedef enum
 
 } state_t;
 
-//per-drive data
-reg   [19:0] image_size[2];
-reg          image_ready[2] = '{ 0, 0 };
-reg    [7:0] image_tracks[2];
-reg          image_sides[2]; //1 side - 0, 2 sides - 1
-reg          image_trackinfo_dirty[2];
-reg          image_edsk[2]; //DSK - 0, EDSK - 1
-reg    [1:0] image_scan_state[2] = '{ 0, 0 };
-
-reg    [7:0] ncn[2]; //new cylinder number
-reg    [7:0] pcn[2]; //present cylinder number
-reg    [2:0] next_weak_sector[2];
-reg    [7:0] last_readid_sector[2];
-reg    [1:0] seek_state[2];
-reg          int_state[2];
 
 // sector/trackinfo buffers
 reg    [7:0] buff_data_in, buff_data_out;
 reg    [8:0] buff_addr;
 reg          buff_wr, buff_wait;
-wire         sd_buff_type;
+reg          sd_buff_type;
 reg          hds, ds0;
 
 u765_dpram sbuf
@@ -200,6 +186,23 @@ wire rd = nWR & ~nRD;
 wire wr = ~nWR & nRD;
 
 always @(posedge clk_sys) begin
+
+	//per-drive data
+	reg[31:0] image_size[2];
+	reg       image_ready[2] = '{ 0, 0 };
+	reg [7:0] image_tracks[2];
+	reg       image_sides[2]; //1 side - 0, 2 sides - 1
+	reg       image_trackinfo_dirty[2];
+	reg       image_edsk[2]; //DSK - 0, EDSK - 1
+	reg [1:0] image_scan_state[2] = '{ 0, 0 };
+
+	reg [7:0] ncn[2]; //new cylinder number
+	reg [7:0] pcn[2]; //present cylinder number
+	reg [2:0] next_weak_sector[2];
+	reg [7:0] last_readid_sector[2];
+	reg [1:0] seek_state[2];
+	reg       int_state[2];
+
 	reg old_wr, old_rd;
 	reg [7:0] i_track_size;
 	reg [31:0] i_seek_pos;
@@ -211,6 +214,7 @@ always @(posedge clk_sys) begin
 	reg [14:0] i_bytes_to_read;
 	reg [2:0] substate;
 	reg [1:0] old_mounted;
+	reg [1:0] image_wp;
 	reg [15:0] i_track_offset;
 	reg [5:0] ack;
 	reg sd_busy;
@@ -240,28 +244,19 @@ always @(posedge clk_sys) begin
 	buff_wait <= 0;
 
 	//new image mounted
-	old_mounted[0] <= img_mounted[0];
-	if(old_mounted[0] & ~img_mounted[0]) begin
-		image_size[0] <= img_size[19:0];
-		image_scan_state[0] <= 1;
-		image_ready[0] <= 0;
-		{ ncn[0], pcn[0] } <= 0;
-		int_state[0] <= 0;
-		seek_state[0] <= 0;
-		next_weak_sector[0] <= 0;
-		last_readid_sector[0] <= 0;
-	end
-
-	old_mounted[1] <= img_mounted[1];
-	if(old_mounted[1] & ~img_mounted[1]) begin
-		image_size[1] <= img_size[19:0];
-		image_scan_state[1] <= 1;
-		image_ready[1] <= 0;
-		{ ncn[1], pcn[1] } <= 0;
-		int_state[1] <= 0;
-		seek_state[1] <= 0;
-		next_weak_sector[1] <= 0;
-		last_readid_sector[1] <= 0;
+	for(int i=0;i<2;i++) begin 
+		old_mounted[i] <= img_mounted[i];
+		if(old_mounted[i] & ~img_mounted[i]) begin
+			image_wp[i] <= img_wp;
+			image_size[i] <= img_size;
+			image_scan_state[i] <= |img_size; //hacky
+			image_ready[i] <= 0;
+			{ ncn[i], pcn[i] } <= 0;
+			int_state[i] <= 0;
+			seek_state[i] <= 0;
+			next_weak_sector[i] <= 0;
+			last_readid_sector[i] <= 0;
+		end
 	end
 
 	if (ce) begin
@@ -343,8 +338,8 @@ always @(posedge clk_sys) begin
 		seek_state <= '{ 0, 0 };
 		image_trackinfo_dirty <= '{ 1, 1 };
 		{ ack, sd_busy } <= 0;
-		sd_rd <= '{ 0, 0 };
-		sd_wr <= '{ 0, 0 };
+		sd_rd <= 0;
+		sd_wr <= 0;
 		image_track_offsets_wr <= 0;
 		//restart "mounting" of image(s)
 		if (image_scan_state[0]) image_scan_state[0] <= 1;
@@ -354,8 +349,8 @@ always @(posedge clk_sys) begin
 
 		ack <= {ack[4:0], sd_ack};
 		if(ack[5:4] == 'b01)	begin
-			sd_rd <= '{ 0, 0 };
-			sd_wr <= '{ 0, 0 };
+			sd_rd <= 0;
+			sd_wr <= 0;
 		end
 		if(ack[5:4] == 'b10) sd_busy <= 0;
 
@@ -465,7 +460,7 @@ always @(posedge clk_sys) begin
 			COMMAND_SENSE_DRIVE_STATUS_RD:
 			if (~old_rd & rd & a0) begin
 				dout <= { 1'b0,
-							ready[ds0] & ~image_ready[ds0],     //write protected
+							ready[ds0] & image_wp[ds0],         //write protected
 							available[ds0],                     //ready
 							image_ready[ds0] & !pcn[ds0],       //track 0
 							image_ready[ds0] & image_sides[ds0],//two sides
