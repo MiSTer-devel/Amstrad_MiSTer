@@ -171,13 +171,13 @@ end
 
 //////////////////////////////////////////////////////////////////////////
 
-wire [31:0] sd_lba = sd_lba_a | sd_lba_b;
+wire [31:0] sd_lba;
 wire  [1:0] sd_rd;
 wire  [1:0] sd_wr;
 wire        sd_ack;
 wire  [8:0] sd_buff_addr;
 wire  [7:0] sd_buff_dout;
-wire  [7:0] sd_buff_din = sd_buff_din_a | sd_buff_din_b;
+wire  [7:0] sd_buff_din;
 wire        sd_buff_wr;
 wire  [1:0] img_mounted;
 wire [63:0] img_size;
@@ -208,6 +208,7 @@ hps_io #(.STRLEN($size(CONF_STR)>>3), .VDNUM(2)) hps_io
 
 	.img_mounted(img_mounted),
 	.img_size(img_size),
+	.img_readonly(img_readonly),
 	.sd_conf(0),
 	.sd_lba(sd_lba),
 	.sd_rd(sd_rd),
@@ -355,11 +356,10 @@ wire [3:0] fdc_sel = {cpu_addr[10],cpu_addr[8],cpu_addr[7],cpu_addr[0]};
 
 reg  [7:0] fdc_dout;
 always_comb begin
-	casex({io_rd,fdc_sel})
-		'b1_000x: fdc_dout = motor; // motor read 
-		'b1_0100: fdc_dout = {u765_status_a[7] & u765_status_b[7], u765_status_a[6:0] | u765_status_b[6:0]}; // u765 status
-		'b1_0101: fdc_dout = u765_dout_a | u765_dout_b; // u765 data
-		 default: fdc_dout = 8'hFF;
+	case({io_rd,fdc_sel[3:1]})
+		'b1_000: fdc_dout = motor;     // motor read 
+		'b1_010: fdc_dout = u765_dout; // u765 read 
+		default: fdc_dout = 8'hFF;
 	endcase
 end
 
@@ -375,18 +375,14 @@ always @(posedge clk_sys) begin
 	if(img_mounted) motor <= 0;
 end
 
-wire u765_sel = (fdc_sel[3:1] == 'b010);
+wire [7:0] u765_dout;
+wire       u765_sel = (fdc_sel[3:1] == 'b010);
 
-reg u765_ready_a = 0;
-always @(posedge clk_sys) if(img_mounted[0]) u765_ready_a <= |img_size;
+reg [1:0] u765_ready = 0;
+always @(posedge clk_sys) if(img_mounted[0]) u765_ready[0] <= |img_size;
+always @(posedge clk_sys) if(img_mounted[1]) u765_ready[1] <= |img_size;
 
-wire  [7:0] u765_status_a;
-wire  [7:0] u765_dout_a;
-wire [31:0] sd_lba_a;
-wire  [7:0] sd_buff_din_a;
-wire        u765_idle_a;
-
-u765 u765a
+u765 u765
 (
 	.reset(status[0]),
 
@@ -394,70 +390,25 @@ u765 u765a
 	.ce(ce_u765),
 
 	.a0(fdc_sel[0]),
-	.ready(u765_ready_a), // & motor),
+	.ready(u765_ready), // & {motor,motor}),
+	.available(2'b11),
 	.nRD(~(u765_sel & io_rd)),
 	.nWR(~(u765_sel & io_wr)),
 	.din(io_dout),
-	.dout(u765_dout_a),
+	.dout(u765_dout),
 
-	.drive(0),
-	.mstatus(u765_status_a),
-	.idle(u765_idle_a),
-	.busy(u765_busy),
-
-	.img_mounted(img_mounted[0]),
-	.img_size(img_size[19:0]),
-	.sd_lba(sd_lba_a),
-	.sd_rd(sd_rd[0]),
-	.sd_wr(sd_wr[0]),
+	.img_mounted(img_mounted),
+	.img_size(img_size[31:0]),
+	.img_wp(img_readonly),
+	.sd_lba(sd_lba),
+	.sd_rd(sd_rd),
+	.sd_wr(sd_wr),
 	.sd_ack(sd_ack),
 	.sd_buff_addr(sd_buff_addr),
 	.sd_buff_dout(sd_buff_dout),
-	.sd_buff_din(sd_buff_din_a),
+	.sd_buff_din(sd_buff_din),
 	.sd_buff_wr(sd_buff_wr)
 );
-
-reg u765_ready_b = 0;
-always @(posedge clk_sys) if(img_mounted[1]) u765_ready_b <= |img_size;
-
-wire  [7:0] u765_status_b;
-wire  [7:0] u765_dout_b;
-wire [31:0] sd_lba_b;
-wire  [7:0] sd_buff_din_b;
-wire        u765_idle_b;
-
-u765 u765b
-(
-	.reset(status[0]),
-
-	.clk_sys(clk_sys),
-	.ce(ce_u765),
-
-	.a0(fdc_sel[0]),
-	.ready(u765_ready_b), // & motor),
-	.nRD(~(u765_sel & io_rd)),
-	.nWR(~(u765_sel & io_wr)),
-	.din(io_dout),
-	.dout(u765_dout_b),
-
-	.drive(1),
-	.mstatus(u765_status_b),
-	.idle(u765_idle_b),
-	.busy(u765_busy),
-
-	.img_mounted(img_mounted[1]),
-	.img_size(img_size[19:0]),
-	.sd_lba(sd_lba_b),
-	.sd_rd(sd_rd[1]),
-	.sd_wr(sd_wr[1]),
-	.sd_ack(sd_ack),
-	.sd_buff_addr(sd_buff_addr),
-	.sd_buff_dout(sd_buff_dout),
-	.sd_buff_din(sd_buff_din_b),
-	.sd_buff_wr(sd_buff_wr)
-);
-
-wire u765_busy = ~(u765_idle_a & u765_idle_b);
 
 /////////////////////////////////////////////////////////////////////////
 ///////////////////////////// Multiface Two /////////////////////////////
