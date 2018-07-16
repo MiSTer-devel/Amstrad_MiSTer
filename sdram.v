@@ -47,7 +47,7 @@ module sdram
 	input             oe,         // cpu/chipset requests read
 	input             we,         // cpu/chipset requests write
 
-	output      [7:0] vram_dout,
+	output reg [15:0] vram_dout,
 	input      [22:0] vram_addr
 );
 
@@ -124,9 +124,6 @@ localparam CMD_PRECHARGE       = 4'b0010;
 localparam CMD_AUTO_REFRESH    = 4'b0001;
 localparam CMD_LOAD_MODE       = 4'b0000;
 
-reg [15:0] vram_data;
-assign vram_dout = vram_addr[0] ? vram_data[15:8] : vram_data[7:0];
-
 // SDRAM state machines
 always @(posedge clk) begin
 
@@ -169,7 +166,7 @@ always @(posedge clk) begin
 				dout<=SDRAM_DQ[7:0];
 		end
 		else if (vram_req) begin
-			vram_data<=SDRAM_DQ;
+			vram_dout<=SDRAM_DQ;
 		end
 	end
 end

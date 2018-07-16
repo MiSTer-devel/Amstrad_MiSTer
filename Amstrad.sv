@@ -123,7 +123,7 @@ localparam CONF_STR = {
 	"O5,Distributor,Amstrad,Schneider;",
 	"O4,Model,CPC 6128,CPC 664;",
 	"O2,CRTC,Type 1,Type 0;",
-	"O3,CPU timings,Original,Fast;",
+	"O6,CPU timings,Original,Fast;",
 	"R0,Reset & apply model;",
 	"J,Fire 1,Fire 2;",
 	"V,v1.30.",`BUILD_DATE
@@ -321,8 +321,8 @@ wire  [7:0] sdram_dout;
 wire  [7:0] ram_din;
 wire  [7:0] ram_dout = mf2_ram_en ? mf2_ram_out : sdram_dout;
 
-wire  [7:0] vram_dout;
-wire [15:0] vram_addr;
+wire [15:0] vram_dout;
+wire [14:0] vram_addr;
 
 assign SDRAM_CLK = clk_sys;
 
@@ -341,7 +341,7 @@ sdram sdram
 	.din (reset ? boot_dout : ram_din),
 	.dout(sdram_dout),
 
-	.vram_addr({2'b10,vram_addr}),
+	.vram_addr({2'b10,vram_addr,1'b0}),
 	.vram_dout(vram_dout)
 );
 
@@ -492,8 +492,6 @@ end
 
 /////////////////////////////////////////////////////////////////////////
 
-wire  [3:0] ppi_jumpers = {2'b11, ~status[5], 1'b1};
-wire        crtc_type = ~status[2];
 wire [15:0] cpu_addr;
 wire  [7:0] io_dout;
 wire        m1, key_nmi, NMI;
@@ -509,9 +507,9 @@ Amstrad_motherboard motherboard
 
 	.ps2_key(ps2_key),
 
-	.no_wait(status[3]),
-	.ppi_jumpers(ppi_jumpers),
-	.crtc_type(crtc_type),
+	.no_wait(status[6]),
+	.ppi_jumpers({2'b11, ~status[5], 1'b1}),
+	.crtc_type(~status[2]),
 
 	.joy1(joy1),
 	.joy2(joy2),

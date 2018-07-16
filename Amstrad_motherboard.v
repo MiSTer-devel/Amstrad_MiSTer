@@ -1,6 +1,6 @@
 /*
 
-	Converted to verilog and simplified
+	Converted to verilog optimized and simplified
 	(C) 2018 Sorgelig
 
 
@@ -45,8 +45,8 @@ module Amstrad_motherboard
 	output        hsync,
 	output        vsync,
 
-	input   [7:0] vram_din,
-	output [15:0] vram_addr,
+	input  [15:0] vram_din,
+	output [14:0] vram_addr,
 
 	input         ram64k,
 	output [22:0] mem_addr,
@@ -63,23 +63,7 @@ module Amstrad_motherboard
 	input         nmi
 );
 
-wire [15:0] A;
-wire  [7:0] D;
-wire        n_crtc_vsync;
-wire  [7:0] portC;
-wire        RD_n;
-wire        WR_n;
-wire        MREQ_n;
-wire        IORQ_n;
-wire        RFSH_n;
-wire  [7:0] asic_dout;
-wire  [7:0] ppi_dout;
-wire  [7:0] portAout;
-wire  [7:0] kbd_out;
-wire  [7:0] portAin;
-wire        INT;
-wire        M1_n;
-wire        cyc1MHz;
+assign vram_addr = {MA[13:12], RA[2:0], MA[9:0]};
 
 assign io_rd = (~RD_n) & (~IORQ_n);
 assign io_wr = (~WR_n) & (~IORQ_n);
@@ -92,6 +76,17 @@ assign mem_dout = D;
 assign cpu_addr = A;
 assign m1 = (~M1_n);
 
+
+wire [15:0] A;
+wire  [7:0] D;
+wire RD_n;
+wire WR_n;
+wire MREQ_n;
+wire IORQ_n;
+wire RFSH_n;
+wire INT;
+wire M1_n;
+
 T80pa CPU
 (
 	.reset_n(~reset),
@@ -102,7 +97,7 @@ T80pa CPU
 
 	.a(A),
 	.do(D),
-	.di(asic_dout & ppi_dout & (mem_rd ? mem_din : 8'hFF) & io_din),
+	.di(crtc_dout & ppi_dout & (mem_rd ? mem_din : 8'hFF) & io_din),
 
 	.rd_n(RD_n),
 	.wr_n(WR_n),
@@ -132,7 +127,35 @@ always @(posedge clk) begin
 	end
 end
 
-Amstrad_ASIC ASIC
+wire crtc_hs, crtc_vs, crtc_de;
+wire [13:0] MA;
+wire  [4:0] RA;
+wire  [7:0] crtc_dout;
+MC6845 CRTC
+(
+	.CLOCK(clk),
+	.CLKEN(cyc1MHz & ce_4p),
+	.nRESET(~reset),
+	.CRTC_TYPE(crtc_type),
+
+	.ENABLE(io_rd | io_wr),
+	.nCS(A[14]),
+	.R_nW(A[9]),
+	.RS(A[8]),
+	.DI(~RD_n ? 8'hFF : D),
+	.DO(crtc_dout),
+
+	.VSYNC(crtc_vs),
+	.HSYNC(crtc_hs),
+	.DE(crtc_de),
+	.LPSTB(0),
+
+	.MA(MA),
+	.RA(RA)
+);
+
+wire cyc1MHz;
+Amstrad_GA GateArray
 (
 	.reset(reset),
 
@@ -142,22 +165,18 @@ Amstrad_ASIC ASIC
 
 	.cyc1MHz(cyc1MHz),
 
-	.vmode(vmode),
+	.INTack(~M1_n & ~IORQ_n),
+	.WE((A[15:14] == 1) & io_wr),
+	.D(D),
 
-	.a15_a14_a9_a8({A[15], A[14], A[9], A[8]}),
-	.d(D),
-	.m1_n(M1_n),
-	.iorq_n(IORQ_n),
-	.rd_n(RD_n),
-	.wr_n(WR_n),
+	.crtc_vs(crtc_vs),
+	.crtc_hs(crtc_hs),
+	.crtc_de(crtc_de),
+	.vram_d(vram_din),
+
 	.int(INT),
-	.dout(asic_dout),
 
-	.crtc_a(vram_addr),
-	.crtc_d(vram_din),
-	.crtc_type(crtc_type),
-	.crtc_vsync(n_crtc_vsync),
-
+	.vmode(vmode),
 	.red(red),
 	.green(green),
 	.blue(blue),
@@ -165,22 +184,6 @@ Amstrad_ASIC ASIC
 	.hblank(hblank),
 	.hsync(hsync),
 	.vsync(vsync)
-);
-
-pio PPI
-(
-	.addr(A[9:8]),
-	.datain(D),
-	.cs(A[11]),
-	.iowr(~io_wr),
-	.iord(~io_rd),
-	.cpuclk(clk),  // (no clocked this component normaly, so let's overclock it)
-
-	.pbi({3'b111, ppi_jumpers, n_crtc_vsync}),
-	.pai(portAin),
-	.pao(portAout),
-	.pco(portC),
-	.do(ppi_dout)
 );
 
 Amstrad_MMU MMU
@@ -193,6 +196,26 @@ Amstrad_MMU MMU
 	.io_WR(io_wr),
 	.mem_WR(mem_wr),
 	.ram_A(mem_addr)
+);
+
+wire [7:0] ppi_dout;
+wire [7:0] portC;
+wire [7:0] portAout;
+wire [7:0] portAin;
+pio PPI
+(
+	.addr(A[9:8]),
+	.datain(D),
+	.cs(A[11]),
+	.iowr(~io_wr),
+	.iord(~io_rd),
+	.cpuclk(clk),  // (no clocked this component normaly, so let's overclock it)
+
+	.pbi({3'b111, ppi_jumpers, crtc_vs}),
+	.pai(portAin),
+	.pao(portAout),
+	.pco(portC),
+	.do(ppi_dout)
 );
 
 YM2149 PSG
@@ -218,6 +241,7 @@ YM2149 PSG
 	.i_iob(8'hFF)
 );
 
+wire [7:0] kbd_out;
 keyboard KBD
 (
 	.clk(clk),
