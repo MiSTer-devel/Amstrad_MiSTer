@@ -56,7 +56,7 @@ module u765 #(parameter CYCLES = 27'd4000)
 
 localparam COMMAND_TIMEOUT = 26'd35000000;
 //localparam COMMAND_TIMEOUT = CYCLES/1000*40;
-localparam RPM_WAIT = CYCLES*100; //300 RPM, 200ms/rotation, so let's choose 100ms average wait time
+localparam RPM_WAIT = CYCLES*50; //300 RPM, 200ms/rotation, so let's choose 100ms average wait time
 
 localparam UPD765_MAIN_D0B = 0;
 localparam UPD765_MAIN_D1B = 1;
