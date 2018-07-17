@@ -157,11 +157,11 @@ MC6845 CRTC
 wire cyc1MHz;
 Amstrad_GA GateArray
 (
-	.reset(reset),
+	.RESET(reset),
 
-	.clk(clk),
-	.ce_4(ce_4p),
-	.ce_16(ce_16),
+	.CLK(clk),
+	.CE_4(ce_4p),
+	.CE_16(ce_16),
 
 	.cyc1MHz(cyc1MHz),
 
@@ -172,18 +172,18 @@ Amstrad_GA GateArray
 	.crtc_vs(crtc_vs),
 	.crtc_hs(crtc_hs),
 	.crtc_de(crtc_de),
-	.vram_d(vram_din),
+	.vram_D(vram_din),
 
-	.int(INT),
+	.INT(INT),
 
-	.vmode(vmode),
-	.red(red),
-	.green(green),
-	.blue(blue),
-	.vblank(vblank),
-	.hblank(hblank),
-	.hsync(hsync),
-	.vsync(vsync)
+	.VMODE(vmode),
+	.RED(red),
+	.GREEN(green),
+	.BLUE(blue),
+	.VBLANK(vblank),
+	.HBLANK(hblank),
+	.HSYNC(hsync),
+	.VSYNC(vsync)
 );
 
 Amstrad_MMU MMU
