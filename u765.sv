@@ -56,7 +56,7 @@ module u765 #(parameter CYCLES = 27'd4000)
 
 localparam COMMAND_TIMEOUT = 26'd35000000;
 //localparam COMMAND_TIMEOUT = CYCLES/1000*40;
-localparam RPM_WAIT = CYCLES*50; //300 RPM, 200ms/rotation, so let's choose 100ms average wait time
+localparam RPM_WAIT = CYCLES*8'd50; //300 RPM, 200ms/rotation, let's choose 50ms average wait time
 
 localparam UPD765_MAIN_D0B = 0;
 localparam UPD765_MAIN_D1B = 1;
@@ -643,7 +643,12 @@ always @(posedge clk_sys) begin
 			end
 
 			COMMAND_RW_DATA_EXEC:
-			begin
+			if (i_write & image_wp[ds0]) begin
+				status[0] <= 8'h40;
+				status[1] <= 8'h02; //not writeable
+				status[2] <= 0;
+				state <= COMMAND_READ_RESULTS;
+			end else begin
 				m_status[UPD765_MAIN_RQM] <= 0;
 				command <= COMMAND_RW_DATA_EXEC1;
 				state <= COMMAND_RELOAD_TRACKINFO;
@@ -850,13 +855,13 @@ always @(posedge clk_sys) begin
 					status[2] <= 0;
 				end else begin
 					//read the next sector (multi-sector transfer)
-					if (i_mt) begin
+					if (i_mt & image_sides[ds0]) begin
 						hds <= ~hds;
 						i_h <= ~i_h;
 						image_track_offsets_addr <= { pcn[ds0], ~hds };
 						buff_wait <= 1;
 					end
-					if (~i_mt | hds) i_r <= i_r + 1'd1;
+					if (~i_mt | hds | ~image_sides[ds0]) i_r <= i_r + 1'd1;
 					state <= COMMAND_RW_DATA_EXEC2;
 				end
 			end
