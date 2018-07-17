@@ -61,7 +61,7 @@ always @(posedge CLK) begin
 				upperROMen <= ~D[3];
 			end
 			
-			if (~A[15] && D[7:6] == 'b11 && D[7:6] == 'b11 && ~ram64k) begin //7Fxx PAL MMR
+			if (~A[15] && D[7:6] == 'b11 && ~ram64k) begin //7Fxx PAL MMR
 				RAMpage <= D[5:3];
 				RAMmap  <= D[2:0];
 			end
