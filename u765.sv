@@ -664,7 +664,7 @@ always @(posedge clk_sys) begin
 				image_track_offsets_addr <= { pcn[ds0], hds };
 				buff_wait <= 1;
 				state <= COMMAND_RW_DATA_WAIT_RPM;
-				i_rpm_wait <= RPM_WAIT;
+				i_rpm_wait <= RPM_WAIT[26:0];
 			end
 
 			//simulate one rotation delay for read operation
