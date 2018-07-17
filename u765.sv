@@ -55,7 +55,8 @@ module u765 #(parameter CYCLES = 27'd4000)
 );
 
 localparam COMMAND_TIMEOUT = 26'd35000000;
-//localparam COMMAND_TIMEOUT = CYCLES/100*13;
+//localparam COMMAND_TIMEOUT = CYCLES/1000*40;
+localparam RPM_WAIT = CYCLES*100; //300 RPM, 200ms/rotation, so let's choose 100ms average wait time
 
 localparam UPD765_MAIN_D0B = 0;
 localparam UPD765_MAIN_D1B = 1;
@@ -83,6 +84,7 @@ typedef enum
 
  COMMAND_RW_DATA_EXEC,
  COMMAND_RW_DATA_EXEC1,
+ COMMAND_RW_DATA_WAIT_RPM,
  COMMAND_RW_DATA_EXEC2,
  COMMAND_RW_DATA_EXEC3,
  COMMAND_RW_DATA_EXEC4,
@@ -218,7 +220,7 @@ always @(posedge clk_sys) begin
 	reg [15:0] i_track_offset;
 	reg [5:0] ack;
 	reg sd_busy;
-	reg [26:0] i_timeout, i_srt_cycle_timer;
+	reg [26:0] i_timeout, i_srt_cycle_timer, i_rpm_wait;
 	reg [3:0] i_srt_timer;
 	reg i_rtrack, i_write, i_rw_deleted;
 	reg [7:0] m_status;  //main status register
@@ -240,7 +242,6 @@ always @(posedge clk_sys) begin
 	reg i_mt;
 	//reg i_mfm;
 	reg i_sk;
-
 	buff_wait <= 0;
 
 	//new image mounted
@@ -657,8 +658,14 @@ always @(posedge clk_sys) begin
 				// even if different one is given in the command
 				image_track_offsets_addr <= { pcn[ds0], hds };
 				buff_wait <= 1;
-				state <= COMMAND_RW_DATA_EXEC2;
+				state <= COMMAND_RW_DATA_WAIT_RPM;
+				i_rpm_wait <= RPM_WAIT;
 			end
+
+			//simulate one rotation delay for read operation
+			COMMAND_RW_DATA_WAIT_RPM:
+			if (i_rpm_wait & ~i_write) i_rpm_wait <= i_rpm_wait - 1'd1;
+			else state <= COMMAND_RW_DATA_EXEC2;
 
 			COMMAND_RW_DATA_EXEC2:
 			if (~sd_busy & ~buff_wait) begin
@@ -776,7 +783,6 @@ always @(posedge clk_sys) begin
 				end else if (~i_write & ~old_rd & rd & a0) begin
 					if (&buff_addr) begin
 						//sector continues on the next LBA
-						m_status[UPD765_MAIN_RQM] <= 0;
 						state <= COMMAND_RW_DATA_EXEC5;
 					end
 					//Speedlock: randomize 'weak' sectors last bytes
@@ -787,6 +793,7 @@ always @(posedge clk_sys) begin
 								buff_data_in;
 					buff_addr <= buff_addr + 1'd1;
 					buff_wait <= 1;
+					m_status[UPD765_MAIN_RQM] <= 0;
 					i_bytes_to_read <= i_bytes_to_read - 1'd1;
 					i_seek_pos <= i_seek_pos + 1'd1;
 					i_timeout <= COMMAND_TIMEOUT;
@@ -820,7 +827,6 @@ always @(posedge clk_sys) begin
 					end
 					state <= COMMAND_RW_DATA_EXEC5;
 				end else begin
-					m_status[UPD765_MAIN_RQM] <= 1;
 					state <= COMMAND_RW_DATA_EXEC6;
 				end
 			end

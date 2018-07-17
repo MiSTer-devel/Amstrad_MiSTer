@@ -155,7 +155,7 @@ always @(negedge clk_sys) begin
 	ce_4n   <= (div == 8);
 
 	ce_4p   <= !div;
-	ce_u765 <= !div;
+	ce_u765 <= !div[2:0]; //8 MHz
 	ce_ref  <= !div;
 
 	ce_16   <= !div[1:0];
