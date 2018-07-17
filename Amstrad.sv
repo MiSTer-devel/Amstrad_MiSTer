@@ -161,14 +161,6 @@ always @(negedge clk_sys) begin
 	ce_16   <= !div[1:0];
 end
 
-reg ce_vid;
-always @(negedge clk_vid) begin
-	reg [2:0] div16 = 0;
-
-	div16 <= div16 + 1'd1;
-	ce_vid <= !div16;
-end
-
 //////////////////////////////////////////////////////////////////////////
 
 wire [31:0] sd_lba;
@@ -496,6 +488,7 @@ wire [15:0] cpu_addr;
 wire  [7:0] io_dout;
 wire        m1, key_nmi, NMI;
 wire        io_wr, io_rd;
+wire        ce_pix_mb;
 
 Amstrad_motherboard motherboard
 (
@@ -517,7 +510,7 @@ Amstrad_motherboard motherboard
 	.audio_l(audio_l),
 	.audio_r(audio_r),
 
-	.vmode(vmode),
+	.ce_pix(ce_pix_mb),
 	.hblank(hbl),
 	.vblank(vbl),
 	.hsync(hs),
@@ -548,13 +541,23 @@ Amstrad_motherboard motherboard
 
 //////////////////////////////////////////////////////////////////////
 
+reg ce_pix;
+always @(posedge clk_vid) begin
+	reg old_ce1, old_ce2;
+
+	old_ce1 <= hq2x ? ce_pix_mb : ce_16;
+	old_ce2 <= old_ce1;
+
+	ce_pix <= ~old_ce2 & old_ce1;
+end
+
 wire [1:0] b, g, r;
 wire       hs, vs, hbl, vbl;
 
 color_mix color_mix
 (
 	.clk_vid(clk_vid),
-	.ce_pix(ce_vid),
+	.ce_pix(ce_pix),
 	.mono(status[13:11]),
 
 	.HSync_in(hs),
@@ -576,29 +579,6 @@ color_mix color_mix
 
 wire [7:0] mb, mg, mr;
 wire       HS, VS, HBL, VBL;
-
-wire [1:0] vmode;
-reg        ce_pix;
-always @(posedge clk_vid) begin
-	reg       old_vs;
-	reg [1:0] pxsz;
-	reg [1:0] cnt;
-	
-	ce_pix <= 0;
-	if(ce_vid) begin
-		cnt <= cnt + 1'd1;
-		if(cnt == pxsz) begin
-			cnt    <= 0;
-			ce_pix <= 1;
-		end
-		
-		old_vs <= VS;
-		if(old_vs & ~VS) begin
-			cnt <= 0;
-			pxsz <= {hq2x,hq2x} >> vmode;
-		end
-	end
-end
 
 video_cleaner video_cleaner
 (

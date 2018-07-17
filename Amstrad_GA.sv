@@ -26,7 +26,6 @@ module Amstrad_GA
    input            CE_16,
    input            RESET,
    
-   output reg [1:0] VMODE,
    output           cyc1MHz,
    
    output reg       INT,
@@ -39,6 +38,7 @@ module Amstrad_GA
    input      [7:0] D,
    input            WE,
    
+   output reg       CE_PIX,
    output reg [1:0] RED,
    output reg [1:0] GREEN,
    output reg [1:0] BLUE,
@@ -202,7 +202,7 @@ always @(posedge CLK) begin
 				end
 			end
 
-			VMODE <= MODE_select;
+			vmode <= MODE_select;
 		end
 		
 		// A VSYNC triggers a delay action of 2 HSYNCs in the GA
@@ -264,6 +264,7 @@ always @(posedge CLK) begin
 	end
 end
 
+reg  [1:0] vmode;
 reg  [5:0] rgb;
 wire [5:0] palette[31:0] = '{ // RRGGBB
 	6'b010111, 6'b010100, 6'b010011, 6'b010000,
@@ -303,6 +304,7 @@ always @(posedge CLK) begin
 	integer   hborder;		// 64*16 max
 
 	begin
+		CE_PIX <= 0;
 		if (CE_16) begin
 			cycle = cycle + 1'd1;
 			
@@ -332,7 +334,13 @@ always @(posedge CLK) begin
 			VBLANK <= (vborder < BEGIN_VBORDER || vborder >= END_VBORDER);
 			HBLANK <= (hborder < BEGIN_HBORDER || hborder >= END_HBORDER);
 
-			casex({de,VMODE})
+			case(vmode)
+				2: CE_PIX <= 1;
+				1: CE_PIX <= !cycle[0];
+				0: CE_PIX <= !cycle[1:0];
+			endcase
+			
+			casex({de,vmode})
 				'b110: rgb <= palette[pen[data[~cycle]]];
 				'b101: rgb <= palette[pen[{data[{1'b0,~cycle[2:1]}],data[{1'b1,~cycle[2:1]}]}]];
 				'b100: rgb <= palette[pen[{data[{2'b00,~cycle[2]}],data[{2'b10,~cycle[2]}],data[{2'b01,~cycle[2]}],data[{2'b11,~cycle[2]}]}]];
