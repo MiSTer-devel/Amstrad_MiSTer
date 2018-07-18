@@ -229,18 +229,18 @@ always @(posedge CLOCK) begin
 			if (R_nW) begin
 
 				//  Read
-				if (~RS) DO <= ~CRTC_TYPE ? 8'hFF : v_display ? 8'h20 : 8'h00; // status
+				if (~RS) DO <= ~CRTC_TYPE ? 8'hFF : v_display ? 8'h00 : 8'h20; // status
 				else begin
 					case (addr_reg)
-							10: DO <= {r10_cursor_mode, r10_cursor_start};
-							11: DO <= r11_cursor_end;
-							12: DO <= CRTC_TYPE ? 8'h00 : r12_start_addr_h;
-							13: DO <= CRTC_TYPE ? 8'h00 : r13_start_addr_l;
-							14: DO <= r14_cursor_h;
-							15: DO <= r15_cursor_l;
-							16: DO <= r16_light_pen_h;
-							17: DO <= r17_light_pen_l;
-							31: DO <= CRTC_TYPE ? 8'hFF : 8'h00;
+						10: DO <= {r10_cursor_mode, r10_cursor_start};
+						11: DO <= r11_cursor_end;
+						12: DO <= CRTC_TYPE ? 8'h00 : r12_start_addr_h;
+						13: DO <= CRTC_TYPE ? 8'h00 : r13_start_addr_l;
+						14: DO <= r14_cursor_h;
+						15: DO <= r15_cursor_l;
+						16: DO <= r16_light_pen_h;
+						17: DO <= r17_light_pen_l;
+						31: DO <= CRTC_TYPE ? 8'hFF : 8'h00;
 					 default: DO <= 0;
 					endcase
 				end
@@ -253,20 +253,14 @@ always @(posedge CLOCK) begin
 						00: r00_h_total <= DI;
 						01: r01_h_displayed <= DI;
 						02: r02_h_sync_pos <= DI;
-						03: begin
-								r03_v_sync_width <= DI[7:4];
-								r03_h_sync_width <= DI[3:0];
-							end
+						03: {r03_v_sync_width,r03_h_sync_width} <= DI;
 						04: r04_v_total <= DI[6:0];
 						05: r05_v_total_adj <= DI[4:0];
 						06: r06_v_displayed <= DI[6:0];
 						07: r07_v_sync_pos <= DI[6:0];
-						08: r08_interlace <= 0; //DI[7:0];
+						08: r08_interlace <= DI[7:0];
 						09: r09_max_scan_line <= DI[4:0];
-						10: begin
-								r10_cursor_mode <= DI[6:5];
-								r10_cursor_start <= DI[4:0];
-							end
+						10: {r10_cursor_mode,r10_cursor_start} <= DI[6:0];
 						11: r11_cursor_end <= DI[4:0];
 						12: r12_start_addr_h <= DI[5:0];
 						13: r13_start_addr_l <= DI[7:0];
@@ -314,7 +308,7 @@ always @(posedge CLOCK) begin
 			h_counter <= 0;
 
 			// Compute
-			need_adj = (r05_v_total_adj != 0) | odd_field;
+			need_adj = (r05_v_total_adj || odd_field);
 
 			// Compute the max scan line for this row
 			if (~in_adj) begin
@@ -334,10 +328,10 @@ always @(posedge CLOCK) begin
 			// max scan line address
 			if (r08_interlace[1:0] == 2'b11) max_scan_line[0] = 1'b0;
 
-			if ((line_counter >= max_scan_line) & ((!need_adj & (row_counter >= r04_v_total)) | in_adj)) begin
+			if (((line_counter == max_scan_line) || !max_scan_line) && 
+			   ((!need_adj && ((row_counter == r04_v_total) || !r04_v_total)) || in_adj)) begin
 
 				//  Next character row
-				//  FIXME: No support for v_total_adj yet
 				line_counter <= 0;
 
 				// If in interlace mode we toggle to the opposite field.
