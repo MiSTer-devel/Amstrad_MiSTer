@@ -56,7 +56,8 @@ module u765 #(parameter CYCLES = 27'd4000)
 
 localparam COMMAND_TIMEOUT = 26'd35000000;
 //localparam COMMAND_TIMEOUT = CYCLES/1000*40;
-localparam RPM_WAIT = CYCLES*8'd50; //300 RPM, 200ms/rotation, let's choose 50ms average wait time
+localparam RW_WAIT = CYCLES*8'd1; //300 RPM, 200ms/rotation, let's choose 1ms average wait time
+localparam SEEK_WAIT = CYCLES*8'd5;
 
 localparam UPD765_MAIN_D0B = 0;
 localparam UPD765_MAIN_D1B = 1;
@@ -197,6 +198,7 @@ always @(posedge clk_sys) begin
 	reg       image_trackinfo_dirty[2];
 	reg       image_edsk[2]; //DSK - 0, EDSK - 1
 	reg [1:0] image_scan_state[2] = '{ 0, 0 };
+	reg[26:0] steptimer[2];
 
 	reg [7:0] ncn[2]; //new cylinder number
 	reg [7:0] pcn[2]; //present cylinder number
@@ -220,8 +222,7 @@ always @(posedge clk_sys) begin
 	reg [15:0] i_track_offset;
 	reg [5:0] ack;
 	reg sd_busy;
-	reg [26:0] i_timeout, i_srt_cycle_timer, i_rpm_wait;
-	reg [3:0] i_srt_timer;
+	reg [26:0] i_timeout, i_rpm_wait;
 	reg i_rtrack, i_write, i_rw_deleted;
 	reg [7:0] m_status;  //main status register
 	reg [7:0] status[4] = '{0, 0, 0, 0}; //st0-3
@@ -346,6 +347,7 @@ always @(posedge clk_sys) begin
 		if (image_scan_state[0]) image_scan_state[0] <= 1;
 		if (image_scan_state[1]) image_scan_state[1] <= 1;
 		i_scan_lock <= 0;
+		i_srt <= 4;
 	end else if (ce) begin
 
 		ack <= {ack[4:0], sd_ack};
@@ -357,16 +359,6 @@ always @(posedge clk_sys) begin
 
 		old_wr <= wr;
 		old_rd <= rd;
-
-		//only one step timer for all drives
-		if (i_current_drive) begin
-			if (i_srt_cycle_timer) i_srt_cycle_timer <= i_srt_cycle_timer - 1'd1;
-			else begin
-				i_srt_cycle_timer <= CYCLES;
-				i_srt_timer <= i_srt_timer + 1'd1;
-			end
-			if (!i_srt_timer) i_srt_timer <= i_srt;
-		end
 
 		case(seek_state[i_current_drive])
 			0: ;//no seek in progress
@@ -380,17 +372,24 @@ always @(posedge clk_sys) begin
 					if (pcn[i_current_drive] > ncn[i_current_drive]) pcn[i_current_drive] <= pcn[i_current_drive] - 1'd1;
 					if (pcn[i_current_drive] < ncn[i_current_drive]) pcn[i_current_drive] <= pcn[i_current_drive] + 1'd1;
 					image_trackinfo_dirty[i_current_drive] <= 1;
+					steptimer[i_current_drive] <= SEEK_WAIT * (i_srt ? i_srt : 5'd16);
 					seek_state[i_current_drive] <= 2;
 				end
-			2: if (!i_srt_timer) seek_state[i_current_drive] <= 1;
+			2: if(steptimer[i_current_drive]) begin
+					steptimer[i_current_drive] <= steptimer[i_current_drive] - 1'd1;
+				end else begin
+					seek_state[i_current_drive] <= 1;
+				end
 		endcase
+
+		m_status[1:0] <= {|seek_state[1], |seek_state[0]};
 
 		case(state)
 			COMMAND_IDLE:
 			begin
 				m_status[UPD765_MAIN_CB] <= 0;
 				m_status[UPD765_MAIN_DIO] <= 0;
-				m_status[UPD765_MAIN_RQM] <= !image_scan_state[0] & !image_scan_state[1];
+				m_status[UPD765_MAIN_RQM] <= !image_scan_state[0] & !image_scan_state[1] & !seek_state[1] & !seek_state[0];
 
 				if (~old_wr & wr & a0 & !image_scan_state[0] & !image_scan_state[1]) begin
 					i_mt <= din[7];
@@ -477,7 +476,6 @@ always @(posedge clk_sys) begin
 				int_state <= '{ 0, 0 };
 				if (~old_wr & wr & a0) begin
 					i_srt <= din[7:4];
-					i_srt_timer <= din[7:4];
 					state <= COMMAND_SPECIFY_WR;
 				end
 			end
@@ -664,7 +662,7 @@ always @(posedge clk_sys) begin
 				image_track_offsets_addr <= { pcn[ds0], hds };
 				buff_wait <= 1;
 				state <= COMMAND_RW_DATA_WAIT_RPM;
-				i_rpm_wait <= RPM_WAIT[26:0];
+				i_rpm_wait <= RW_WAIT;
 			end
 
 			//simulate one rotation delay for read operation
