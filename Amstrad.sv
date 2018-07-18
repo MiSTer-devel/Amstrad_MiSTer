@@ -126,7 +126,7 @@ localparam CONF_STR = {
 	"O6,CPU timings,Original,Fast;",
 	"R0,Reset & apply model;",
 	"J,Fire 1,Fire 2;",
-	"V,v1.30.",`BUILD_DATE
+	"V,v1.50.",`BUILD_DATE
 };
 
 //////////////////////////////////////////////////////////////////////////
