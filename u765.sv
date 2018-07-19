@@ -386,7 +386,7 @@ always @(posedge clk_sys) begin
 				end
 			2: if(i_steptimer[i_current_drive]) begin
 					i_steptimer[i_current_drive] <= i_steptimer[i_current_drive] - 1'd1;
-				end else if (i_step_state[i_current_drive]) begin
+				end else if (~&i_step_state[i_current_drive]) begin
 					i_step_state[i_current_drive] <= i_step_state[i_current_drive] + 1'd1;
 					i_steptimer[i_current_drive] <= CYCLES;
 				end else begin
