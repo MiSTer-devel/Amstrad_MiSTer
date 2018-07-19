@@ -50,6 +50,7 @@
 -- v2.2: Interrupt acknowledge cycle has been corrected
 --       WAIT_n is broken in T80.vhd. Simulate correct WAIT_n locally.
 --
+-- v2.3: Output last used Address during non-bus MCycle seems more correct.
 --
 
 library IEEE;
@@ -98,10 +99,11 @@ architecture rtl of T80pa is
 	signal TState			: std_logic_vector(2 downto 0);
 	signal CEN_pol			: std_logic;
 	signal A_int		   : std_logic_vector(15 downto 0);
+	signal A_last		   : std_logic_vector(15 downto 0);
 
 begin
 
-	A <= A_int when NoRead = '0' or Write = '1' else (others => '0');
+	A <= A_int when NoRead = '0' or Write = '1' else A_last;
 
 	BUSAK_n <= BUSAK;
 
@@ -172,6 +174,7 @@ begin
 						RD_n   <= not IntCycle_n;
 						MREQ_n <= not IntCycle_n;
 						IORQ_n <= IntCycle_n; -- workaround for Amstrad. Should be IntCycleD_n(1);
+						A_last <= A_int;
 					end if;
 					if TState = "011" then
 						IntCycleD_n <= "11";
@@ -189,6 +192,7 @@ begin
 						if TState = "001" then
 							RD_n   <= Write;
 							MREQ_n <= '0';
+							A_last <= A_int;
 						end if;
 					end if;
 					if TState = "010" then
