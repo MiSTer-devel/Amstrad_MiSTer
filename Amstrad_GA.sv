@@ -39,6 +39,7 @@ module Amstrad_GA
    input            WE,
    
    output reg       CE_PIX,
+   output reg       CE_PIX_FS,
    output reg [1:0] RED,
    output reg [1:0] GREEN,
    output reg [1:0] BLUE,
@@ -207,7 +208,10 @@ always @(posedge CLK) begin
 		
 		// A VSYNC triggers a delay action of 2 HSYNCs in the GA
 		// In both cases the following interrupt requests are synchronised with the VSYNC. 
-		if (~old_vsync & crtc_vs) InterruptSyncCount = 0;
+		if (~old_vsync & crtc_vs) begin
+			InterruptSyncCount = 0;
+			vmode_fs <= MODE_select;
+		end
 	end
 end
 
@@ -264,7 +268,7 @@ always @(posedge CLK) begin
 	end
 end
 
-reg  [1:0] vmode;
+reg  [1:0] vmode, vmode_fs;
 reg  [5:0] rgb;
 wire [5:0] palette[31:0] = '{ // RRGGBB
 	6'b010111, 6'b010100, 6'b010011, 6'b010000,
@@ -305,6 +309,7 @@ always @(posedge CLK) begin
 
 	begin
 		CE_PIX <= 0;
+		CE_PIX_FS <= 0;
 		if (CE_16) begin
 			cycle = cycle + 1'd1;
 			
@@ -333,6 +338,12 @@ always @(posedge CLK) begin
 
 			VBLANK <= (vborder < BEGIN_VBORDER || vborder >= END_VBORDER);
 			HBLANK <= (hborder < BEGIN_HBORDER || hborder >= END_HBORDER);
+
+			case(vmode_fs)
+				2: CE_PIX_FS <= 1;
+				1: CE_PIX_FS <= !cycle[0];
+				0: CE_PIX_FS <= !cycle[1:0];
+			endcase
 
 			case(vmode)
 				2: CE_PIX <= 1;

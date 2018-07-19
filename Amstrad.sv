@@ -485,7 +485,7 @@ wire [15:0] cpu_addr;
 wire  [7:0] io_dout;
 wire        m1, key_nmi, NMI;
 wire        io_wr, io_rd;
-wire        ce_pix_mb;
+wire        ce_pix_fs;
 
 Amstrad_motherboard motherboard
 (
@@ -507,7 +507,7 @@ Amstrad_motherboard motherboard
 	.audio_l(audio_l),
 	.audio_r(audio_r),
 
-	.ce_pix(ce_pix_mb),
+	.ce_pix_fs(ce_pix_fs),
 	.hblank(hbl),
 	.vblank(vbl),
 	.hsync(hs),
@@ -538,7 +538,7 @@ Amstrad_motherboard motherboard
 
 //////////////////////////////////////////////////////////////////////
 
-wire ce_pix = hq2x ? ce_pix_mb : ce_16;
+wire ce_pix = hq2x ? ce_pix_fs : ce_16;
 
 wire [1:0] b, g, r;
 wire       hs, vs, hbl, vbl;
