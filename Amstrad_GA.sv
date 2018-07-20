@@ -94,7 +94,7 @@ module Amstrad_GA
 //   [AAAAAAAA] : so only 2 colors xD
 
 
-assign cyc1MHz = !phase1MHz;
+assign cyc1MHz = (phase1MHz == 0);
 reg [1:0] phase1MHz;
 always @(posedge CLK) if(CE_4) phase1MHz <= phase1MHz + 1'd1;
 
@@ -144,6 +144,7 @@ always @(posedge CLK) begin
 	end
 end
 
+// Interrupt generator
 always @(posedge CLK) begin
 	reg [5:0] InterruptLineCount;
 	reg [1:0] InterruptSyncCount;
@@ -174,15 +175,12 @@ always @(posedge CLK) begin
 		// http://www.cpcwiki.eu/index.php/Synchronising_with_the_CRTC_and_display
 		if(WE) begin
 			if (D[7] & ~D[6] & D[4]) begin
-				InterruptLineCount = 0;
-				// Grimware : if set (1), this will (only) reset the interrupt counter.
-				// the interrupt request is cleared and the 6-bit counter is reset to "0".
+				// Grimware : if D[4] is set, then interrupt request is cleared and the 6-bit counter is reset to "0".
 				// http://cpctech.cpc-live.com/docs/ints.html
+				InterruptLineCount = 0;
 				INT <= 0;
 			end
 		end
-
-		if(old_hsync & ~crtc_hs) vmode <= MODE_select;
 
 		if (CE_4 && phase1MHz == 0) begin
 			old_hsync <= crtc_hs;
@@ -197,76 +195,78 @@ always @(posedge CLK) begin
 					InterruptLineCount = 0;
 					INT <= 1;
 				end
-				
+
 				if (InterruptSyncCount < 2) begin
 					InterruptSyncCount = InterruptSyncCount + 1'd1;
 					if (InterruptSyncCount == 2) begin
-						if (InterruptLineCount >= 32)	INT <= 1;
+
+						// activate interrupt only if bit5 of counter is set.
+						if (InterruptLineCount[5]) INT <= 1;
 						InterruptLineCount = 0;
 					end
 				end
 			end
-			
+
 			// A VSYNC triggers a delay action of 2 HSYNCs in the GA
 			// In both cases the following interrupt requests are synchronised with the VSYNC. 
-			if (~old_vsync & crtc_vs) begin
-				InterruptSyncCount = 0;
-				vmode_fs <= MODE_select;
-			end
+			if (~old_vsync & crtc_vs) InterruptSyncCount = 0;
 		end
 	end
 end
 
-reg vsync;
-reg hsync;
-
+// vmode is applied after HSync
 always @(posedge CLK) begin
+	reg old_hsync;
+	reg old_vsync;
 
-	reg [3:0] monitor_hsync;
-	reg [3:0] monitor_vsync;
-	reg [3:0] monitor_vhsync;
+	old_hsync <= crtc_hs;
+	if(old_hsync & ~crtc_hs) vmode <= MODE_select; //standard vmode
+
+	old_vsync <= crtc_vs;
+	if(~old_vsync & crtc_vs) vmode_fs <= MODE_select; //HQ2x friendly vmode
+end
+
+// Generate HSync,VSync for monitor
+// HSync delayed by 2us and limited by 4us.
+// VSync delayed by 2 lines and limited by 2 lines.
+always @(posedge CLK) begin
+	reg [2:0] monitor_hsync;
+	reg [2:0] monitor_vsync;
+	reg [2:0] monitor_vhsync;
 
 	reg       old_hsync;
 	reg       old_vsync;
 	reg [3:0] hSyncCount;
 	reg [3:0] vSyncCount;
 
-	begin
-		if (CE_4 && phase1MHz == 1) begin
-			monitor_hsync = {monitor_hsync[2:0], monitor_hsync[0]};
+	if (CE_4 && phase1MHz == 1) begin
+		old_hsync <= crtc_hs;
 
-			if (~old_hsync & crtc_hs) begin
-				hSyncCount = 0;
-				monitor_hsync[0] = 1;
-			end
-			else if (old_hsync & ~crtc_hs) monitor_hsync = 0;
-			else if (crtc_hs) begin
-				hSyncCount = hSyncCount + 1'd1;
-				if (hSyncCount == 5) monitor_hsync = 0;
-			end
+		monitor_hsync[2:1] = monitor_hsync[1:0];
 
-			if (~old_hsync & crtc_hs) begin
-				monitor_vsync = {monitor_vsync[2:0], monitor_vsync[0]};
-				if (~old_vsync & crtc_vs) begin
-					vSyncCount = 0;
-					monitor_vsync[0] = 1;
-				end
-				else if (old_vsync & ~crtc_vs) monitor_vsync = 0;
-				else if (crtc_vs) begin
-					vSyncCount = vSyncCount + 1'd1;
-					if (vSyncCount == 4) monitor_vsync = 0;
-				end
-
-				old_vsync = crtc_vs;
-			end
-
-			old_hsync = crtc_hs;
-
-			monitor_vhsync = {monitor_vhsync[2:0], monitor_vsync[2]};
-
-			vsync <= monitor_vhsync[2];
-			hsync <= monitor_hsync[2];
+		if (~old_hsync & crtc_hs) begin
+			hSyncCount = 0;
+			monitor_hsync[0] = 1;
 		end
+		else if (~crtc_hs || hSyncCount == 5) monitor_hsync = 0;
+		else hSyncCount = hSyncCount + 1'd1;
+
+		if (~old_hsync & crtc_hs) begin
+			old_vsync <= crtc_vs;
+
+			monitor_vsync[2:1] = monitor_vsync[1:0];
+			if (~old_vsync & crtc_vs) begin
+				vSyncCount = 0;
+				monitor_vsync[0] = 1;
+			end
+			else if (~crtc_vs || vSyncCount == 4) monitor_vsync = 0;
+			else vSyncCount = vSyncCount + 1'd1;
+		end
+
+		monitor_vhsync = {monitor_vhsync[1:0], monitor_vsync[2]};
+
+		VSYNC <= monitor_vhsync[2];
+		HSYNC <= monitor_hsync[2];
 	end
 end
 
@@ -287,79 +287,68 @@ assign {RED,GREEN,BLUE} = (VBLANK | VBLANK) ? 6'b000000 : rgb;
 
 always @(posedge CLK) begin
 
-	localparam  BEGIN_VBORDER = (8 - 4) * 8;		// OK validated 32
-	localparam  END_VBORDER = (8 + 25 + 4) * 8;	// KO missing 4 chars OK corrected. 296
-	// 64-46=18 carac16(2 carac) => 16 (????)
-	// 296-32=296 296*2=528 720x528 does exists...
-	
-	localparam  BEGIN_HBORDER = (16 - 2 - 2 - 3) * 16;					// ko missing 3 char 144
-	localparam  END_HBORDER = (16 + 40 + 2 - 4 + 2) * 16 + 8 + 8;	// OK but -8 cause one char too late 912
-	// Not 720 : 904-144 = 760
-	
-	// 4*16*2+640=768
-	// 912 - 144=768
-	
+	localparam  BEGIN_VBORDER = 4 * 8 - 4;
+	localparam  END_VBORDER = 37 * 8 + 4;
+
+	localparam  BEGIN_HBORDER = 8 * 16;
+	localparam  END_HBORDER = 56 * 16;
+
 	reg [2:0] cycle;
 	reg [7:0] data;
 	reg       de;
-	reg       vs;
-	reg       hs;
+	reg       vs,old_vs;
+	reg       hs,old_hs;
 
-	reg       reset_vborder;
-	integer   vborder;		// 304 max
-	integer   hborder;		// 64*16 max
+	integer   vborder;
+	integer   hborder;
 
-	begin
-		CE_PIX <= 0;
-		CE_PIX_FS <= 0;
-		if (CE_16) begin
-			cycle = cycle + 1'd1;
-			
-			if (CE_4) begin
-				if (phase1MHz == 2) begin
-					cycle = 0;
-					de = crtc_de;
-					data = vram_D[7:0];
-					vs = vsync;
-					hs = hsync;
-				end
-				else if (phase1MHz == 0) data = vram_D[15:8];
+	CE_PIX <= 0;
+	CE_PIX_FS <= 0;
+	if (CE_16) begin
+		cycle = cycle + 1'd1;
+
+		if (CE_4) begin
+			if (phase1MHz == 2) begin
+				cycle = 0;
+				de = crtc_de;
+				data = vram_D[7:0];
+				vs = VSYNC;
+				hs = HSYNC;
 			end
-
-			VSYNC <= vs;
-			HSYNC <= hs;
-
-			hborder = hborder + 1;
-			if (~vs & VSYNC) reset_vborder = 1;
-			if (~hs & HSYNC) begin
-				hborder = 0;
-				vborder = vborder + 1;
-				if(reset_vborder) vborder = 0;
-				reset_vborder = 0;
-			end
-
-			VBLANK <= (vborder < BEGIN_VBORDER || vborder >= END_VBORDER);
-			HBLANK <= (hborder < BEGIN_HBORDER || hborder >= END_HBORDER);
-
-			case(vmode_fs)
-				2: CE_PIX_FS <= 1;
-				1: CE_PIX_FS <= !cycle[0];
-				0: CE_PIX_FS <= !cycle[1:0];
-			endcase
-
-			case(vmode)
-				2: CE_PIX <= 1;
-				1: CE_PIX <= !cycle[0];
-				0: CE_PIX <= !cycle[1:0];
-			endcase
-			
-			casex({de,vmode})
-				'b110: rgb <= palette[pen[data[~cycle]]];
-				'b101: rgb <= palette[pen[{data[{1'b0,~cycle[2:1]}],data[{1'b1,~cycle[2:1]}]}]];
-				'b100: rgb <= palette[pen[{data[{2'b00,~cycle[2]}],data[{2'b10,~cycle[2]}],data[{2'b01,~cycle[2]}],data[{2'b11,~cycle[2]}]}]];
-				'b0xx: rgb <= palette[border];
-			endcase
+			else if (phase1MHz == 0) data = vram_D[15:8];
 		end
+
+		hborder = hborder + 1;
+		old_hs <= hs;
+		if (old_hs & ~hs) begin
+			hborder = 0;
+
+			vborder = vborder + 1;
+			old_vs <= vs;
+			if(old_vs & ~vs) vborder = 0;
+		end
+
+		VBLANK <= (vborder < BEGIN_VBORDER || vborder >= END_VBORDER);
+		HBLANK <= (hborder < BEGIN_HBORDER || hborder >= END_HBORDER);
+
+		case(vmode_fs)
+			2: CE_PIX_FS <= 1;
+			1: CE_PIX_FS <= !cycle[0];
+			0: CE_PIX_FS <= !cycle[1:0];
+		endcase
+
+		case(vmode)
+			2: CE_PIX <= 1;
+			1: CE_PIX <= !cycle[0];
+			0: CE_PIX <= !cycle[1:0];
+		endcase
+
+		casex({de,vmode})
+			'b110: rgb <= palette[pen[data[~cycle]]];
+			'b101: rgb <= palette[pen[{data[{1'b0,~cycle[2:1]}],data[{1'b1,~cycle[2:1]}]}]];
+			'b100: rgb <= palette[pen[{data[{2'b00,~cycle[2]}],data[{2'b10,~cycle[2]}],data[{2'b01,~cycle[2]}],data[{2'b11,~cycle[2]}]}]];
+			'b0xx: rgb <= palette[border];
+		endcase
 	end
 end
 
