@@ -351,7 +351,7 @@ always @(posedge CLOCK) begin
 				// Reset the in extra time flag
 				in_adj <= 0;
 
-			end else if (!in_adj & (line_counter >= max_scan_line)) begin
+			end else if (!in_adj & (line_counter == max_scan_line)) begin
 				// Scan line counter increments, wrapping at max_scan_line_addr
 				// Next character row
 				line_counter <= 0;
@@ -361,7 +361,7 @@ always @(posedge CLOCK) begin
 				row_counter <= row_counter + 1'd1;
 				// Test if we are entering the adjust phase, and set
 				// in_adj accordingly
-				if (row_counter >= r04_v_total & need_adj) in_adj <= 1'b1;
+				if (row_counter == r04_v_total & need_adj) in_adj <= 1'b1;
 			end
 			else begin
 			  //  Next scan line.  Count in twos in interlaced sync+video mode
@@ -373,6 +373,9 @@ always @(posedge CLOCK) begin
 				else begin
 					line_counter <= line_counter + 1'd1;
 				end
+				
+				//CRTC1 re-applies R12/R13 while on first row
+				if (!row_counter && CRTC_TYPE) ma_row_start = {r12_start_addr_h, r13_start_addr_l};
 			end
 
 			//  Memory address preset to row start at the beginning of each
