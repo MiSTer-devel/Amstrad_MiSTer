@@ -618,7 +618,7 @@ wire [7:0] audio_l, audio_r;
 assign AUDIO_S   = 0;
 assign AUDIO_MIX = status[8:7];
 
-assign AUDIO_L = {audio_l,audio_l};
-assign AUDIO_R = {audio_r,audio_r};
+assign AUDIO_L = {audio_l-audio_l[7:2],8'd0};
+assign AUDIO_R = {audio_r-audio_r[7:2],8'd0};
 
 endmodule
