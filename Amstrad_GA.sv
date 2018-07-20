@@ -182,35 +182,37 @@ always @(posedge CLK) begin
 			end
 		end
 
-		old_hsync <= crtc_hs;
-		old_vsync <= crtc_vs;
+		if(old_hsync & ~crtc_hs) vmode <= MODE_select;
 
-		// The GA has a counter that increments on every falling edge of the CRTC generated HSYNC signal.
-		// It triggers 6 interrupts per frame http://pushnpop.net/topic-452-1.html
-		if (old_hsync & ~crtc_hs) begin
-			InterruptLineCount = InterruptLineCount + 1'd1;
-			if (InterruptLineCount == 52) begin	// Asphalt ? -- 52="110100"
-				// Once this counter reaches 52, the GA raises the INT signal and resets the counter to 0.
-				InterruptLineCount = 0;
-				INT <= 1;
-			end
-			
-			if (InterruptSyncCount < 2) begin
-				InterruptSyncCount = InterruptSyncCount + 1'd1;
-				if (InterruptSyncCount == 2) begin
-					if (InterruptLineCount >= 32)	INT <= 1;
+		if (CE_4 && phase1MHz == 0) begin
+			old_hsync <= crtc_hs;
+			old_vsync <= crtc_vs;
+
+			// The GA has a counter that increments on every falling edge of the CRTC generated HSYNC signal.
+			// It triggers 6 interrupts per frame http://pushnpop.net/topic-452-1.html
+			if (old_hsync & ~crtc_hs) begin
+				InterruptLineCount = InterruptLineCount + 1'd1;
+				if (InterruptLineCount == 52) begin	// Asphalt ? -- 52="110100"
+					// Once this counter reaches 52, the GA raises the INT signal and resets the counter to 0.
 					InterruptLineCount = 0;
+					INT <= 1;
+				end
+				
+				if (InterruptSyncCount < 2) begin
+					InterruptSyncCount = InterruptSyncCount + 1'd1;
+					if (InterruptSyncCount == 2) begin
+						if (InterruptLineCount >= 32)	INT <= 1;
+						InterruptLineCount = 0;
+					end
 				end
 			end
-
-			vmode <= MODE_select;
-		end
-		
-		// A VSYNC triggers a delay action of 2 HSYNCs in the GA
-		// In both cases the following interrupt requests are synchronised with the VSYNC. 
-		if (~old_vsync & crtc_vs) begin
-			InterruptSyncCount = 0;
-			vmode_fs <= MODE_select;
+			
+			// A VSYNC triggers a delay action of 2 HSYNCs in the GA
+			// In both cases the following interrupt requests are synchronised with the VSYNC. 
+			if (~old_vsync & crtc_vs) begin
+				InterruptSyncCount = 0;
+				vmode_fs <= MODE_select;
+			end
 		end
 	end
 end
