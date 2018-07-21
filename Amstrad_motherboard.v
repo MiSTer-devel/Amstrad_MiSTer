@@ -93,7 +93,7 @@ T80pa CPU
 	.reset_n(~reset),
 	
 	.clk(clk),
-	.cen_p(ce_4p & (WAIT_n | no_wait)),
+	.cen_p(ce_4p),
 	.cen_n(ce_4n),
 
 	.a(A),
@@ -110,23 +110,8 @@ T80pa CPU
 	.busrq_n(1),
 	.int_n(~INT),
 	.nmi_n(~nmi),
-	.wait_n(1) // (cyc1MHz | (IORQ_n & MREQ_n) | no_wait)
+	.wait_n(cyc1MHz | (IORQ_n & MREQ_n) | no_wait)
 );
-
-// Current WAIT_n generation is not correct!
-// It should use WAIT_n instead (see commented out code above ^^)
-reg WAIT_n;
-
-wire acc = (MREQ_n | ~RFSH_n) & IORQ_n;
-always @(posedge clk) begin
-	reg old_acc;
-
-	if(ce_4p) begin
-		old_acc <= acc;
-		if(old_acc & ~acc) WAIT_n <= 0;
-		if(cyc1MHz) WAIT_n <= 1;
-	end
-end
 
 wire crtc_hs, crtc_vs, crtc_de;
 wire [13:0] MA;
