@@ -302,7 +302,7 @@ always @(posedge CLOCK) begin
 
 		//  Horizontal counter increments on each clock, wrapping at
 		//  h_total. CRTC0: 0 -> non-stop
-		if ((h_counter == r00_h_total) && (CRTC_TYPE || r00_h_total)) begin
+		if ((h_counter >= r00_h_total) && (CRTC_TYPE || r00_h_total)) begin
 
 			//  h_total reached
 			h_counter <= 0;
