@@ -40,9 +40,9 @@ module Amstrad_GA
    
    output reg       CE_PIX,
    output reg       CE_PIX_FS,
-   output reg [1:0] RED,
-   output reg [1:0] GREEN,
-   output reg [1:0] BLUE,
+   output reg [7:0] RED,
+   output reg [7:0] GREEN,
+   output reg [7:0] BLUE,
    output reg       HBLANK,
    output reg       VBLANK,
    output reg       HSYNC,
@@ -271,19 +271,35 @@ always @(posedge CLK) begin
 end
 
 reg  [1:0] vmode, vmode_fs;
-reg  [5:0] rgb;
-wire [5:0] palette[31:0] = '{ // RRGGBB
-	6'b010111, 6'b010100, 6'b010011, 6'b010000,
-	6'b011111, 6'b011100, 6'b011101, 6'b010001,
-	6'b000111, 6'b000100, 6'b000011, 6'b000000,
-	6'b001111, 6'b001100, 6'b001101, 6'b000001,
-	6'b110111, 6'b110100, 6'b110011, 6'b110000,
-	6'b111111, 6'b111100, 6'b111101, 6'b110001,
-	6'b110101, 6'b000101, 6'b110001, 6'b000001,
-	6'b111101, 6'b001101, 6'b010101, 6'b010101
+reg  [23:0] rgb;
+
+/*
+//ASIC palette
+wire [23:0] palette[0:31] = '{
+	'h686764,'h666662,'h04f562,'hfdf563,
+	'h050663,'hFF0764,'h046764,'hfd6763,
+	'hfb0562,'hfbf361,'hfef504,'hfdf5f0,
+	'hFD0704,'hFD07F2,'hfd6704,'hfd67f1,
+	'h03045e,'h03f361,'h04f502,'h04f5f1,
+	'h000000,'h0507f1,'h046703,'h0567f1,
+	'h680764,'h68f564,'h68f500,'h68f5f1,
+	'h670600,'h6807F1,'h686704,'h6867f1
+};
+*/
+
+//GA palette
+wire [23:0] palette[0:31] = '{
+	'h6E7D6B,'h6E7B6D,'h00F36B,'hF3F36D,
+	'h00026B,'hF00268,'h007868,'hF37D6B,
+	'hF30268,'hF3F36B,'hF3F30D,'hFFF3F9,
+	'hF30506,'hF302F4,'hF37D0D,'hFA80F9,
+	'h000268,'h02F36B,'h02F001,'h0FF3F2,
+	'h000000,'h0C02F4,'h027801,'h0C7BF4,
+	'h690268,'h71F36B,'h71F504,'h71F3F4,
+	'h6C0201,'h6C02F2,'h6E7B01,'h6E7BF6
 };
 
-assign {RED,GREEN,BLUE} = (VBLANK | VBLANK) ? 6'b000000 : rgb;
+assign {RED,GREEN,BLUE} = (VBLANK | VBLANK) ? 24'h000000 : rgb;
 
 always @(posedge CLK) begin
 

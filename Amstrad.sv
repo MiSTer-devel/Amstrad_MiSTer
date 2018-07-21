@@ -540,7 +540,7 @@ Amstrad_motherboard motherboard
 
 wire ce_pix = hq2x ? ce_pix_fs : ce_16;
 
-wire [1:0] b, g, r;
+wire [7:0] b, g, r;
 wire       hs, vs, hbl, vbl;
 
 color_mix color_mix

@@ -38,9 +38,9 @@ module Amstrad_motherboard
 
 	output        ce_pix,
 	output        ce_pix_fs,
-	output  [1:0] red,
-	output  [1:0] green,
-	output  [1:0] blue,
+	output  [7:0] red,
+	output  [7:0] green,
+	output  [7:0] blue,
 	output        hblank,
 	output        vblank,
 	output        hsync,
