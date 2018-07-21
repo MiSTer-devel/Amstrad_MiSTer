@@ -173,7 +173,7 @@ begin
 						IntCycleD_n <= IntCycleD_n(0) & IntCycle_n;
 						RD_n   <= not IntCycle_n;
 						MREQ_n <= not IntCycle_n;
-						IORQ_n <= IntCycle_n; -- workaround for Amstrad. Should be IntCycleD_n(1);
+						IORQ_n <= IntCycleD_n(1);
 						A_last <= A_int;
 					end if;
 					if TState = "011" then
