@@ -105,40 +105,20 @@ reg  [1:0] MODE_select;
 always @(posedge CLK) begin
 	reg [3:0] ink;
 	reg       border_ink;
-	reg [4:0] ink_color;
-	reg [4:0] c_border;
-	reg [4:0] c_inkc;
-	reg [3:0] c_ink;
 
 	if (RESET) MODE_select <= 2'b00;
 	else begin
-		if (CE_4) begin
-			if (phase1MHz == 0 && WE) begin //7Fxx gate array --
-				if (D[7:6] == 2'b10)	begin
-					//http://www.cpctech.org.uk/docs/garray.html
-					if (D[1:0] == 3) MODE_select <= 0;
-					else MODE_select <= D[1:0];
-				end
-				else if (~D[7]) begin
-					// palette
-					if (~D[6]) begin
-						border_ink = D[4];
-						ink = D[3:0];
-					end
-					else begin
-						ink_color = D[4:0];
-						if (~border_ink) begin
-							c_inkc = ink_color;
-							c_ink = ink;
-						end
-						else c_border = ink_color;
-					end
-				end
+		if (WE) begin //7Fxx gate array --
+			if (D[7:6] == 2'b10)	begin
+				//http://www.cpctech.org.uk/docs/garray.html
+				if (D[1:0] == 3) MODE_select <= 0;
+				else MODE_select <= D[1:0];
 			end
-
-			if (phase1MHz == 2) begin
-				pen[c_ink] <= c_inkc;
-				border <= c_border;
+			else if (~D[7]) begin
+				// palette
+				if (~D[6]) {border_ink,ink} <= D[4:0];
+				else if (border_ink) border <= D[4:0];
+				else               pen[ink] <= D[4:0];
 			end
 		end
 	end
@@ -147,19 +127,45 @@ end
 // Interrupt generator
 always @(posedge CLK) begin
 	reg [5:0] InterruptLineCount;
-	reg [1:0] InterruptSyncCount;
+	reg [1:0] line_delay;
 	reg       old_hsync;
 	reg       old_vsync;
 
 	if (RESET) begin
-		InterruptLineCount = 0;
-		InterruptSyncCount = 2;
-		old_hsync = 0;
-		old_vsync = 0;
+		InterruptLineCount <= 0;
+		line_delay <= 0;
+		old_hsync <= 0;
+		old_vsync <= 0;
 		INT <= 0;
 	end
 	else begin
+		if (CE_4 && phase1MHz == 3) begin
+			old_hsync <= crtc_hs;
+			old_vsync <= crtc_vs;
 
+			// The GA has a counter that increments on every falling edge of the CRTC generated HSYNC signal.
+			// It triggers 6 interrupts per frame http://pushnpop.net/topic-452-1.html
+			if (old_hsync & ~crtc_hs) begin
+				InterruptLineCount <= InterruptLineCount + 1'd1;
+				if (InterruptLineCount == 51) begin	// Asphalt ? -- 52="110100"
+					// Once this counter reaches 52, the GA raises the INT signal and resets the counter to 0.
+					InterruptLineCount <= 0;
+					INT <= 1;
+				end
+
+				line_delay <= line_delay << 1;
+				if (line_delay[1]) begin
+					// activate interrupt only if bit5 of counter is set.
+					if (InterruptLineCount[5]) INT <= 1;
+					InterruptLineCount <= 0;
+				end
+			end
+
+			// A VSYNC triggers a delay action of 2 HSYNCs in the GA
+			// In both cases the following interrupt requests are synchronised with the VSYNC. 
+			if (~old_vsync & crtc_vs) line_delay <= 1;
+		end
+		
 		// the interrupt request remains active until the Z80 acknowledges it.
 		//	http://cpctech.cpc-live.com/docs/ints.html
 		if (INTack) begin
@@ -167,7 +173,7 @@ always @(posedge CLK) begin
 			// of the counter is set to "0" and the interrupt request is cleared.
 			// This prevents the next interrupt from occuring closer than 32 HSYNCs time. 
 			// http://cpctech.cpc-live.com/docs/ints.html
-			InterruptLineCount[5] = 0;
+			InterruptLineCount[5] <= 0;
 			INT <= 0;
 		end
 		
@@ -177,39 +183,9 @@ always @(posedge CLK) begin
 			if (D[7] & ~D[6] & D[4]) begin
 				// Grimware : if D[4] is set, then interrupt request is cleared and the 6-bit counter is reset to "0".
 				// http://cpctech.cpc-live.com/docs/ints.html
-				InterruptLineCount = 0;
+				InterruptLineCount <= 0;
 				INT <= 0;
 			end
-		end
-
-		if (CE_4 && phase1MHz == 0) begin
-			old_hsync <= crtc_hs;
-			old_vsync <= crtc_vs;
-
-			// The GA has a counter that increments on every falling edge of the CRTC generated HSYNC signal.
-			// It triggers 6 interrupts per frame http://pushnpop.net/topic-452-1.html
-			if (old_hsync & ~crtc_hs) begin
-				InterruptLineCount = InterruptLineCount + 1'd1;
-				if (InterruptLineCount == 52) begin	// Asphalt ? -- 52="110100"
-					// Once this counter reaches 52, the GA raises the INT signal and resets the counter to 0.
-					InterruptLineCount = 0;
-					INT <= 1;
-				end
-
-				if (InterruptSyncCount < 2) begin
-					InterruptSyncCount = InterruptSyncCount + 1'd1;
-					if (InterruptSyncCount == 2) begin
-
-						// activate interrupt only if bit5 of counter is set.
-						if (InterruptLineCount[5]) INT <= 1;
-						InterruptLineCount = 0;
-					end
-				end
-			end
-
-			// A VSYNC triggers a delay action of 2 HSYNCs in the GA
-			// In both cases the following interrupt requests are synchronised with the VSYNC. 
-			if (~old_vsync & crtc_vs) InterruptSyncCount = 0;
 		end
 	end
 end
@@ -242,32 +218,32 @@ always @(posedge CLK) begin
 	if (CE_4 && phase1MHz == 1) begin
 		old_hsync <= crtc_hs;
 
-		monitor_hsync[2:1] = monitor_hsync[1:0];
+		monitor_hsync[2:1] <= monitor_hsync[1:0];
 
 		if (~old_hsync & crtc_hs) begin
-			hSyncCount = 0;
-			monitor_hsync[0] = 1;
-		end
-		else if (~crtc_hs || hSyncCount == 5) monitor_hsync = 0;
-		else hSyncCount = hSyncCount + 1'd1;
+			hSyncCount <= 0;
+			monitor_hsync[0] <= 1;
+		end              // should be 6, but 5 gives better screen centering
+		else if (~crtc_hs || hSyncCount == 5) monitor_hsync <= 0;
+		else hSyncCount <= hSyncCount + 1'd1;
 
 		if (~old_hsync & crtc_hs) begin
 			old_vsync <= crtc_vs;
 
-			monitor_vsync[2:1] = monitor_vsync[1:0];
+			{monitor_vhsync[0],monitor_vsync[1]} <= monitor_vsync[1:0];
 			if (~old_vsync & crtc_vs) begin
-				vSyncCount = 0;
-				monitor_vsync[0] = 1;
+				vSyncCount <= 0;
+				monitor_vsync[0] <= 1;
 			end
-			else if (~crtc_vs || vSyncCount == 4) monitor_vsync = 0;
-			else vSyncCount = vSyncCount + 1'd1;
+			else if (~crtc_vs || vSyncCount == 4) monitor_vsync <= 0;
+			else vSyncCount <= vSyncCount + 1'd1;
 		end
 
-		monitor_vhsync = {monitor_vhsync[1:0], monitor_vsync[2]};
-
-		VSYNC <= monitor_vhsync[2];
-		HSYNC <= monitor_hsync[2];
+		monitor_vhsync[2:1] <= monitor_vhsync[1:0];
 	end
+
+	VSYNC <= monitor_vhsync[2];
+	HSYNC <= monitor_hsync[2];
 end
 
 reg  [1:0] vmode, vmode_fs;
@@ -275,7 +251,7 @@ reg  [23:0] rgb;
 
 /*
 //ASIC palette
-wire [23:0] palette[0:31] = '{
+wire [23:0] palette[32] = '{
 	'h686764,'h666662,'h04f562,'hfdf563,
 	'h050663,'hFF0764,'h046764,'hfd6763,
 	'hfb0562,'hfbf361,'hfef504,'hfdf5f0,
@@ -288,7 +264,7 @@ wire [23:0] palette[0:31] = '{
 */
 
 //GA palette
-wire [23:0] palette[0:31] = '{
+wire [23:0] palette[32] = '{
 	'h6E7D6B,'h6E7B6D,'h00F36B,'hF3F36D,
 	'h00026B,'hF00268,'h007868,'hF37D6B,
 	'hF30268,'hF3F36B,'hF3F30D,'hFFF3F9,
@@ -309,8 +285,8 @@ always @(posedge CLK) begin
 	localparam  BEGIN_HBORDER = 8 * 16;
 	localparam  END_HBORDER = 56 * 16;
 
-	reg [2:0] cycle;
-	reg [7:0] data;
+	reg [3:0] cycle;
+	reg[15:0] data;
 	reg       de;
 	reg       vs,old_vs;
 	reg       hs,old_hs;
@@ -324,14 +300,13 @@ always @(posedge CLK) begin
 		cycle = cycle + 1'd1;
 
 		if (CE_4) begin
-			if (phase1MHz == 2) begin
+			if (phase1MHz == 0) begin
+				data = vram_D;
 				cycle = 0;
 				de = crtc_de;
-				data = vram_D[7:0];
 				vs = VSYNC;
 				hs = HSYNC;
 			end
-			else if (phase1MHz == 0) data = vram_D[15:8];
 		end
 
 		hborder = hborder + 1;
@@ -360,9 +335,9 @@ always @(posedge CLK) begin
 		endcase
 
 		casex({de,vmode})
-			'b110: rgb <= palette[pen[data[~cycle]]];
-			'b101: rgb <= palette[pen[{data[{1'b0,~cycle[2:1]}],data[{1'b1,~cycle[2:1]}]}]];
-			'b100: rgb <= palette[pen[{data[{2'b00,~cycle[2]}],data[{2'b10,~cycle[2]}],data[{2'b01,~cycle[2]}],data[{2'b11,~cycle[2]}]}]];
+			'b110: rgb <= palette[pen[data[{cycle[3],~cycle[2:0]}]]];
+			'b101: rgb <= palette[pen[{data[{cycle[3],1'b0,~cycle[2:1]}],data[{cycle[3],1'b1,~cycle[2:1]}]}]];
+			'b100: rgb <= palette[pen[{data[{cycle[3],2'b00,~cycle[2]}],data[{cycle[3],2'b10,~cycle[2]}],data[{cycle[3],2'b01,~cycle[2]}],data[{cycle[3],2'b11,~cycle[2]}]}]];
 			'b0xx: rgb <= palette[border];
 		endcase
 	end
