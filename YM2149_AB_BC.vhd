@@ -244,7 +244,7 @@ begin
 
   p_rdata : process(busctrl_re, addr, reg, ioa_inreg, iob_inreg)
   begin
-    O_DA <= (others => '0'); -- 'X'
+    O_DA <= (others => '1'); -- 'X'
     if (busctrl_re = '1') then -- not necessary, but useful for putting 'X's in the simulator
       case addr(3 downto 0) is
         when x"0" => O_DA <= reg(0) ;
