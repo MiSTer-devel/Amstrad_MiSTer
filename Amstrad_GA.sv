@@ -32,6 +32,7 @@ module Amstrad_GA
    input            crtc_vs,
    input            crtc_hs,
    input            crtc_de,
+   output           crtc_shift,
    input     [15:0] vram_D,
    
    input            INTack,
@@ -202,48 +203,59 @@ always @(posedge CLK) begin
 	if(~old_vsync & crtc_vs) vmode_fs <= MODE_select; //HQ2x friendly vmode
 end
 
+reg hs4,shift;
+assign crtc_shift = shift ^ hs4;
+
 // Generate HSync,VSync for monitor
-// HSync delayed by 2us and limited by 4us.
-// VSync delayed by 2 lines and limited by 2 lines.
+// HSync: cut 2us in front and limited by 4us.
+// VSync: cut 2 lines in front and limited by 2 lines.
 always @(posedge CLK) begin
-	reg [2:0] monitor_hsync;
-	reg [2:0] monitor_vsync;
-	reg [2:0] monitor_vhsync;
 
 	reg       old_hsync;
 	reg       old_vsync;
-	reg [3:0] hSyncCount;
+	reg [5:0] hSyncCount;
 	reg [3:0] vSyncCount;
 
-	if (CE_4 && phase1MHz == 1) begin
+	if(CE_4) begin
 		old_hsync <= crtc_hs;
 
-		monitor_hsync[2:1] <= monitor_hsync[1:0];
-
-		if (~old_hsync & crtc_hs) begin
-			hSyncCount <= 0;
-			monitor_hsync[0] <= 1;
-		end              // should be 6, but 5 gives better screen centering
-		else if (~crtc_hs || hSyncCount == 5) monitor_hsync <= 0;
-		else hSyncCount <= hSyncCount + 1'd1;
-
-		if (~old_hsync & crtc_hs) begin
-			old_vsync <= crtc_vs;
-
-			{monitor_vhsync[0],monitor_vsync[1]} <= monitor_vsync[1:0];
-			if (~old_vsync & crtc_vs) begin
-				vSyncCount <= 0;
-				monitor_vsync[0] <= 1;
+		if(crtc_hs) begin
+			if(~old_hsync) hSyncCount = 0;
+			else if(~&hSyncCount) hSyncCount = hSyncCount + 1'd1;
+		end
+		else begin
+			if(hSyncCount > 7*4) hs4 <= 0;
+			if((hSyncCount >= 4*4-1) && (hSyncCount < 6*4-1)) begin
+				if(hSyncCount == 4*4-1) hs4 <= 1;
+				shift <= 1;
+				if(~&hSyncCount) hSyncCount = hSyncCount + 1'd1;
 			end
-			else if (~crtc_vs || vSyncCount == 4) monitor_vsync <= 0;
-			else vSyncCount <= vSyncCount + 1'd1;
+		else hSyncCount = 0;
 		end
 
-		monitor_vhsync[2:1] <= monitor_vhsync[1:0];
-	end
+		if(hSyncCount == 2*4) begin
+			HSYNC <= 1;
+			shift <= 0;
+			old_vsync <= crtc_vs;
+			
+			if(crtc_vs) begin
+				if(~old_vsync) vSyncCount = 0;
+				else if(~&vSyncCount) vSyncCount = vSyncCount + 1'd1;
+			end
+			else vSyncCount = 0;
+			
+			if(vSyncCount == 2) VSYNC <= 1;
+			if(!vSyncCount || (vSyncCount == 4)) VSYNC <= 0;
+		end
 
-	VSYNC <= monitor_vhsync[2];
-	HSYNC <= monitor_hsync[2];
+		//force VSYNC disable earlier
+		if(~crtc_vs) begin
+			VSYNC <= 0;
+			vSyncCount <= 0;
+		end
+
+		if(!hSyncCount || (hSyncCount == 6*4)) HSYNC <= 0;
+	end
 end
 
 reg  [1:0] vmode, vmode_fs;
@@ -285,11 +297,12 @@ always @(posedge CLK) begin
 	localparam  BEGIN_HBORDER = 8 * 16;
 	localparam  END_HBORDER = 56 * 16;
 
-	reg [3:0] cycle;
+	reg [2:0] cycle;
 	reg[15:0] data;
 	reg       de;
 	reg       vs,old_vs;
 	reg       hs,old_hs;
+	reg       first_sbyte;
 
 	integer   vborder;
 	integer   hborder;
@@ -302,10 +315,19 @@ always @(posedge CLK) begin
 		if (CE_4) begin
 			if (phase1MHz == 0) begin
 				data = vram_D;
+				first_sbyte = 0;
+				if(crtc_shift) begin
+					if(~de & crtc_de) first_sbyte = 1;
+					data[7:0] = vram_D[15:8];
+				end
 				cycle = 0;
 				de = crtc_de;
 				vs = VSYNC;
 				hs = HSYNC;
+			end
+			if (phase1MHz == 2) begin
+				data[7:0] = crtc_shift ? vram_D[7:0] : data[15:8];
+				first_sbyte = 0;
 			end
 		end
 
@@ -334,10 +356,10 @@ always @(posedge CLK) begin
 			0: CE_PIX <= !cycle[1:0];
 		endcase
 
-		casex({de,vmode})
-			'b110: rgb <= palette[pen[data[{cycle[3],~cycle[2:0]}]]];
-			'b101: rgb <= palette[pen[{data[{cycle[3],1'b0,~cycle[2:1]}],data[{cycle[3],1'b1,~cycle[2:1]}]}]];
-			'b100: rgb <= palette[pen[{data[{cycle[3],2'b00,~cycle[2]}],data[{cycle[3],2'b10,~cycle[2]}],data[{cycle[3],2'b01,~cycle[2]}],data[{cycle[3],2'b11,~cycle[2]}]}]];
+		casex({de & ~first_sbyte,vmode})
+			'b110: rgb <= palette[pen[data[~cycle]]];
+			'b101: rgb <= palette[pen[{data[{1'b0,~cycle[2:1]}],data[{1'b1,~cycle[2:1]}]}]];
+			'b100: rgb <= palette[pen[{data[{2'b00,~cycle[2]}],data[{2'b10,~cycle[2]}],data[{2'b01,~cycle[2]}],data[{2'b11,~cycle[2]}]}]];
 			'b0xx: rgb <= palette[border];
 		endcase
 	end

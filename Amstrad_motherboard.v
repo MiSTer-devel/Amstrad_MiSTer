@@ -64,7 +64,7 @@ module Amstrad_motherboard
 	input         nmi
 );
 
-assign vram_addr = {MA[13:12], RA[2:0], MA[9:0]};
+assign vram_addr = {MA[13:12], RA[2:0], MA[9:0]} - crtc_shift;
 
 assign io_rd = (~RD_n) & (~IORQ_n);
 assign io_wr = (~WR_n) & (~IORQ_n);
@@ -140,6 +140,7 @@ MC6845 CRTC
 	.RA(RA)
 );
 
+wire crtc_shift;
 wire cyc1MHz;
 Amstrad_GA GateArray
 (
@@ -155,6 +156,7 @@ Amstrad_GA GateArray
 	.WE((A[15:14] == 1) & io_wr),
 	.D(D),
 
+	.crtc_shift(crtc_shift),
 	.crtc_vs(crtc_vs),
 	.crtc_hs(crtc_hs),
 	.crtc_de(crtc_de),
