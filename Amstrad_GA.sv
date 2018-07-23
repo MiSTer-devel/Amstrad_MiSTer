@@ -193,11 +193,17 @@ end
 
 // vmode is applied after HSync
 always @(posedge CLK) begin
-	reg old_hsync;
+	reg old_hsync, old_hsync2;
 	reg old_vsync;
+	reg hsact;
 
+	old_hsync2 <= HSYNC;
 	old_hsync <= crtc_hs;
-	if(old_hsync & ~crtc_hs) vmode <= MODE_select; //standard vmode
+	if(~old_hsync & crtc_hs) hsact <= 1;
+	if(hsact & ((old_hsync & ~crtc_hs) | (old_hsync2 & ~HSYNC))) begin
+		vmode <= MODE_select; //standard vmode
+		hsact <= 0;
+	end
 
 	old_vsync <= crtc_vs;
 	if(~old_vsync & crtc_vs) vmode_fs <= MODE_select; //HQ2x friendly vmode
