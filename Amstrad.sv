@@ -557,39 +557,13 @@ color_mix color_mix
 	.G_in(g),
 	.R_in(r),
 
-	.HSync_out(HS),
-	.VSync_out(VS),
-	.HBlank_out(HBL),
-	.VBlank_out(VBL),
-	.B_out(mb),
-	.G_out(mg),
-	.R_out(mr)
-);
-
-wire [7:0] mb, mg, mr;
-wire       HS, VS, HBL, VBL;
-
-video_cleaner video_cleaner
-(
-	.clk_vid(clk_sys),
-	.ce_pix(ce_pix),
-
-	.B(mb),
-	.G(mg),
-	.R(mr),
-
-	.HSync(HS),
-	.VSync(VS),
-	.HBlank(HBL),
-	.VBlank(VBL),
-
-	.VGA_R(R),
-	.VGA_G(G),
-	.VGA_B(B),
-	.VGA_VS(VSync),
-	.VGA_HS(HSync),
+	.HSync_out(HSync),
+	.VSync_out(VSync),
 	.HBlank_out(HBlank),
-	.VBlank_out(VBlank)
+	.VBlank_out(VBlank),
+	.B_out(B),
+	.G_out(G),
+	.R_out(R)
 );
 
 wire [7:0] B, G, R;
