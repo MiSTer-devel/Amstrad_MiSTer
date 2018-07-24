@@ -90,7 +90,7 @@ always @(negedge clk_sys) begin
 		pixsz2 <= {1'b0,  pl[7:1]};
 		pixsz4 <= {2'b00, pl[7:2]};
 		ce_x1 <= 1;
-		ce_x2 <= 0;
+		ce_x2 <= 1;
 		ce_x4 <= 1;
 		pix_len <= 0;
 		req_line_reset <= 0;
@@ -99,7 +99,6 @@ always @(negedge clk_sys) begin
 	end
 end
 
-localparam AWIDTH = `BITS_TO_FIT(LENGTH);
 Hq2x #(.LENGTH(LENGTH), .HALF_DEPTH(HALF_DEPTH)) Hq2x
 (
 	.clk(clk_sys),
