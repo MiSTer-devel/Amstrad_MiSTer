@@ -191,20 +191,25 @@ wire [7:0] ppi_dout;
 wire [7:0] portC;
 wire [7:0] portAout;
 wire [7:0] portAin;
-pio PPI
-(
-	.addr(A[9:8]),
-	.datain(D),
-	.cs(A[11]),
-	.iowr(~io_wr),
-	.iord(~io_rd),
-	.cpuclk(clk),  // (no clocked this component normaly, so let's overclock it)
 
-	.pbi({3'b111, ppi_jumpers, crtc_vs}),
-	.pai(portAin),
-	.pao(portAout),
-	.pco(portC),
-	.do(ppi_dout)
+i8255 PPI
+(
+	.reset(reset),
+	.clk_sys(clk),
+
+	.addr(A[9:8]),
+	.idata(D),
+	.odata(ppi_dout),
+	.cs(~A[11]),
+	.we(io_wr),
+	.oe(io_rd),
+
+	.ipa(portAin), 
+	.opa(portAout),
+	.ipb({3'b111, ppi_jumpers, crtc_vs}),
+	.opb(),
+	.ipc(8'hFF), 
+	.opc(portC)
 );
 
 YM2149 PSG
