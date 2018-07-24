@@ -234,7 +234,11 @@ reg  [22:0] boot_a;
 reg   [1:0] boot_bank;
 reg   [7:0] boot_dout;
 
-reg [255:0] rom_map = '0;
+wire  [7:0] rom_mask = {8{(ram_a[22] & ~rom_map[map_addr])}};
+
+reg         rom_map[256] = '{default:0};
+reg   [7:0] map_addr;
+always @(posedge clk_sys) map_addr <= ram_a[21:14];
 
 always @(posedge clk_sys) begin
 	reg [8:0] page = 0;
@@ -333,8 +337,6 @@ sdram sdram
 	.vram_addr({2'b10,vram_addr,1'b0}),
 	.vram_dout(vram_dout)
 );
-
-wire [7:0] rom_mask = (~ram_a[22] | rom_map[ram_a[21:14]]) ? 8'h00 : 8'hFF;
 
 reg model = 0;
 always @(posedge clk_sys) if(reset) model <= status[4];
