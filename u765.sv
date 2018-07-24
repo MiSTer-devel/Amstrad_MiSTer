@@ -28,7 +28,8 @@
 
 //for accurate head stepping rate, set CYCLES to cycles/ms
 //8MHz = 4000 (default)
-module u765 #(parameter CYCLES = 27'd4000)
+//SPECCY_SPEEDLOCK_HACK: auto mess-up weak sector on C0H0S2
+module u765 #(parameter CYCLES = 27'd4000, SPECCY_SPEEDLOCK_HACK = 0)
 (
 	input            clk_sys,   // sys clock
 	input            ce,        // chip enable
@@ -54,8 +55,8 @@ module u765 #(parameter CYCLES = 27'd4000)
 	input            sd_buff_wr
 );
 
-localparam COMMAND_TIMEOUT = 26'd35000000;
-//localparam COMMAND_TIMEOUT = CYCLES/1000*40;
+//localparam OVERRUN_TIMEOUT = 26'd35000000;
+localparam OVERRUN_TIMEOUT = CYCLES / 8'd10;
 localparam RPM_WAIT = CYCLES*8'd100; //300 RPM, 200ms/rotation, 100ms average wait time after a seek
 
 localparam UPD765_MAIN_D0B = 0;
@@ -399,7 +400,7 @@ always @(posedge clk_sys) begin
 			begin
 				m_status[UPD765_MAIN_CB] <= 0;
 				m_status[UPD765_MAIN_DIO] <= 0;
-				m_status[UPD765_MAIN_RQM] <= !image_scan_state[0] & !image_scan_state[1] & !seek_state[1] & !seek_state[0];
+				m_status[UPD765_MAIN_RQM] <= !image_scan_state[0] & !image_scan_state[1];
 
 				if (~old_wr & wr & a0 & !image_scan_state[0] & !image_scan_state[1]) begin
 					i_mt <= din[7];
@@ -714,7 +715,7 @@ always @(posedge clk_sys) begin
 					buff_wait <= 1;
 				end else if (i_current_sector > i_total_sectors) begin
 					//sector not found or end of track
-					status[0] <= ^i_rtrack ? 8'h00 : 8'h40;
+					status[0] <= i_rtrack ? 8'h00 : 8'h40;
 					status[1] <= i_rtrack ? 8'h00 : 8'h04;
 					status[2] <= 0;
 					state <= COMMAND_WAIT_HEAD_UNLOAD;
@@ -746,12 +747,10 @@ always @(posedge clk_sys) begin
 				status[2] <= i_sector_c == 8'hff ? 8'h02 : 8'h10; //bad/wrong cylinder
 				state <= COMMAND_WAIT_HEAD_UNLOAD;
 			end else if ((i_rtrack && i_current_sector == i_r) || 
-							(~i_rtrack && i_sector_r == i_r && i_sector_h == i_h && i_sector_n == i_n)) begin
+							(~i_rtrack && i_sector_r[5:0] == i_r[5:0] && i_sector_h == i_h && (i_sector_n == i_n || !i_n))) begin
 				//sector found in the sector info list
-				if (i_sector_n == 6) i_bytes_to_read <= i_sector_size[14:0]; //speccial handling of 8k sectors
-				else if (!i_sector_n) i_bytes_to_read <= i_dtl;
-				else i_bytes_to_read <= 8'h80 << i_sector_n[2:0];
-				i_timeout <= COMMAND_TIMEOUT;
+				i_bytes_to_read <= i_n ? (8'h80 << i_n[2:0]) : i_dtl;
+				i_timeout <= OVERRUN_TIMEOUT;
 				i_weak_sector <= 0;
 				state <= COMMAND_RW_DATA_EXEC_WEAK;
 			end else begin
@@ -762,13 +761,22 @@ always @(posedge clk_sys) begin
 			end
 
 			COMMAND_RW_DATA_EXEC_WEAK:
-			//handle multiple version of the same sector (weak sectors)
-			if (image_edsk[ds0] && i_sector_size > i_bytes_to_read && i_weak_sector != next_weak_sector[ds0]) begin
-				i_seek_pos <= i_seek_pos + i_bytes_to_read;
-				i_sector_size <= i_sector_size - i_bytes_to_read;
-				i_weak_sector <= i_weak_sector + 1'd1;
+			if (image_edsk[ds0] &&
+				(i_sector_size == { i_bytes_to_read, 1'b0 } || // 2 weak sectors
+				(i_sector_size == ({ i_bytes_to_read, 1'b0 } + i_bytes_to_read)) || // 3 weak sectors
+				(i_sector_size == { i_bytes_to_read, 2'b00 } ))) begin // 4 weak sectors
+				//if sector data == 2,3,4x sector size, then handle multiple version of the same sector (weak sectors)
+				//otherwise extra data is considered as GAP data
+				if (i_weak_sector != next_weak_sector[ds0]) begin
+					i_seek_pos <= i_seek_pos + i_bytes_to_read;
+					i_sector_size <= i_sector_size - i_bytes_to_read;
+					i_weak_sector <= i_weak_sector + 1'd1;
+				end else begin
+					next_weak_sector[ds0] <= next_weak_sector[ds0] + 1'd1;
+					state <= COMMAND_RW_DATA_EXEC5;
+				end
 			end else begin
-				next_weak_sector[ds0] <= (i_sector_size <= i_bytes_to_read) ? 3'd0 : i_weak_sector + 1'd1;
+				next_weak_sector[ds0] <= 0;
 				state <= COMMAND_RW_DATA_EXEC5;
 			end
 
@@ -798,7 +806,7 @@ always @(posedge clk_sys) begin
 					state <= COMMAND_RW_DATA_EXEC8;
 				end else if (!i_timeout) begin
 					status[0] <= 8'h40;
-					status[1] <= { sector_st1[7:5], 1'b1, sector_st1[3:0] }; //overrun
+					status[1] <= 8'h10; //overrun
 					status[2] <= sector_st2;
 					state <= COMMAND_WAIT_HEAD_UNLOAD;
 				end else if (~i_write & ~old_rd & rd & a0) begin
@@ -808,7 +816,8 @@ always @(posedge clk_sys) begin
 					end
 					//Speedlock: randomize 'weak' sectors last bytes
 					//weak sector is cyl 0, head 0, sector 2
-					dout <= (i_current_sector == 2 & !pcn[ds0] & ~hds &
+					dout <= (SPECCY_SPEEDLOCK_HACK &
+								i_current_sector == 2 & !pcn[ds0] & ~hds &
 					         sector_st1[5] & sector_st2[5] & !i_bytes_to_read[14:2]) ?
 								i_timeout[7:0] :
 								buff_data_in;
@@ -817,11 +826,11 @@ always @(posedge clk_sys) begin
 					m_status[UPD765_MAIN_RQM] <= 0;
 					i_bytes_to_read <= i_bytes_to_read - 1'd1;
 					i_seek_pos <= i_seek_pos + 1'd1;
-					i_timeout <= COMMAND_TIMEOUT;
+					i_timeout <= OVERRUN_TIMEOUT;
 				end else if (i_write & ~old_wr & wr & a0) begin
 					buff_wr <= 1;
 					buff_data_out <= din;
-					i_timeout <= COMMAND_TIMEOUT;
+					i_timeout <= OVERRUN_TIMEOUT;
 					m_status[UPD765_MAIN_RQM] <= 0;
 					state <= COMMAND_RW_DATA_EXEC7;
 				end else begin
@@ -861,7 +870,7 @@ always @(posedge clk_sys) begin
 					status[1] <= sector_st1;
 					status[2] <= sector_st2 | (i_rw_deleted ? 8'h40 : 8'h0);
 					state <= COMMAND_WAIT_HEAD_UNLOAD;
-				end else	if ((i_rtrack ? i_current_sector : i_sector_r) == i_eot) begin
+				end else	if ((i_rtrack ? i_current_sector : i_sector_r[5:0]) == i_eot[5:0]) begin
 					//end of cylinder
 					status[0] <= i_rtrack ? 8'h00 : 8'h40;
 					status[1] <= 8'h80;
@@ -895,6 +904,7 @@ always @(posedge clk_sys) begin
 				i_head_timer <= i_head_timer - 1'd1;
 				i_timeout <= CYCLES;
 			end else begin
+				if (i_rtrack) i_sector_r <= i_r;
 				state <= COMMAND_READ_RESULTS;
 			end
 
