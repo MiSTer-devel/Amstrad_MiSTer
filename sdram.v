@@ -42,7 +42,7 @@ module sdram
 	
 	input       [1:0] bank,
 	input       [7:0] din,			// data input from chipset/cpu
-	output reg  [7:0] dout,			// data output to chipset/cpu
+	output      [7:0] dout,			// data output to chipset/cpu
 	input      [22:0] addr,       // 25 bit byte address
 	input             oe,         // cpu/chipset requests read
 	input             we,         // cpu/chipset requests write
@@ -52,6 +52,7 @@ module sdram
 );
 
 assign SDRAM_CKE = ~init;
+assign dout = oe ? ram_dout : 8'hFF;
 
 // no burst configured
 localparam RASCAS_DELAY   = 3'd3;   // tRCD=20ns -> 3 cycles@128MHz
@@ -138,6 +139,7 @@ localparam CMD_PRECHARGE       = 4'b0010;
 localparam CMD_AUTO_REFRESH    = 4'b0001;
 localparam CMD_LOAD_MODE       = 4'b0000;
 
+reg [7:0] ram_dout;
 
 // SDRAM state machines
 always @(posedge clk) begin
@@ -169,11 +171,11 @@ always @(posedge clk) begin
 		SDRAM_BA <= (mode == MODE_NORMAL) ? bank : 2'b00;
 		SDRAM_DQ <= wr ? {din, din} : 16'bZZZZZZZZZZZZZZZZ;
 		{SDRAM_DQMH,SDRAM_DQML} <= {~a[0] & wr,a[0] & wr};
-		if(wr) dout <= din;
+		if(wr) ram_dout <= din;
 	end
 
 	if (q == STATE_CONT+CAS_LATENCY+1) begin
-		if (~wr & ram_req) dout<= a[0] ? SDRAM_DQ[15:8] : SDRAM_DQ[7:0];
+		if (~wr & ram_req) ram_dout <= a[0] ? SDRAM_DQ[15:8] : SDRAM_DQ[7:0];
 		else if (vram_req) vram_dout<=SDRAM_DQ;
 	end
 end

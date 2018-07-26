@@ -51,13 +51,11 @@ module Amstrad_motherboard
 
 	input         ram64k,
 	output [22:0] mem_addr,
-	output  [7:0] mem_dout,
-	input   [7:0] mem_din,
 	output        mem_rd,
 	output        mem_wr,
 	output [15:0] cpu_addr,
-	output  [7:0] io_dout,
-	input   [7:0] io_din,
+	output  [7:0] cpu_dout,
+	input   [7:0] cpu_din,
 	output        io_wr,
 	output        io_rd,
 	output        m1,
@@ -66,17 +64,18 @@ module Amstrad_motherboard
 
 assign vram_addr = {MA[13:12], RA[2:0], MA[9:0]} - crtc_shift;
 
-assign io_rd = (~RD_n) & (~IORQ_n);
-assign io_wr = (~WR_n) & (~IORQ_n);
-assign io_dout = D;
+assign io_rd = ~(RD_n | IORQ_n);
+assign io_wr = ~(WR_n | IORQ_n);
 
-assign mem_rd = (~RD_n) & (~MREQ_n);
-assign mem_wr = (~WR_n) & (~MREQ_n);
-assign mem_dout = D;
+assign mem_rd = ~(RD_n | MREQ_n);
+assign mem_wr = ~(WR_n | MREQ_n);
 
+assign cpu_dout = D;
 assign cpu_addr = A;
-assign m1 = (~M1_n);
+assign m1 = ~M1_n;
 
+reg [1:0] phase;
+always @(posedge clk) if(ce_4p) phase <= phase + 1'd1;
 
 wire [15:0] A;
 wire  [7:0] D;
@@ -98,7 +97,7 @@ T80pa CPU
 
 	.a(A),
 	.do(D),
-	.di(crtc_dout & ppi_dout & (mem_rd ? mem_din : 8'hFF) & io_din),
+	.di(crtc_dout & ppi_dout & cpu_din),
 
 	.rd_n(RD_n),
 	.wr_n(WR_n),
@@ -110,7 +109,7 @@ T80pa CPU
 	.busrq_n(1),
 	.int_n(~INT),
 	.nmi_n(~nmi),
-	.wait_n(cyc1MHz | (IORQ_n & MREQ_n) | no_wait)
+	.wait_n((phase == 0) | (IORQ_n & MREQ_n) | no_wait)
 );
 
 wire crtc_hs, crtc_vs, crtc_de;
@@ -120,7 +119,7 @@ wire  [7:0] crtc_dout;
 MC6845 CRTC
 (
 	.CLOCK(clk),
-	.CLKEN(cyc1MHz & ce_4p),
+	.CLKEN((phase == 0) & ce_4p),
 	.nRESET(~reset),
 	.CRTC_TYPE(crtc_type),
 
@@ -134,14 +133,12 @@ MC6845 CRTC
 	.VSYNC(crtc_vs),
 	.HSYNC(crtc_hs),
 	.DE(crtc_de),
-	.LPSTB(0),
 
 	.MA(MA),
 	.RA(RA)
 );
 
 wire crtc_shift;
-wire cyc1MHz;
 Amstrad_GA GateArray
 (
 	.RESET(reset),
@@ -150,7 +147,7 @@ Amstrad_GA GateArray
 	.CE_4(ce_4p),
 	.CE_16(ce_16),
 
-	.cyc1MHz(cyc1MHz),
+	.phase(phase),
 
 	.INTack(~M1_n & ~IORQ_n),
 	.WE((A[15:14] == 1) & io_wr),
@@ -217,7 +214,7 @@ YM2149 PSG
 	.reset_l(~reset),
 
 	.clk(clk),
-	.ena(cyc1MHz & ce_4n),
+	.ena((phase == 0) & ce_4n),
 	.i_sel_l(1),
 
 	.i_a8(1),

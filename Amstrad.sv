@@ -113,7 +113,7 @@ localparam CONF_STR = {
 	"S0,DSK,Mount A:;",
 	"S1,DSK,Mount B:;",
 	"-;",
-	"F,e??,Load expansion;",
+	"F,E??,Load expansion;",
 	"-;",
 	"O1,Aspect ratio,4:3,16:9;",
 	"O9A,Scandoubler Fx,None,HQ2x,CRT 25%,CRT 50%;",
@@ -310,9 +310,7 @@ end
 wire        ram_w;
 wire        ram_r;
 wire [22:0] ram_a;
-wire  [7:0] sdram_dout;
-wire  [7:0] ram_din;
-wire  [7:0] ram_dout = mf2_ram_en ? mf2_ram_out : sdram_dout;
+wire  [7:0] ram_dout;
 
 wire [15:0] vram_dout;
 wire [14:0] vram_addr;
@@ -331,8 +329,8 @@ sdram sdram
 	.we  (reset ? boot_wr   : ram_w & ~mf2_ram_en & ~mf2_rom_en),
 	.addr(reset ? boot_a    : mf2_rom_en ? { 9'h1ff, cpu_addr[13:0] }: ram_a),
 	.bank(reset ? boot_bank : model),
-	.din (reset ? boot_dout : ram_din),
-	.dout(sdram_dout),
+	.din (reset ? boot_dout : cpu_dout),
+	.dout(ram_dout),
 
 	.vram_addr({2'b10,vram_addr,1'b0}),
 	.vram_dout(vram_dout)
@@ -360,7 +358,7 @@ always @(posedge clk_sys) begin
 	
 	old_wr <= io_wr;
 	if(~old_wr && io_wr && !fdc_sel[3:1]) begin
-		motor <= io_dout[0];
+		motor <= cpu_dout[0];
 	end
 	
 	if(img_mounted) motor <= 0;
@@ -385,7 +383,7 @@ u765 u765
 	.available(2'b11),
 	.nRD(~(u765_sel & io_rd)),
 	.nWR(~(u765_sel & io_wr)),
-	.din(io_dout),
+	.din(cpu_dout),
 	.dout(u765_dout),
 
 	.img_mounted(img_mounted),
@@ -405,6 +403,8 @@ u765 u765
 ///////////////////////////// Multiface Two /////////////////////////////
 /////////////////////////////////////////////////////////////////////////
 
+wire  [7:0] mf2_dout = mf2_ram_en ? mf2_ram_out : 8'hFF;
+
 reg         mf2_en = 0;
 reg         mf2_hidden = 0;
 reg   [7:0] mf2_ram[8192];
@@ -418,7 +418,7 @@ reg         mf2_ram_we;
 reg   [7:0] mf2_ram_in, mf2_ram_out;
 
 always_comb begin
-	casex({ cpu_addr[15:8], io_dout[7:6] })
+	casex({ cpu_addr[15:8], cpu_dout[7:6] })
 		{ 8'h7f, 2'b00 }: mf2_store_addr = 13'h1fcf;  // pen index
 		{ 8'h7f, 2'b01 }: mf2_store_addr = mf2_pen_index[4] ? 13'h1fdf : { 9'h1f9, mf2_pen_index[3:0] }; // border/pen color
 		{ 8'h7f, 2'b10 }: mf2_store_addr = 13'h1fef; // screen mode
@@ -465,14 +465,14 @@ always @(posedge clk_sys) begin
 	if (~old_io_wr & io_wr & cpu_addr[15:2] == 14'b11111110111010) begin //fee8/feea
 		mf2_en <= ~cpu_addr[1] & ~mf2_hidden;
 	end else if (~old_io_wr & io_wr & |mf2_store_addr[12:0]) begin //store hw register in MF2 RAM
-		if (cpu_addr[15:8] == 8'h7f & io_dout[7:6] == 2'b00) mf2_pen_index <= io_dout[4:0];
-		if (cpu_addr[15:8] == 8'hbc) mf2_crtc_register <= io_dout[3:0];
+		if (cpu_addr[15:8] == 8'h7f & cpu_dout[7:6] == 2'b00) mf2_pen_index <= cpu_dout[4:0];
+		if (cpu_addr[15:8] == 8'hbc) mf2_crtc_register <= cpu_dout[3:0];
 		mf2_ram_a <= mf2_store_addr;
-		mf2_ram_in <= io_dout;
+		mf2_ram_in <= cpu_dout;
 		mf2_ram_we <= 1;
 	end else if (ram_w & mf2_ram_en) begin //normal MF2 RAM write
 		mf2_ram_a <= ram_a[12:0];
-		mf2_ram_in <= ram_din;
+		mf2_ram_in <= cpu_dout;
 		mf2_ram_we <= 1;
 	end else begin //MF2 RAM read
 		mf2_ram_a <= ram_a[12:0];
@@ -484,7 +484,7 @@ end
 /////////////////////////////////////////////////////////////////////////
 
 wire [15:0] cpu_addr;
-wire  [7:0] io_dout;
+wire  [7:0] cpu_dout;
 wire        m1, key_nmi, NMI;
 wire        io_wr, io_rd;
 wire        ce_pix_fs;
@@ -518,23 +518,21 @@ Amstrad_motherboard motherboard
 	.green(g),
 	.blue(b),
 
+	.vram_din(vram_dout),
+	.vram_addr(vram_addr),
+
 	.ram64k(model),
 	.mem_rd(ram_r),
 	.mem_wr(ram_w),
 	.mem_addr(ram_a),
-	.mem_din(ram_dout | rom_mask),
-	.mem_dout(ram_din),
-
-	.vram_din(vram_dout),
-	.vram_addr(vram_addr),
-
 	.cpu_addr(cpu_addr),
-	.io_dout(io_dout),
-	.io_din(fdc_dout),
+	.cpu_dout(cpu_dout),
+	.cpu_din((ram_dout | rom_mask) & mf2_dout & fdc_dout),
 	.io_wr(io_wr),
 	.io_rd(io_rd),
 	.m1(m1),
 	.nmi(NMI),
+
 	.key_nmi(key_nmi)
 );
 
