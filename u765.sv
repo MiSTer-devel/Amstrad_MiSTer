@@ -57,7 +57,6 @@ module u765 #(parameter CYCLES = 27'd4000, SPECCY_SPEEDLOCK_HACK = 0)
 
 //localparam OVERRUN_TIMEOUT = 26'd35000000;
 localparam OVERRUN_TIMEOUT = CYCLES / 8'd10;
-localparam RPM_WAIT = CYCLES*8'd100; //300 RPM, 200ms/rotation, 100ms average wait time after a seek
 
 localparam UPD765_MAIN_D0B = 0;
 localparam UPD765_MAIN_D1B = 1;
@@ -90,6 +89,7 @@ typedef enum
  COMMAND_RW_DATA_EXEC3,
  COMMAND_RW_DATA_EXEC4,
  COMMAND_RW_DATA_EXEC5,
+ COMMAND_RW_DATA_WAIT_SECTOR,
  COMMAND_RW_DATA_EXEC_WEAK,
  COMMAND_RW_DATA_EXEC6,
  COMMAND_RW_DATA_EXEC7,
@@ -103,7 +103,6 @@ typedef enum
  COMMAND_READ_ID2,
  COMMAND_READ_ID_EXEC1,
  COMMAND_READ_ID_EXEC2,
- COMMAND_READ_ID_EXEC3,
 
  COMMAND_FORMAT_TRACK,
  COMMAND_FORMAT_TRACK1,
@@ -143,7 +142,8 @@ typedef enum
 
  COMMAND_RELOAD_TRACKINFO,
  COMMAND_RELOAD_TRACKINFO1,
- COMMAND_RELOAD_TRACKINFO2
+ COMMAND_RELOAD_TRACKINFO2,
+ COMMAND_RELOAD_TRACKINFO3
 
 } state_t;
 
@@ -188,8 +188,9 @@ end
 
 ////
 
-wire rd = nWR & ~nRD;
-wire wr = ~nWR & nRD;
+wire       rd = nWR & ~nRD;
+wire       wr = ~nWR & nRD;
+wire [7:0] i_total_sectors;
 
 always @(posedge clk_sys) begin
 
@@ -203,13 +204,14 @@ always @(posedge clk_sys) begin
 	reg       image_trackinfo_dirty[2];
 	reg       image_edsk[2]; //DSK - 0, EDSK - 1
 	reg [1:0] image_scan_state[2] = '{ 0, 0 };
+	reg [7:0] i_current_track_sectors[2][2];  //number of sectors on the current track /head/drive
+	reg [7:0] i_current_sector_position[2][2]; //sector where the head currently positioned
 	reg[26:0] i_steptimer[2], i_rpm_timer[2];
 	reg [3:0] i_step_state[2]; //counting cycles for steptimer
 
 	reg [7:0] ncn[2]; //new cylinder number
 	reg [7:0] pcn[2]; //present cylinder number
 	reg [2:0] next_weak_sector[2];
-	reg [7:0] last_readid_sector[2];
 	reg [1:0] seek_state[2];
 	reg       int_state[2];
 
@@ -217,7 +219,7 @@ always @(posedge clk_sys) begin
 	reg [7:0] i_track_size;
 	reg [31:0] i_seek_pos;
 	reg [7:0] i_sector_c, i_sector_h, i_sector_r, i_sector_n;
-	reg [7:0] sector_st1, sector_st2, i_total_sectors;
+	reg [7:0] sector_st1, sector_st2;
 	reg [15:0] i_sector_size;
 	reg [7:0] i_current_sector;
 	reg [2:0] i_weak_sector;
@@ -252,7 +254,9 @@ always @(posedge clk_sys) begin
 	reg i_mt;
 	//reg i_mfm;
 	reg i_sk;
+
 	buff_wait <= 0;
+	i_total_sectors = i_current_track_sectors[ds0][hds];
 
 	//new image mounted
 	for(int i=0;i<2;i++) begin 
@@ -262,11 +266,10 @@ always @(posedge clk_sys) begin
 			image_size[i] <= img_size;
 			image_scan_state[i] <= |img_size; //hacky
 			image_ready[i] <= 0;
-			{ ncn[i], pcn[i] } <= 0;
 			int_state[i] <= 0;
 			seek_state[i] <= 0;
 			next_weak_sector[i] <= 0;
-			last_readid_sector[i] <= 0;
+			i_current_sector_position[i] <= '{ 0, 0 };
 		end
 	end
 
@@ -369,15 +372,13 @@ always @(posedge clk_sys) begin
 		old_wr <= wr;
 		old_rd <= rd;
 
+		//seek
 		case(seek_state[i_current_drive])
 			0: ;//no seek in progress
 			1: if (pcn[i_current_drive] == ncn[i_current_drive]) begin
-					i_rpm_timer[i_current_drive] <= RPM_WAIT; //wait one rotation after a seek before a READ
-					m_status[i_current_drive] <= 0; //FDDx is not busy
 					int_state[i_current_drive] <= 1;
 					seek_state[i_current_drive] <= 0;
 				end else begin
-					m_status[i_current_drive] <= 1; //FDDx is is busy
 					if (pcn[i_current_drive] > ncn[i_current_drive]) pcn[i_current_drive] <= pcn[i_current_drive] - 1'd1;
 					if (pcn[i_current_drive] < ncn[i_current_drive]) pcn[i_current_drive] <= pcn[i_current_drive] + 1'd1;
 					image_trackinfo_dirty[i_current_drive] <= 1;
@@ -395,10 +396,27 @@ always @(posedge clk_sys) begin
 				end
 		endcase
 
+		//disk rotation
+		if (~image_trackinfo_dirty[i_current_drive]) begin
+		//this timer assumes 10 sector/track (20ms/sector), which is a good average
+			if (i_rpm_timer[i_current_drive] == CYCLES * 20) begin
+				for (int i=0; i<2; i++)
+					i_current_sector_position[i_current_drive][i] <=
+					i_current_sector_position[i_current_drive][i] == i_current_track_sectors[i_current_drive][i] - 1'd1 ?
+						8'd0 : i_current_sector_position[i_current_drive][i] + 1'd1;
+				i_rpm_timer[i_current_drive] <= 0;
+			end else begin
+				i_rpm_timer[i_current_drive] <= i_rpm_timer[i_current_drive] + 1'd1;
+			end
+		end
+
+		m_status[UPD765_MAIN_D0B] <= |seek_state[0];
+		m_status[UPD765_MAIN_D1B] <= |seek_state[1];
+		m_status[UPD765_MAIN_CB] <= state != COMMAND_IDLE;
+
 		case(state)
 			COMMAND_IDLE:
 			begin
-				m_status[UPD765_MAIN_CB] <= 0;
 				m_status[UPD765_MAIN_DIO] <= 0;
 				m_status[UPD765_MAIN_RQM] <= !image_scan_state[0] & !image_scan_state[1];
 
@@ -433,7 +451,6 @@ always @(posedge clk_sys) begin
 			COMMAND_SENSE_INTERRUPT_STATUS:
 			begin
 				m_status[UPD765_MAIN_DIO] <= 1;
-				m_status[UPD765_MAIN_CB] <= 1;
 				state <= COMMAND_SENSE_INTERRUPT_STATUS1;
 			end
 
@@ -483,7 +500,6 @@ always @(posedge clk_sys) begin
 
 			COMMAND_SPECIFY:
 			begin
-				m_status[UPD765_MAIN_CB] <= 1;
 				int_state <= '{ 0, 0 };
 				if (~old_wr & wr & a0) begin
 					i_hut <= din[3:0];
@@ -500,7 +516,6 @@ always @(posedge clk_sys) begin
 
 			COMMAND_RECALIBRATE:
 			begin
-				m_status[UPD765_MAIN_CB] <= 1;
 				if (~old_wr & wr & a0) begin
 					ds0 <= din[0];
 					int_state[din[0]] <= 0;
@@ -512,7 +527,6 @@ always @(posedge clk_sys) begin
 
 			COMMAND_SEEK:
 			begin
-				m_status[UPD765_MAIN_CB] <= 1;
 				if (~old_wr & wr & a0) begin
 					ds0 <= din[0];
 					int_state[din[0]] <= 0;
@@ -535,7 +549,6 @@ always @(posedge clk_sys) begin
 			COMMAND_READ_ID:
 			begin
 				int_state <= '{ 0, 0 };
-				m_status[UPD765_MAIN_CB] <= 1;
 				state <= COMMAND_READ_ID1;
 			end
 
@@ -571,7 +584,7 @@ always @(posedge clk_sys) begin
 			if (~sd_busy & ~buff_wait) begin
 				if (image_track_offsets_in) begin
 					sd_buff_type <= UPD765_SD_BUFF_TRACKINFO;
-					buff_addr <= {image_track_offsets_in[0], 8'h15}; //number of sectors
+					buff_addr <= { image_track_offsets_in[0], 8'h18 + (i_current_sector_position[ds0][hds] << 3) }; //choose the next sector
 					buff_wait <= 1;
 					state <= COMMAND_READ_ID_EXEC2;
 				end else begin
@@ -583,16 +596,6 @@ always @(posedge clk_sys) begin
 			end
 
 			COMMAND_READ_ID_EXEC2:
-			if (~buff_wait) begin
-				//cycle through sectors between adjacent READ ID commands
-				//to imitate rotating media (and satisfy some copy protections)
-				buff_addr[7:0] <= 8'h18 + (last_readid_sector[ds0] << 3); //choose the next sector
-				buff_wait <= 1;
-				last_readid_sector[ds0] <= last_readid_sector[ds0] == (buff_data_in - 1'd1) ? 8'h00: last_readid_sector[ds0] + 1'd1;
-				state <= COMMAND_READ_ID_EXEC3;
-			end
-
-			COMMAND_READ_ID_EXEC3:
 			if (~buff_wait) begin
 				if (buff_addr[2:0] == 8'h00) i_sector_c <= buff_data_in;
 				else if (buff_addr[2:0] == 8'h01) i_sector_h <= buff_data_in;
@@ -611,7 +614,6 @@ always @(posedge clk_sys) begin
 			COMMAND_READ_TRACK:
 			begin
 				int_state <= '{ 0, 0 };
-				m_status[UPD765_MAIN_CB] <= 1;
 				command <= COMMAND_RW_DATA_EXEC;
 				state <= COMMAND_SETUP;
 				{i_rtrack, i_write, i_rw_deleted} <= 3'b100;
@@ -620,7 +622,6 @@ always @(posedge clk_sys) begin
 			COMMAND_WRITE_DATA:
 			begin
 				int_state <= '{ 0, 0 };
-				m_status[UPD765_MAIN_CB] <= 1;
 				command <= COMMAND_RW_DATA_EXEC;
 				state <= COMMAND_SETUP;
 				{i_rtrack, i_write, i_rw_deleted} <= 3'b010;
@@ -629,7 +630,6 @@ always @(posedge clk_sys) begin
 			COMMAND_WRITE_DELETED_DATA:
 			begin
 				int_state <= '{ 0, 0 };
-				m_status[UPD765_MAIN_CB] <= 1;
 				command <= COMMAND_RW_DATA_EXEC;
 				state <= COMMAND_SETUP;
 				{i_rtrack, i_write, i_rw_deleted} <= 3'b011;
@@ -638,7 +638,6 @@ always @(posedge clk_sys) begin
 			COMMAND_READ_DATA:
 			begin
 				int_state <= '{ 0, 0 };
-				m_status[UPD765_MAIN_CB] <= 1;
 				command <= COMMAND_RW_DATA_EXEC;
 				state <= COMMAND_SETUP;
 				{i_rtrack, i_write, i_rw_deleted} <= 3'b000;
@@ -647,7 +646,6 @@ always @(posedge clk_sys) begin
 			COMMAND_READ_DELETED_DATA:
 			begin
 				int_state <= '{ 0, 0 };
-				m_status[UPD765_MAIN_CB] <= 1;
 				command <= COMMAND_RW_DATA_EXEC;
 				state <= COMMAND_SETUP;
 				{i_rtrack, i_write, i_rw_deleted} <= 3'b001;
@@ -679,11 +677,9 @@ always @(posedge clk_sys) begin
 				state <= COMMAND_RW_DATA_WAIT_HEAD_LOAD;
 			end
 
-			//simulate one rotation delay after a seek + head load time
+			//wait head load time
 			COMMAND_RW_DATA_WAIT_HEAD_LOAD:
-			if (i_rpm_timer[ds0] & ~i_write) begin
-				i_rpm_timer[ds0] <= i_rpm_timer[ds0] - 1'd1;
-			end else if (i_timeout & ~i_write) begin
+			if (i_timeout & ~i_write) begin
 				i_timeout <= i_timeout - 1'd1;
 			end else if (i_head_timer & ~i_write) begin
 				i_head_timer <= i_head_timer - 1'd1;
@@ -707,10 +703,6 @@ always @(posedge clk_sys) begin
 			if (~sd_busy & ~buff_wait) begin
 				if (buff_addr[7:0] == 8'h14) begin
 					if (!image_edsk[ds0]) i_sector_size <= 8'h80 << buff_data_in[2:0];
-					buff_addr[7:0] <= 8'h15; //number of sectors
-					buff_wait <= 1;
-				end else	if (buff_addr[7:0] == 8'h15) begin
-					i_total_sectors <= buff_data_in;
 					buff_addr[7:0] <= 8'h18; //sector info list
 					buff_wait <= 1;
 				end else if (i_current_sector > i_total_sectors) begin
@@ -747,17 +739,27 @@ always @(posedge clk_sys) begin
 				status[2] <= i_sector_c == 8'hff ? 8'h02 : 8'h10; //bad/wrong cylinder
 				state <= COMMAND_WAIT_HEAD_UNLOAD;
 			end else if ((i_rtrack && i_current_sector == i_r) || 
-							(~i_rtrack && i_sector_r[5:0] == i_r[5:0] && i_sector_h == i_h && (i_sector_n == i_n || !i_n))) begin
+							(~i_rtrack && i_sector_r == i_r && i_sector_h == i_h && (i_sector_n == i_n || !i_n))) begin
 				//sector found in the sector info list
-				i_bytes_to_read <= i_n ? (8'h80 << i_n[2:0]) : i_dtl;
-				i_timeout <= OVERRUN_TIMEOUT;
-				i_weak_sector <= 0;
-				state <= COMMAND_RW_DATA_EXEC_WEAK;
+				if (i_sk & ~i_rtrack & (i_rw_deleted ^ sector_st2[6])) begin
+					state <= COMMAND_RW_DATA_EXEC8;
+				end else begin
+					i_bytes_to_read <= i_n ? (8'h80 << i_n[2:0]) : i_dtl;
+					state <= COMMAND_RW_DATA_WAIT_SECTOR;
+				end
 			end else begin
 				//try the next sector in the sectorinfo list
 				i_current_sector <= i_current_sector + 1'd1;
 				i_seek_pos <= i_seek_pos + i_sector_size;
 				state <= COMMAND_RW_DATA_EXEC3;
+			end
+
+			//wait for the sector needed for positioning at the head
+			COMMAND_RW_DATA_WAIT_SECTOR:
+			if (i_current_sector_position[ds0][hds] == i_current_sector - 1'd1) begin
+				i_timeout <= OVERRUN_TIMEOUT;
+				i_weak_sector <= 0;
+				state <= COMMAND_RW_DATA_EXEC_WEAK;
 			end
 
 			COMMAND_RW_DATA_EXEC_WEAK:
@@ -807,7 +809,7 @@ always @(posedge clk_sys) begin
 				end else if (!i_timeout) begin
 					status[0] <= 8'h40;
 					status[1] <= 8'h10; //overrun
-					status[2] <= sector_st2;
+					status[2] <= sector_st2 | (i_rw_deleted ? 8'h40 : 8'h0);
 					state <= COMMAND_WAIT_HEAD_UNLOAD;
 				end else if (~i_write & ~old_rd & rd & a0) begin
 					if (&buff_addr) begin
@@ -864,17 +866,18 @@ always @(posedge clk_sys) begin
 			//End of reading/writing sector, what's next?
 			COMMAND_RW_DATA_EXEC8:
 			if (~sd_busy) begin
-				if (~i_rtrack & ~i_sk & ((sector_st1[5] & sector_st2[5]) | (i_rw_deleted ^ sector_st2[6]))) begin
+				if (~i_rtrack & ~(i_sk & (i_rw_deleted ^ sector_st2[6])) &
+					((sector_st1[5] & sector_st2[5]) | (i_rw_deleted ^ sector_st2[6]))) begin
 					//deleted mark or crc error
 					status[0] <= 8'h40;
 					status[1] <= sector_st1;
 					status[2] <= sector_st2 | (i_rw_deleted ? 8'h40 : 8'h0);
 					state <= COMMAND_WAIT_HEAD_UNLOAD;
-				end else	if ((i_rtrack ? i_current_sector : i_sector_r[5:0]) == i_eot[5:0]) begin
+				end else	if ((i_rtrack ? i_current_sector : i_sector_r) == i_eot) begin
 					//end of cylinder
 					status[0] <= i_rtrack ? 8'h00 : 8'h40;
 					status[1] <= 8'h80;
-					status[2] <= 0;
+					status[2] <= i_rw_deleted ? 8'h40 : 8'h0;
 					state <= COMMAND_WAIT_HEAD_UNLOAD;
 				end else begin
 					//read the next sector (multi-sector transfer)
@@ -895,6 +898,10 @@ always @(posedge clk_sys) begin
 				i_timeout <= CYCLES;
 				i_head_timer <= { i_hut, 2'b00 };
 				state <= COMMAND_WAIT_HEAD_UNLOAD1;
+				if (i_rtrack) begin
+					if (i_n > i_sector_n) status[2][5] <= 1; //CRC error
+					i_sector_n <= i_n;
+				end
 			end
 
 			COMMAND_WAIT_HEAD_UNLOAD1:
@@ -904,14 +911,12 @@ always @(posedge clk_sys) begin
 				i_head_timer <= i_head_timer - 1'd1;
 				i_timeout <= CYCLES;
 			end else begin
-				if (i_rtrack) i_sector_r <= i_r;
 				state <= COMMAND_READ_RESULTS;
 			end
 
 			COMMAND_FORMAT_TRACK:
 			begin
 				int_state <= '{ 0, 0 };
-				m_status[UPD765_MAIN_CB] <= 1;
 				if (~old_wr & wr & a0) begin
 					ds0 <= din[0];
 					state <= COMMAND_FORMAT_TRACK1;
@@ -1107,7 +1112,7 @@ always @(posedge clk_sys) begin
 
 			COMMAND_RELOAD_TRACKINFO:
 			if (image_ready[ds0] & image_trackinfo_dirty[ds0]) begin
-				last_readid_sector[ds0] <= 0;
+				i_rpm_timer[ds0] <= 0;
 				next_weak_sector[ds0] <= 0;
 				image_track_offsets_addr <= { pcn[ds0], 1'b0 };
 				old_hds <= hds;
@@ -1135,6 +1140,17 @@ always @(posedge clk_sys) begin
 
 			COMMAND_RELOAD_TRACKINFO2:
 			if (~sd_busy) begin
+				buff_addr <= {image_track_offsets_in[0], 8'h15}; //number of sectors
+				buff_wait <= 1;
+				state <= COMMAND_RELOAD_TRACKINFO3;
+			end
+
+			COMMAND_RELOAD_TRACKINFO3:
+			if (~sd_busy & ~buff_wait) begin
+				i_current_track_sectors[ds0][hds] <= buff_data_in;
+				//assume the head position is at the middle of a track after a seek
+				i_current_sector_position[ds0][hds] <= buff_data_in[7:1];
+
 				if (hds == image_sides[ds0]) begin
 					image_trackinfo_dirty[ds0] <= 0;
 					hds <= old_hds;
