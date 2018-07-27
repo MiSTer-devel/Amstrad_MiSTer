@@ -361,7 +361,7 @@ set_global_assignment -name VHDL_FILE YM2149_AB_BC.vhd
 set_global_assignment -name VERILOG_FILE i8255.v
 set_global_assignment -name SYSTEMVERILOG_FILE color_mix.sv
 set_global_assignment -name VHDL_FILE Keyboard.vhd
-set_global_assignment -name VERILOG_FILE MC6845.v
+set_global_assignment -name VERILOG_FILE UM6845R.v
 set_global_assignment -name SYSTEMVERILOG_FILE Amstrad_GA.sv
 set_global_assignment -name VERILOG_FILE Amstrad_MMU.v
 set_global_assignment -name VERILOG_FILE Amstrad_motherboard.v
