@@ -31,6 +31,7 @@ module Amstrad_motherboard
 
 	input   [3:0] ppi_jumpers,
 	input         crtc_type,
+	input         resync,
 	input         no_wait,
 
 	output  [7:0] audio_l,
@@ -116,7 +117,7 @@ wire crtc_hs, crtc_vs, crtc_de;
 wire [13:0] MA;
 wire  [4:0] RA;
 wire  [7:0] crtc_dout;
-MC6845 CRTC
+UM6845R CRTC
 (
 	.CLOCK(clk),
 	.CLKEN((phase == 0) & ce_4p),
@@ -148,6 +149,7 @@ Amstrad_GA GateArray
 	.CE_16(ce_16),
 
 	.phase(phase),
+	.resync(resync),
 
 	.INTack(~M1_n & ~IORQ_n),
 	.WE((A[15:14] == 1) & io_wr),

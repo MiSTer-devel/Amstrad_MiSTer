@@ -126,7 +126,7 @@ localparam CONF_STR = {
 	"O6,CPU timings,Original,Fast;",
 	"R0,Reset & apply model;",
 	"J,Fire 1,Fire 2;",
-	"V,v1.50.",`BUILD_DATE
+	"V,v1.55.",`BUILD_DATE
 };
 
 //////////////////////////////////////////////////////////////////////////
@@ -502,6 +502,7 @@ Amstrad_motherboard motherboard
 	.no_wait(status[6]),
 	.ppi_jumpers({2'b11, ~status[5], 1'b1}),
 	.crtc_type(~status[2]),
+	.resync(1),
 
 	.joy1(joy1),
 	.joy2(joy2),

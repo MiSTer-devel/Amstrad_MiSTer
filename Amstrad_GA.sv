@@ -26,8 +26,9 @@ module Amstrad_GA
    input            CE_16,
    input            RESET,
    
-   output           cyc1MHz,
-   
+   input      [1:0] phase,
+   input            resync,
+
    output reg       INT,
    input            crtc_vs,
    input            crtc_hs,
@@ -94,11 +95,6 @@ module Amstrad_GA
 //   1 byte <=> 8 pixels
 //   [AAAAAAAA] : so only 2 colors xD
 
-
-assign cyc1MHz = (phase1MHz == 0);
-reg [1:0] phase1MHz;
-always @(posedge CLK) if(CE_4) phase1MHz <= phase1MHz + 1'd1;
-
 reg  [4:0] pen[15:0] = '{4,12,21,28,24,29,12,5,13,22,6,23,30,0,31,14};
 reg  [4:0] border;
 reg  [1:0] MODE_select;
@@ -140,7 +136,7 @@ always @(posedge CLK) begin
 		INT <= 0;
 	end
 	else begin
-		if (CE_4 && phase1MHz == 3) begin
+		if(CE_4 && phase == 2) begin
 			old_hsync <= crtc_hs;
 			old_vsync <= crtc_vs;
 
@@ -216,27 +212,44 @@ assign crtc_shift = shift ^ hs4;
 // HSync: cut 2us in front and limited by 4us.
 // VSync: cut 2 lines in front and limited by 2 lines.
 always @(posedge CLK) begin
-
 	reg       old_hsync;
 	reg       old_vsync;
-	reg [5:0] hSyncCount;
+	reg [8:0] hSyncCount;
+	reg [8:0] hSyncSize;
+	reg       hSyncReg;
 	reg [3:0] vSyncCount;
+	reg [1:0] vcnt;
+	
+	localparam FLT_SZ = 50*4;
 
 	if(CE_4) begin
 		old_hsync <= crtc_hs;
 
-		if(crtc_hs) begin
-			if(~old_hsync) hSyncCount = 0;
-			else if(~&hSyncCount) hSyncCount = hSyncCount + 1'd1;
+		if(resync) begin
+			if(~&hSyncCount) hSyncCount = hSyncCount + 1'd1;
+			if((crtc_vs && ~&vcnt) ? (~old_hsync & crtc_hs) : (hSyncSize == hSyncCount)) begin
+				if(crtc_vs && ~&vcnt) vcnt <= vcnt + 1'd1;
+				if(~crtc_vs) vcnt <= 0;
+				hSyncSize = hSyncCount;
+				hSyncCount = 0;
+				if(~old_hsync & crtc_hs) hSyncReg <= 1;
+			end
 		end
 		else begin
+			if(hSyncCount < FLT_SZ) hSyncCount = hSyncCount + 1'd1;
+			else if(~old_hsync & crtc_hs) begin
+				hSyncCount = 0;
+				hSyncReg <= 1;
+			end
+		end
+
+		if(old_hsync & ~crtc_hs & hSyncReg) begin
+			hSyncReg <= 0;
 			if(hSyncCount > 7*4) hs4 <= 0;
 			if((hSyncCount >= 4*4-1) && (hSyncCount < 6*4-1)) begin
 				if(hSyncCount == 4*4-1) hs4 <= 1;
 				shift <= 1;
-				if(~&hSyncCount) hSyncCount = hSyncCount + 1'd1;
 			end
-		else hSyncCount = 0;
 		end
 
 		if(hSyncCount == 2*4) begin
@@ -250,8 +263,8 @@ always @(posedge CLK) begin
 			end
 			else vSyncCount = 0;
 			
-			if(vSyncCount == 2) VSYNC <= 1;
-			if(!vSyncCount || (vSyncCount == 4)) VSYNC <= 0;
+			if(vSyncCount == 1) VSYNC <= 1;
+			if(!vSyncCount || (vSyncCount == 3)) VSYNC <= 0;
 		end
 
 		//force VSYNC disable earlier
@@ -260,7 +273,7 @@ always @(posedge CLK) begin
 			vSyncCount <= 0;
 		end
 
-		if(!hSyncCount || (hSyncCount == 6*4)) HSYNC <= 0;
+		if(hSyncCount == 6*4) HSYNC <= 0;
 	end
 end
 
@@ -319,7 +332,7 @@ always @(posedge CLK) begin
 		cycle = cycle + 1'd1;
 
 		if (CE_4) begin
-			if (phase1MHz == 0) begin
+			if (phase == 0) begin
 				data = vram_D;
 				first_sbyte = 0;
 				if(crtc_shift) begin
@@ -331,7 +344,7 @@ always @(posedge CLK) begin
 				vs = VSYNC;
 				hs = HSYNC;
 			end
-			if (phase1MHz == 2) begin
+			if (phase == 2) begin
 				data[7:0] = crtc_shift ? vram_D[7:0] : data[15:8];
 				first_sbyte = 0;
 			end
