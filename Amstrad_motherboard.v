@@ -211,27 +211,31 @@ i8255 PPI
 	.opc(portC)
 );
 
+
+assign audio_l = {1'b0, ch_a[7:1]} + {2'b00, ch_b[7:2]};
+assign audio_r = {1'b0, ch_c[7:1]} + {2'b00, ch_b[7:2]};
+
+wire [7:0] ch_a, ch_b, ch_c;
 YM2149 PSG
 (
-	.reset_l(~reset),
+	.RESET(reset),
 
-	.clk(clk),
-	.ena((phase == 0) & ce_4n),
-	.i_sel_l(1),
+	.CLK(clk),
+	.CE((phase == 0) & ce_4n),
+	.SEL(0),
+	.MODE(0),
 
-	.i_a8(1),
-	.i_a9_l(0),
-	.i_bc1(portC[6]),
-	.i_bc2(1),
-	.i_bdir(portC[7]),
-	.i_da(portAout),
-	.o_da(portAin),
+	.BC(portC[6]),
+	.BDIR(portC[7]),
+	.DI(portAout),
+	.DO(portAin),
 
-	.o_audio_l(audio_l),
-	.o_audio_r(audio_r),
+	.CHANNEL_A(ch_a),
+	.CHANNEL_B(ch_b),
+	.CHANNEL_C(ch_c),
 
-	.i_ioa(kbd_out),
-	.i_iob(8'hFF)
+	.IOA_in(kbd_out),
+	.IOB_in(8'hFF)
 );
 
 wire [7:0] kbd_out;
