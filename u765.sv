@@ -35,6 +35,7 @@ module u765 #(parameter CYCLES = 27'd4000, SPECCY_SPEEDLOCK_HACK = 0)
 	input            ce,        // chip enable
 	input            reset,	    // reset
 	input      [1:0] ready,     // disk is inserted in MiST(er)
+	input      [1:0] motor,     // drive motor
 	input      [1:0] available, // drive available (fake ready signal for SENSE DRIVE command)
 	input            a0,
 	input            nRD,       // i/o read
@@ -70,6 +71,273 @@ localparam UPD765_MAIN_RQM = 7;
 localparam UPD765_SD_BUFF_TRACKINFO = 1'd0;
 localparam UPD765_SD_BUFF_SECTOR = 1'd1;
 
+/*
+The cycles/sector table for various track lengths are created
+in Python:
+
+for i in range(1,256):
+  print ("CYCLES*%.0f/10, // %d" % (round(1500/i,0),i))
+*/
+
+localparam integer RPM_TIMES[256]= '{
+CYCLES,
+CYCLES*1500/10, // 1
+CYCLES*750/10, // 2
+CYCLES*500/10, // 3
+CYCLES*375/10, // 4
+CYCLES*300/10, // 5
+CYCLES*250/10, // 6
+CYCLES*214/10, // 7
+CYCLES*188/10, // 8
+CYCLES*167/10, // 9
+CYCLES*150/10, // 10
+CYCLES*136/10, // 11
+CYCLES*125/10, // 12
+CYCLES*115/10, // 13
+CYCLES*107/10, // 14
+CYCLES*100/10, // 15
+CYCLES*94/10, // 16
+CYCLES*88/10, // 17
+CYCLES*83/10, // 18
+CYCLES*79/10, // 19
+CYCLES*75/10, // 20
+CYCLES*71/10, // 21
+CYCLES*68/10, // 22
+CYCLES*65/10, // 23
+CYCLES*62/10, // 24
+CYCLES*60/10, // 25
+CYCLES*58/10, // 26
+CYCLES*56/10, // 27
+CYCLES*54/10, // 28
+CYCLES*52/10, // 29
+CYCLES*50/10, // 30
+CYCLES*48/10, // 31
+CYCLES*47/10, // 32
+CYCLES*45/10, // 33
+CYCLES*44/10, // 34
+CYCLES*43/10, // 35
+CYCLES*42/10, // 36
+CYCLES*41/10, // 37
+CYCLES*39/10, // 38
+CYCLES*38/10, // 39
+CYCLES*38/10, // 40
+CYCLES*37/10, // 41
+CYCLES*36/10, // 42
+CYCLES*35/10, // 43
+CYCLES*34/10, // 44
+CYCLES*33/10, // 45
+CYCLES*33/10, // 46
+CYCLES*32/10, // 47
+CYCLES*31/10, // 48
+CYCLES*31/10, // 49
+CYCLES*30/10, // 50
+CYCLES*29/10, // 51
+CYCLES*29/10, // 52
+CYCLES*28/10, // 53
+CYCLES*28/10, // 54
+CYCLES*27/10, // 55
+CYCLES*27/10, // 56
+CYCLES*26/10, // 57
+CYCLES*26/10, // 58
+CYCLES*25/10, // 59
+CYCLES*25/10, // 60
+CYCLES*25/10, // 61
+CYCLES*24/10, // 62
+CYCLES*24/10, // 63
+CYCLES*23/10, // 64
+CYCLES*23/10, // 65
+CYCLES*23/10, // 66
+CYCLES*22/10, // 67
+CYCLES*22/10, // 68
+CYCLES*22/10, // 69
+CYCLES*21/10, // 70
+CYCLES*21/10, // 71
+CYCLES*21/10, // 72
+CYCLES*21/10, // 73
+CYCLES*20/10, // 74
+CYCLES*20/10, // 75
+CYCLES*20/10, // 76
+CYCLES*19/10, // 77
+CYCLES*19/10, // 78
+CYCLES*19/10, // 79
+CYCLES*19/10, // 80
+CYCLES*19/10, // 81
+CYCLES*18/10, // 82
+CYCLES*18/10, // 83
+CYCLES*18/10, // 84
+CYCLES*18/10, // 85
+CYCLES*17/10, // 86
+CYCLES*17/10, // 87
+CYCLES*17/10, // 88
+CYCLES*17/10, // 89
+CYCLES*17/10, // 90
+CYCLES*16/10, // 91
+CYCLES*16/10, // 92
+CYCLES*16/10, // 93
+CYCLES*16/10, // 94
+CYCLES*16/10, // 95
+CYCLES*16/10, // 96
+CYCLES*15/10, // 97
+CYCLES*15/10, // 98
+CYCLES*15/10, // 99
+CYCLES*15/10, // 100
+CYCLES*15/10, // 101
+CYCLES*15/10, // 102
+CYCLES*15/10, // 103
+CYCLES*14/10, // 104
+CYCLES*14/10, // 105
+CYCLES*14/10, // 106
+CYCLES*14/10, // 107
+CYCLES*14/10, // 108
+CYCLES*14/10, // 109
+CYCLES*14/10, // 110
+CYCLES*14/10, // 111
+CYCLES*13/10, // 112
+CYCLES*13/10, // 113
+CYCLES*13/10, // 114
+CYCLES*13/10, // 115
+CYCLES*13/10, // 116
+CYCLES*13/10, // 117
+CYCLES*13/10, // 118
+CYCLES*13/10, // 119
+CYCLES*12/10, // 120
+CYCLES*12/10, // 121
+CYCLES*12/10, // 122
+CYCLES*12/10, // 123
+CYCLES*12/10, // 124
+CYCLES*12/10, // 125
+CYCLES*12/10, // 126
+CYCLES*12/10, // 127
+CYCLES*12/10, // 128
+CYCLES*12/10, // 129
+CYCLES*12/10, // 130
+CYCLES*11/10, // 131
+CYCLES*11/10, // 132
+CYCLES*11/10, // 133
+CYCLES*11/10, // 134
+CYCLES*11/10, // 135
+CYCLES*11/10, // 136
+CYCLES*11/10, // 137
+CYCLES*11/10, // 138
+CYCLES*11/10, // 139
+CYCLES*11/10, // 140
+CYCLES*11/10, // 141
+CYCLES*11/10, // 142
+CYCLES*10/10, // 143
+CYCLES*10/10, // 144
+CYCLES*10/10, // 145
+CYCLES*10/10, // 146
+CYCLES*10/10, // 147
+CYCLES*10/10, // 148
+CYCLES*10/10, // 149
+CYCLES*10/10, // 150
+CYCLES*10/10, // 151
+CYCLES*10/10, // 152
+CYCLES*10/10, // 153
+CYCLES*10/10, // 154
+CYCLES*10/10, // 155
+CYCLES*10/10, // 156
+CYCLES*10/10, // 157
+CYCLES*9/10, // 158
+CYCLES*9/10, // 159
+CYCLES*9/10, // 160
+CYCLES*9/10, // 161
+CYCLES*9/10, // 162
+CYCLES*9/10, // 163
+CYCLES*9/10, // 164
+CYCLES*9/10, // 165
+CYCLES*9/10, // 166
+CYCLES*9/10, // 167
+CYCLES*9/10, // 168
+CYCLES*9/10, // 169
+CYCLES*9/10, // 170
+CYCLES*9/10, // 171
+CYCLES*9/10, // 172
+CYCLES*9/10, // 173
+CYCLES*9/10, // 174
+CYCLES*9/10, // 175
+CYCLES*9/10, // 176
+CYCLES*8/10, // 177
+CYCLES*8/10, // 178
+CYCLES*8/10, // 179
+CYCLES*8/10, // 180
+CYCLES*8/10, // 181
+CYCLES*8/10, // 182
+CYCLES*8/10, // 183
+CYCLES*8/10, // 184
+CYCLES*8/10, // 185
+CYCLES*8/10, // 186
+CYCLES*8/10, // 187
+CYCLES*8/10, // 188
+CYCLES*8/10, // 189
+CYCLES*8/10, // 190
+CYCLES*8/10, // 191
+CYCLES*8/10, // 192
+CYCLES*8/10, // 193
+CYCLES*8/10, // 194
+CYCLES*8/10, // 195
+CYCLES*8/10, // 196
+CYCLES*8/10, // 197
+CYCLES*8/10, // 198
+CYCLES*8/10, // 199
+CYCLES*8/10, // 200
+CYCLES*7/10, // 201
+CYCLES*7/10, // 202
+CYCLES*7/10, // 203
+CYCLES*7/10, // 204
+CYCLES*7/10, // 205
+CYCLES*7/10, // 206
+CYCLES*7/10, // 207
+CYCLES*7/10, // 208
+CYCLES*7/10, // 209
+CYCLES*7/10, // 210
+CYCLES*7/10, // 211
+CYCLES*7/10, // 212
+CYCLES*7/10, // 213
+CYCLES*7/10, // 214
+CYCLES*7/10, // 215
+CYCLES*7/10, // 216
+CYCLES*7/10, // 217
+CYCLES*7/10, // 218
+CYCLES*7/10, // 219
+CYCLES*7/10, // 220
+CYCLES*7/10, // 221
+CYCLES*7/10, // 222
+CYCLES*7/10, // 223
+CYCLES*7/10, // 224
+CYCLES*7/10, // 225
+CYCLES*7/10, // 226
+CYCLES*7/10, // 227
+CYCLES*7/10, // 228
+CYCLES*7/10, // 229
+CYCLES*7/10, // 230
+CYCLES*6/10, // 231
+CYCLES*6/10, // 232
+CYCLES*6/10, // 233
+CYCLES*6/10, // 234
+CYCLES*6/10, // 235
+CYCLES*6/10, // 236
+CYCLES*6/10, // 237
+CYCLES*6/10, // 238
+CYCLES*6/10, // 239
+CYCLES*6/10, // 240
+CYCLES*6/10, // 241
+CYCLES*6/10, // 242
+CYCLES*6/10, // 243
+CYCLES*6/10, // 244
+CYCLES*6/10, // 245
+CYCLES*6/10, // 246
+CYCLES*6/10, // 247
+CYCLES*6/10, // 248
+CYCLES*6/10, // 249
+CYCLES*6/10, // 250
+CYCLES*6/10, // 251
+CYCLES*6/10, // 252
+CYCLES*6/10, // 253
+CYCLES*6/10, // 254
+CYCLES*6/10 // 255
+};
+
 typedef enum
 {
  COMMAND_IDLE,
@@ -84,7 +352,6 @@ typedef enum
 
  COMMAND_RW_DATA_EXEC,
  COMMAND_RW_DATA_EXEC1,
- COMMAND_RW_DATA_WAIT_HEAD_LOAD,
  COMMAND_RW_DATA_EXEC2,
  COMMAND_RW_DATA_EXEC3,
  COMMAND_RW_DATA_EXEC4,
@@ -94,9 +361,6 @@ typedef enum
  COMMAND_RW_DATA_EXEC6,
  COMMAND_RW_DATA_EXEC7,
  COMMAND_RW_DATA_EXEC8,
-
- COMMAND_WAIT_HEAD_UNLOAD,
- COMMAND_WAIT_HEAD_UNLOAD1,
 
  COMMAND_READ_ID,
  COMMAND_READ_ID1,
@@ -205,8 +469,8 @@ always @(posedge clk_sys) begin
 	reg       image_edsk[2]; //DSK - 0, EDSK - 1
 	reg [1:0] image_scan_state[2] = '{ 0, 0 };
 	reg [7:0] i_current_track_sectors[2][2];  //number of sectors on the current track /head/drive
-	reg [7:0] i_current_sector_position[2][2]; //sector where the head currently positioned
-	reg[26:0] i_steptimer[2], i_rpm_timer[2];
+	reg [7:0] i_current_sector_pos[2][2]; //sector where the head currently positioned
+	reg[26:0] i_steptimer[2], i_rpm_timer[2][2];
 	reg [3:0] i_step_state[2]; //counting cycles for steptimer
 
 	reg [7:0] ncn[2]; //new cylinder number
@@ -238,8 +502,8 @@ always @(posedge clk_sys) begin
 	state_t state, command;
    reg i_current_drive, i_scan_lock = 0;
 	reg [3:0] i_srt; //stepping rate
-	reg [3:0] i_hut; //head unload time
-	reg [6:0] i_hlt; //head load time
+//	reg [3:0] i_hut; //head unload time
+//	reg [6:0] i_hlt; //head load time
 	reg [7:0] i_c;
 	reg [7:0] i_h;
 	reg [7:0] i_r;
@@ -269,7 +533,7 @@ always @(posedge clk_sys) begin
 			int_state[i] <= 0;
 			seek_state[i] <= 0;
 			next_weak_sector[i] <= 0;
-			i_current_sector_position[i] <= '{ 0, 0 };
+			i_current_sector_pos[i] <= '{ 0, 0 };
 		end
 	end
 
@@ -397,16 +661,16 @@ always @(posedge clk_sys) begin
 		endcase
 
 		//disk rotation
-		if (~image_trackinfo_dirty[i_current_drive]) begin
-		//this timer assumes 10 sector/track (20ms/sector), which is a good average
-			if (i_rpm_timer[i_current_drive] == CYCLES * 20) begin
-				for (int i=0; i<2; i++)
-					i_current_sector_position[i_current_drive][i] <=
-					i_current_sector_position[i_current_drive][i] == i_current_track_sectors[i_current_drive][i] - 1'd1 ?
-						8'd0 : i_current_sector_position[i_current_drive][i] + 1'd1;
-				i_rpm_timer[i_current_drive] <= 0;
-			end else begin
-				i_rpm_timer[i_current_drive] <= i_rpm_timer[i_current_drive] + 1'd1;
+		if (motor[i_current_drive] & ~image_trackinfo_dirty[i_current_drive]) begin
+			for (int i=0; i<2 ;i++) begin
+				if (i_rpm_timer[i_current_drive][i] == RPM_TIMES[i_current_track_sectors[i_current_drive][i]]) begin
+					i_current_sector_pos[i_current_drive][i] <=
+					i_current_sector_pos[i_current_drive][i] == i_current_track_sectors[i_current_drive][i] - 1'd1 ?
+						8'd0 : i_current_sector_pos[i_current_drive][i] + 1'd1;
+					i_rpm_timer[i_current_drive][i] <= 0;
+				end else begin
+					i_rpm_timer[i_current_drive][i] <= i_rpm_timer[i_current_drive][i] + 1'd1;
+				end
 			end
 		end
 
@@ -424,6 +688,7 @@ always @(posedge clk_sys) begin
 					i_mt <= din[7];
 					//i_mfm <= din[6];
 					i_sk <= din[5];
+
 					substate <= 0;
 					casex (din[7:0])
 						8'bXXX_00110: state <= COMMAND_READ_DATA;
@@ -502,7 +767,7 @@ always @(posedge clk_sys) begin
 			begin
 				int_state <= '{ 0, 0 };
 				if (~old_wr & wr & a0) begin
-					i_hut <= din[3:0];
+//					i_hut <= din[3:0];
 					i_srt <= din[7:4];
 					state <= COMMAND_SPECIFY_WR;
 				end
@@ -510,7 +775,7 @@ always @(posedge clk_sys) begin
 
 			COMMAND_SPECIFY_WR:
 			if (~old_wr & wr & a0) begin
-				i_hlt <= din[7:1];
+//				i_hlt <= din[7:1];
 				state <= COMMAND_IDLE;
 			end
 
@@ -537,7 +802,7 @@ always @(posedge clk_sys) begin
 			COMMAND_SEEK_EXEC1:
 			if (~old_wr & wr & a0) begin
 				ncn[ds0] <= din;
-				if ((ready[ds0] && image_ready[ds0] && din<image_tracks[ds0]) || !din) begin
+				if ((motor[ds0] && ready[ds0] && image_ready[ds0] && din<image_tracks[ds0]) || !din) begin
 					seek_state[ds0] <= 1;
 				end else begin
 					//Seek error
@@ -555,7 +820,7 @@ always @(posedge clk_sys) begin
 			COMMAND_READ_ID1:
 			if (~old_wr & wr & a0) begin
 				ds0 <= din[0];
-				if (~ready[din[0]] | ~image_ready[din[0]]) begin
+				if (~motor[din[0]] | ~ready[din[0]] | ~image_ready[din[0]]) begin
 					status[0] <= 8'h40;
 					status[1] <= 8'b101;
 					status[2] <= 0;
@@ -584,7 +849,7 @@ always @(posedge clk_sys) begin
 			if (~sd_busy & ~buff_wait) begin
 				if (image_track_offsets_in) begin
 					sd_buff_type <= UPD765_SD_BUFF_TRACKINFO;
-					buff_addr <= { image_track_offsets_in[0], 8'h18 + (i_current_sector_position[ds0][hds] << 3) }; //choose the next sector
+					buff_addr <= { image_track_offsets_in[0], 8'h18 + (i_current_sector_pos[ds0][hds] << 3) }; //choose the next sector
 					buff_wait <= 1;
 					state <= COMMAND_READ_ID_EXEC2;
 				end else begin
@@ -672,19 +937,6 @@ always @(posedge clk_sys) begin
 				// even if different one is given in the command
 				image_track_offsets_addr <= { pcn[ds0], hds };
 				buff_wait <= 1;
-				i_timeout <= CYCLES;
-				i_head_timer <= { i_hlt, 1'b0 };
-				state <= COMMAND_RW_DATA_WAIT_HEAD_LOAD;
-			end
-
-			//wait head load time
-			COMMAND_RW_DATA_WAIT_HEAD_LOAD:
-			if (i_timeout & ~i_write) begin
-				i_timeout <= i_timeout - 1'd1;
-			end else if (i_head_timer & ~i_write) begin
-				i_head_timer <= i_head_timer - 1'd1;
-				i_timeout <= CYCLES;
-			end else begin
 				state <= COMMAND_RW_DATA_EXEC2;
 			end
 
@@ -706,11 +958,12 @@ always @(posedge clk_sys) begin
 					buff_addr[7:0] <= 8'h18; //sector info list
 					buff_wait <= 1;
 				end else if (i_current_sector > i_total_sectors) begin
+					m_status[UPD765_MAIN_EXM] <= 0;
 					//sector not found or end of track
 					status[0] <= i_rtrack ? 8'h00 : 8'h40;
 					status[1] <= i_rtrack ? 8'h00 : 8'h04;
 					status[2] <= 0;
-					state <= COMMAND_WAIT_HEAD_UNLOAD;
+					state <= COMMAND_READ_RESULTS;
 				end else begin
 					//process sector info list
 					case (buff_addr[2:0])
@@ -734,10 +987,11 @@ always @(posedge clk_sys) begin
 			//found the sector?
 			COMMAND_RW_DATA_EXEC4:
 			if (i_sector_c != i_c && ~i_rtrack) begin
+				m_status[UPD765_MAIN_EXM] <= 0;
 				status[0] <= 8'h40;
 				status[1] <= 8'h04; //no data
 				status[2] <= i_sector_c == 8'hff ? 8'h02 : 8'h10; //bad/wrong cylinder
-				state <= COMMAND_WAIT_HEAD_UNLOAD;
+				state <= COMMAND_READ_RESULTS;
 			end else if ((i_rtrack && i_current_sector == i_r) || 
 							(~i_rtrack && i_sector_r == i_r && i_sector_h == i_h && (i_sector_n == i_n || !i_n))) begin
 				//sector found in the sector info list
@@ -745,6 +999,8 @@ always @(posedge clk_sys) begin
 					state <= COMMAND_RW_DATA_EXEC8;
 				end else begin
 					i_bytes_to_read <= i_n ? (8'h80 << i_n[2:0]) : i_dtl;
+					i_timeout <= OVERRUN_TIMEOUT;
+					i_weak_sector <= 0;
 					state <= COMMAND_RW_DATA_WAIT_SECTOR;
 				end
 			end else begin
@@ -756,11 +1012,8 @@ always @(posedge clk_sys) begin
 
 			//wait for the sector needed for positioning at the head
 			COMMAND_RW_DATA_WAIT_SECTOR:
-			if (i_current_sector_position[ds0][hds] == i_current_sector - 1'd1) begin
-				i_timeout <= OVERRUN_TIMEOUT;
-				i_weak_sector <= 0;
+			if (i_current_sector_pos[ds0][hds] == i_current_sector - 1'd1)
 				state <= COMMAND_RW_DATA_EXEC_WEAK;
-			end
 
 			COMMAND_RW_DATA_EXEC_WEAK:
 			if (image_edsk[ds0] &&
@@ -807,10 +1060,11 @@ always @(posedge clk_sys) begin
 					end
 					state <= COMMAND_RW_DATA_EXEC8;
 				end else if (!i_timeout) begin
+					m_status[UPD765_MAIN_EXM] <= 0;
 					status[0] <= 8'h40;
 					status[1] <= 8'h10; //overrun
 					status[2] <= sector_st2 | (i_rw_deleted ? 8'h40 : 8'h0);
-					state <= COMMAND_WAIT_HEAD_UNLOAD;
+					state <= COMMAND_READ_RESULTS;
 				end else if (~i_write & ~old_rd & rd & a0) begin
 					if (&buff_addr) begin
 						//sector continues on the next LBA
@@ -869,16 +1123,18 @@ always @(posedge clk_sys) begin
 				if (~i_rtrack & ~(i_sk & (i_rw_deleted ^ sector_st2[6])) &
 					((sector_st1[5] & sector_st2[5]) | (i_rw_deleted ^ sector_st2[6]))) begin
 					//deleted mark or crc error
+					m_status[UPD765_MAIN_EXM] <= 0;
 					status[0] <= 8'h40;
 					status[1] <= sector_st1;
 					status[2] <= sector_st2 | (i_rw_deleted ? 8'h40 : 8'h0);
-					state <= COMMAND_WAIT_HEAD_UNLOAD;
+					state <= COMMAND_READ_RESULTS;
 				end else	if ((i_rtrack ? i_current_sector : i_sector_r) == i_eot) begin
 					//end of cylinder
+					m_status[UPD765_MAIN_EXM] <= 0;
 					status[0] <= i_rtrack ? 8'h00 : 8'h40;
 					status[1] <= 8'h80;
 					status[2] <= i_rw_deleted ? 8'h40 : 8'h0;
-					state <= COMMAND_WAIT_HEAD_UNLOAD;
+					state <= COMMAND_READ_RESULTS;
 				end else begin
 					//read the next sector (multi-sector transfer)
 					if (i_mt & image_sides[ds0]) begin
@@ -890,28 +1146,6 @@ always @(posedge clk_sys) begin
 					if (~i_mt | hds | ~image_sides[ds0]) i_r <= i_r + 1'd1;
 					state <= COMMAND_RW_DATA_EXEC2;
 				end
-			end
-
-			COMMAND_WAIT_HEAD_UNLOAD:
-			begin
-				m_status[UPD765_MAIN_EXM] <= 0;
-				i_timeout <= CYCLES;
-				i_head_timer <= { i_hut, 2'b00 };
-				state <= COMMAND_WAIT_HEAD_UNLOAD1;
-				if (i_rtrack) begin
-					if (i_n > i_sector_n) status[2][5] <= 1; //CRC error
-					i_sector_n <= i_n;
-				end
-			end
-
-			COMMAND_WAIT_HEAD_UNLOAD1:
-			if (i_timeout & ~i_write) begin
-				i_timeout <= i_timeout - 1'd1;
-			end else if (i_head_timer & ~i_write) begin
-				i_head_timer <= i_head_timer - 1'd1;
-				i_timeout <= CYCLES;
-			end else begin
-				state <= COMMAND_READ_RESULTS;
 			end
 
 			COMMAND_FORMAT_TRACK:
@@ -1039,7 +1273,7 @@ always @(posedge clk_sys) begin
 					7: begin
 							i_dtl <= din;
 							substate <= 0;
-							if (~ready[ds0] | ~image_ready[ds0]) begin
+							if (~motor[ds0] | ~ready[ds0] | ~image_ready[ds0]) begin
 								status[0] <= 8'h40;
 								status[1] <= 8'b101;
 								status[2] <= 0;
@@ -1112,7 +1346,7 @@ always @(posedge clk_sys) begin
 
 			COMMAND_RELOAD_TRACKINFO:
 			if (image_ready[ds0] & image_trackinfo_dirty[ds0]) begin
-				i_rpm_timer[ds0] <= 0;
+				i_rpm_timer[ds0] <= '{ 0, 0 };
 				next_weak_sector[ds0] <= 0;
 				image_track_offsets_addr <= { pcn[ds0], 1'b0 };
 				old_hds <= hds;
@@ -1149,7 +1383,7 @@ always @(posedge clk_sys) begin
 			if (~sd_busy & ~buff_wait) begin
 				i_current_track_sectors[ds0][hds] <= buff_data_in;
 				//assume the head position is at the middle of a track after a seek
-				i_current_sector_position[ds0][hds] <= buff_data_in[7:1];
+				i_current_sector_pos[ds0][hds] <= buff_data_in[7:1];
 
 				if (hds == image_sides[ds0]) begin
 					image_trackinfo_dirty[ds0] <= 0;
