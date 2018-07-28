@@ -241,14 +241,17 @@ YM2149 PSG
 wire [7:0] kbd_out;
 keyboard KBD
 (
+	.reset(reset),
 	.clk(clk),
-	.ce(ce_4p),
+
+	.ps2_key(ps2_key),
+
 	.joystick1(joy1),
 	.joystick2(joy2),
-	.portc(portC[3:0]),
-	.ps2_key(ps2_key),
-	.key_nmi(key_nmi),
-	.porta(kbd_out)
+
+	.Y(portC[3:0]),
+	.X(kbd_out),
+	.key_nmi(key_nmi)
 );
 
 endmodule
