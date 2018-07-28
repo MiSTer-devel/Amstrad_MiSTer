@@ -117,7 +117,7 @@ localparam CONF_STR = {
 	"-;",
 	"O1,Aspect ratio,4:3,16:9;",
 	"O9A,Scandoubler Fx,None,HQ2x,CRT 25%,CRT 50%;",
-	"OBD,Colors,All,Mono-G,Mono-R,Mono-B,Mono-W;",
+	"OBD,Display,Color,Green,Amber,Cyan,White;",
 	"O78,Stereo mix,none,25%,50%,100%;",
 	"OEF,Multiface 2,Enabled,Hidden,Disabled;",
 	"O5,Distributor,Amstrad,Schneider;",

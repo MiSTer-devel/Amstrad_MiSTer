@@ -41,10 +41,10 @@ always @(posedge clk_vid) begin
 		end else begin
 			{R_out, G_out, B_out} <= 0;
 			case(mono)
-				      1: G_out <= px[15:8];
-				      2: R_out <= px[15:8];
-				      3: B_out <= px[15:8];
-				default: {R_out, G_out, B_out} <= {px[15:8],px[15:8],px[15:8]};
+				      1: G_out <= px[15:8]; //green
+				      2: {R_out, G_out} <= {px[15:8], px[15:8] - px[15:10]}; // amber
+				      3: {G_out, B_out} <= {px[15:8], px[15:8]}; // cyan
+				default: {R_out, G_out, B_out} <= {px[15:8],px[15:8],px[15:8]}; // gray
 			endcase
 		end
 
