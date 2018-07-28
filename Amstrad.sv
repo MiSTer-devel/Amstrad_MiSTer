@@ -307,8 +307,8 @@ end
 
 //////////////////////////////////////////////////////////////////////////
 
-wire        ram_w;
-wire        ram_r;
+wire        mem_wr;
+wire        mem_rd;
 wire [22:0] ram_a;
 wire  [7:0] ram_dout;
 
@@ -325,8 +325,8 @@ sdram sdram
 	.clk(clk_sys),
 	.clkref(ce_ref),
 
-	.oe  (reset ? 1'b0      : ram_r & ~mf2_ram_en),
-	.we  (reset ? boot_wr   : ram_w & ~mf2_ram_en & ~mf2_rom_en),
+	.oe  (reset ? 1'b0      : mem_rd & ~mf2_ram_en),
+	.we  (reset ? boot_wr   : mem_wr & ~mf2_ram_en & ~mf2_rom_en),
 	.addr(reset ? boot_a    : mf2_rom_en ? { 9'h1ff, cpu_addr[13:0] }: ram_a),
 	.bank(reset ? boot_bank : model),
 	.din (reset ? boot_dout : cpu_dout),
@@ -403,7 +403,7 @@ u765 u765
 ///////////////////////////// Multiface Two /////////////////////////////
 /////////////////////////////////////////////////////////////////////////
 
-wire  [7:0] mf2_dout = mf2_ram_en ? mf2_ram_out : 8'hFF;
+wire  [7:0] mf2_dout = (mf2_ram_en & mem_rd) ? mf2_ram_out : 8'hFF;
 
 reg         mf2_en = 0;
 reg         mf2_hidden = 0;
@@ -470,7 +470,7 @@ always @(posedge clk_sys) begin
 		mf2_ram_a <= mf2_store_addr;
 		mf2_ram_in <= cpu_dout;
 		mf2_ram_we <= 1;
-	end else if (ram_w & mf2_ram_en) begin //normal MF2 RAM write
+	end else if (mem_wr & mf2_ram_en) begin //normal MF2 RAM write
 		mf2_ram_a <= ram_a[12:0];
 		mf2_ram_in <= cpu_dout;
 		mf2_ram_we <= 1;
@@ -523,8 +523,8 @@ Amstrad_motherboard motherboard
 	.vram_addr(vram_addr),
 
 	.ram64k(model),
-	.mem_rd(ram_r),
-	.mem_wr(ram_w),
+	.mem_rd(mem_rd),
+	.mem_wr(mem_wr),
 	.mem_addr(ram_a),
 	.cpu_addr(cpu_addr),
 	.cpu_dout(cpu_dout),
