@@ -209,16 +209,17 @@ reg hs4,shift;
 assign crtc_shift = shift ^ hs4;
 
 // Generate HSync,VSync for monitor
-// HSync: cut 2us in front and limited by 4us.
-// VSync: cut 2 lines in front and limited by 2 lines.
+// HSync: delayed by 2us for set, immediate reset and limited by 4us.
+// VSync: delayed by 2 lines for set, immediate reset and limited by 2 lines.
 always @(posedge CLK) begin
 	reg       old_hsync;
-	reg       old_vsync;
+	reg       old_vsync,old_vs;
 	reg [8:0] hSyncCount;
+	reg [9:0] hSyncCount2x;
 	reg [8:0] hSyncSize;
 	reg       hSyncReg;
 	reg [3:0] vSyncCount;
-	reg [1:0] vcnt;
+	reg [1:0] syncs;
 	
 	localparam FLT_SZ = 50*4;
 
@@ -227,12 +228,21 @@ always @(posedge CLK) begin
 
 		if(resync) begin
 			if(~&hSyncCount) hSyncCount = hSyncCount + 1'd1;
-			if((crtc_vs && ~&vcnt) ? (~old_hsync & crtc_hs) : (hSyncSize == hSyncCount)) begin
-				if(crtc_vs && ~&vcnt) vcnt <= vcnt + 1'd1;
-				if(~crtc_vs) vcnt <= 0;
-				hSyncSize = hSyncCount;
+			if(~old_hsync & crtc_hs) old_vs <= crtc_vs;
+
+			//re-align restored hsync to the first hsync of vsync
+			if((~old_vs & crtc_vs & ~old_hsync & crtc_hs) || (hSyncCount >= hSyncSize)) begin
 				hSyncCount = 0;
 				if(~old_hsync & crtc_hs) hSyncReg <= 1;
+			end
+			
+			// Calc line size from length of 2 first lines after VSync
+			// 2 lines are needed to neutralize fake interlace video
+			if(~&hSyncCount2x) hSyncCount2x = hSyncCount2x + 1'd1;
+			if(~old_hsync & crtc_hs) begin
+				if(~crtc_vs & ~&syncs) syncs = syncs + 1'd1;
+				if(crtc_vs) {syncs,hSyncCount2x} = 0;
+				if(syncs == 2) hSyncSize <= hSyncCount2x[9:1];
 			end
 		end
 		else begin
