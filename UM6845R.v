@@ -148,12 +148,12 @@ wire [7:0] hcc_next  = hcc_last ? 8'h00 : hcc + 1'd1;
 
 reg  [4:0] line;
 wire [4:0] line_max  = (in_adj ? adj : R9_v_max_line) & {4'b1111, ~interlace};
-wire       line_last = (line == line_max) || !line_max;    // quirk !line_max must be confirmed
+wire       line_last = (line == line_max) || !line_max;
 wire [4:0] line_next = line_last ? 5'd0 : line + interlace + 1'd1;
 wire       line_new  = hcc_last;
 
 reg  [6:0] row;
-wire       row_last  = row == R4_v_total;
+wire       row_last  = (row == R4_v_total) || !R4_v_total;
 wire [6:0] row_next  = row_last ? 7'd0 : row + 1'd1;
 wire       row_new   = line_new & line_last;
 
@@ -196,7 +196,7 @@ end
 reg hde;
 always @(posedge CLOCK) begin
 	reg [3:0] hsc;
-	
+
 	if (CLKEN) begin
 		if(line_new)                   hde <= 1;
 		if(hcc_next == R1_h_displayed) hde <= 0;
