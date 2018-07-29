@@ -48,6 +48,7 @@ module emu
 	output        VGA_HS,
 	output        VGA_VS,
 	output        VGA_DE,    // = ~(VBlank | HBlank)
+	output        VGA_F1,
 
 	output        LED_USER,  // 1 - ON, 0 - OFF.
 
@@ -489,6 +490,7 @@ wire  [7:0] cpu_dout;
 wire        m1, key_nmi, NMI;
 wire        io_wr, io_rd;
 wire        ce_pix_fs;
+wire        field;
 
 Amstrad_motherboard motherboard
 (
@@ -519,6 +521,7 @@ Amstrad_motherboard motherboard
 	.red(r),
 	.green(g),
 	.blue(b),
+	.field(VGA_F1),
 
 	.vram_din(vram_dout),
 	.vram_addr(vram_addr),
@@ -574,6 +577,14 @@ wire       HSync, VSync, HBlank, VBlank;
 wire [1:0] scale = status[10:9];
 wire       hq2x = (scale == 1);
 
+reg [2:0] interlace;
+always @(posedge clk_sys) begin
+	reg old_vs;
+	
+	old_vs <= vs;
+	if(~old_vs & vs) interlace <= {interlace[1:0], VGA_F1};
+end
+
 video_mixer #(800) video_mixer
 (
 	.*,
@@ -581,7 +592,7 @@ video_mixer #(800) video_mixer
 	.ce_pix_out(CE_PIXEL),
 
 	.scanlines({scale==3, scale==2}),
-	.scandoubler(scale || forced_scandoubler),
+	.scandoubler((scale || forced_scandoubler) && !interlace),
 	.mono(0)
 );
 

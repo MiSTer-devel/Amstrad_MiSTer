@@ -46,6 +46,7 @@ module Amstrad_motherboard
 	output        vblank,
 	output        hsync,
 	output        vsync,
+	output        field,
 
 	input  [15:0] vram_din,
 	output [14:0] vram_addr,
@@ -134,6 +135,7 @@ UM6845R CRTC
 	.VSYNC(crtc_vs),
 	.HSYNC(crtc_hs),
 	.DE(crtc_de),
+	.FIELD(field),
 
 	.MA(MA),
 	.RA(RA)

@@ -19,33 +19,33 @@
 
 module UM6845R
 (
-   input            CLOCK,
-   input            CLKEN,
-   input            nRESET,
+  	input            CLOCK,
+	input            CLKEN,
+	input            nRESET,
 	input            CRTC_TYPE,
 
-   input            ENABLE,
-   input            nCS,
-   input            R_nW,
-   input            RS,
-   input      [7:0] DI,
-   output reg [7:0] DO,
+	input            ENABLE,
+	input            nCS,
+	input            R_nW,
+	input            RS,
+	input      [7:0] DI,
+	output reg [7:0] DO,
 	
-   output reg       VSYNC,
-   output reg       HSYNC,
-   output           DE,
-   output           CURSOR,
-   input            LPSTB,
-   output    [13:0] MA,
-   output     [4:0] RA
+	output reg       VSYNC,
+	output reg       HSYNC,
+	output           DE,
+	output           FIELD,
+
+	output    [13:0] MA,
+	output     [4:0] RA
 );
 
+assign FIELD = ~field & interlace[0];
+
 assign MA = row_addr + hcc;
-assign RA = line | (field & interlace);
+assign RA = line | (field & interlace[0]);
 
 assign DE = de[R8_skew & ~{2{CRTC_TYPE}}];
-
-assign CURSOR = 0;
 
 reg [7:0] R0_h_total;
 reg [7:0] R1_h_displayed;
@@ -137,7 +137,7 @@ always @(posedge CLOCK) begin
 	end
 end
 
-wire       interlace = &R8_interlace[1:0];
+wire [4:0] interlace = &R8_interlace[1:0];
 
 reg        in_adj;
 reg  [4:0] adj;
@@ -147,9 +147,9 @@ wire       hcc_last  = (hcc == R0_h_total) && (CRTC_TYPE || R0_h_total); // alwa
 wire [7:0] hcc_next  = hcc_last ? 8'h00 : hcc + 1'd1;
 
 reg  [4:0] line;
-wire [4:0] line_max  = (in_adj ? adj : R9_v_max_line) & {4'b1111, ~interlace};
+wire [4:0] line_max  = (in_adj ? adj : R9_v_max_line) & ~interlace;
 wire       line_last = (line == line_max) || !line_max;
-wire [4:0] line_next = line_last ? 5'd0 : line + interlace + 1'd1;
+wire [4:0] line_next = (line_last ? 5'd0 : line + 1'd1 + interlace) & ~interlace;
 wire       line_new  = hcc_last;
 
 reg  [6:0] row;
@@ -157,7 +157,7 @@ wire       row_last  = (row == R4_v_total) || !R4_v_total;
 wire [6:0] row_next  = row_last ? 7'd0 : row + 1'd1;
 wire       row_new   = line_new & line_last;
 
-wire       frame_adj = row_last & ~in_adj & (R5_v_total_adj || field);
+wire       frame_adj = row_last && ~in_adj && R5_v_total_adj;
 wire       frame_new = row_new & (row_last | in_adj) & ~frame_adj;
 
 // counters
@@ -169,7 +169,7 @@ always @(posedge CLOCK) begin
 		if(row_new) begin
 			if(frame_adj) begin
 				in_adj <= 1;
-				adj <= field ? R5_v_total_adj + interlace : R5_v_total_adj - 1'd1;
+				adj <= R5_v_total_adj - 1'd1;
 			end
 			else if(frame_new) begin
 				in_adj <= 0;
