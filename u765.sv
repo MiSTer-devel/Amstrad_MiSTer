@@ -298,6 +298,7 @@ always @(posedge clk_sys) begin
 	reg i_mt;
 	//reg i_mfm;
 	reg i_sk;
+	reg rpm_run;
 
 	buff_wait <= 0;
 	i_total_sectors = i_current_track_sectors[ds0][hds];
@@ -404,6 +405,7 @@ always @(posedge clk_sys) begin
 		if (image_scan_state[1]) image_scan_state[1] <= 1;
 		i_scan_lock <= 0;
 		i_srt <= 4;
+		rpm_run <= 1;
 	end else if (ce) begin
 
 		ack <= {ack[4:0], sd_ack};
@@ -449,7 +451,7 @@ always @(posedge clk_sys) begin
 						8'd0 : i_current_sector_pos[i_current_drive][i] + 1'd1;
 					i_rpm_timer[i_current_drive][i] <= 0;
 				end else begin
-					i_rpm_timer[i_current_drive][i] <= i_rpm_timer[i_current_drive][i] + 1'd1;
+					if(rpm_run) i_rpm_timer[i_current_drive][i] <= i_rpm_timer[i_current_drive][i] + 1'd1;
 				end
 			end
 		end
@@ -463,6 +465,7 @@ always @(posedge clk_sys) begin
 			begin
 				m_status[UPD765_MAIN_DIO] <= 0;
 				m_status[UPD765_MAIN_RQM] <= !image_scan_state[0] & !image_scan_state[1];
+				rpm_run <= 1;
 
 				if (~old_wr & wr & a0 & !image_scan_state[0] & !image_scan_state[1]) begin
 					i_mt <= din[7];
@@ -794,9 +797,9 @@ always @(posedge clk_sys) begin
 
 			//wait for the sector needed for positioning at the head (after 1/4 of the sector start)
 			COMMAND_RW_DATA_WAIT_SECTOR:
-			if ((i_current_sector_pos[ds0][hds] == i_current_sector - 1'd1) &&
-				 (i_rpm_timer[ds0][hds] == RPM_TIMES[i_current_track_sectors[ds0][hds]]>>2)) begin
+			if ((i_current_sector_pos[ds0][hds] == i_current_sector - 1'd1) && (i_rpm_timer[ds0][hds] == 1)) begin
 				state <= COMMAND_RW_DATA_EXEC_WEAK;
+				rpm_run <= 0;
 			end
 
 			COMMAND_RW_DATA_EXEC_WEAK:
@@ -843,12 +846,15 @@ always @(posedge clk_sys) begin
 						sd_busy <= 1;
 					end
 					state <= COMMAND_RW_DATA_EXEC8;
+					i_rpm_timer[ds0][hds] <= (RPM_TIMES[i_current_track_sectors[ds0][hds]]-(RPM_TIMES[i_current_track_sectors[ds0][hds]]>>2));					
+					rpm_run <= 1;
 				end else if (!i_timeout) begin
 					m_status[UPD765_MAIN_EXM] <= 0;
 					status[0] <= 8'h40;
 					status[1] <= 8'h10; //overrun
 					status[2] <= sector_st2 | (i_rw_deleted ? 8'h40 : 8'h0);
 					state <= COMMAND_READ_RESULTS;
+					rpm_run <= 1;
 				end else if (~i_write & ~old_rd & rd & a0) begin
 					if (&buff_addr) begin
 						//sector continues on the next LBA
