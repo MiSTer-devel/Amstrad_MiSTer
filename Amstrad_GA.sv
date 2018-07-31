@@ -320,11 +320,11 @@ assign {RED,GREEN,BLUE} = (VBLANK | VBLANK) ? 24'h000000 : rgb;
 
 always @(posedge CLK) begin
 
-	localparam  BEGIN_VBORDER = 4 * 8 - 4;
-	localparam  END_VBORDER = 37 * 8 + 4;
+	localparam  BEGIN_VBORDER = 4 * 8 - 2;
+	localparam  END_VBORDER = 37 * 8 + 6;
 
-	localparam  BEGIN_HBORDER = 8 * 16;
-	localparam  END_HBORDER = 56 * 16;
+	localparam  BEGIN_HBORDER = 12 * 16;
+	localparam  END_HBORDER = 60 * 16;
 
 	reg [2:0] cycle;
 	reg[15:0] data;
@@ -362,16 +362,27 @@ always @(posedge CLK) begin
 
 		hborder = hborder + 1;
 		old_hs <= hs;
-		if (old_hs & ~hs) begin
+		if (~old_hs & hs) begin
 			hborder = 0;
+			HBLANK <= 1;
 
 			vborder = vborder + 1;
 			old_vs <= vs;
-			if(old_vs & ~vs) vborder = 0;
+			if(~old_vs & vs) begin
+				vborder = 0;
+				VBLANK <= 1;
+			end
 		end
 
-		VBLANK <= (vborder < BEGIN_VBORDER || vborder >= END_VBORDER);
-		HBLANK <= (hborder < BEGIN_HBORDER || hborder >= END_HBORDER);
+		if(hborder == BEGIN_HBORDER) begin
+			HBLANK <= 0;
+			if(vborder == BEGIN_VBORDER) VBLANK <= 0;
+		end
+		
+		if(hborder == END_HBORDER) begin
+			HBLANK <= 1;
+			if(vborder == END_VBORDER) VBLANK <= 1;
+		end
 
 		case(vmode_fs)
 			2: CE_PIX_FS <= 1;
