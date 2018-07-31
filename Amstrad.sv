@@ -381,7 +381,7 @@ u765 u765
 
 	.a0(fdc_sel[0]),
 	.ready(u765_ready),
-	.motor(motor),
+	.motor({motor,motor}),
 	.available(2'b11),
 	.nRD(~(u765_sel & io_rd)),
 	.nWR(~(u765_sel & io_wr)),
