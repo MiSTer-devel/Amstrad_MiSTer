@@ -126,7 +126,7 @@ localparam CONF_STR = {
 	"O2,CRTC,Type 1,Type 0;",
 	"O6,CPU timings,Original,Fast;",
 	"R0,Reset & apply model;",
-	"J,Fire 1,Fire 2;",
+	"J,Fire 1,Fire 2,Fire 3;",
 	"V,v1.55.",`BUILD_DATE
 };
 
@@ -184,8 +184,8 @@ reg         ioctl_wait;
 wire [10:0] ps2_key;
 
 wire  [1:0] buttons;
-wire  [5:0] joy1;
-wire  [5:0] joy2;
+wire  [6:0] joy1;
+wire  [6:0] joy2;
 wire [31:0] status;
 
 wire        forced_scandoubler;

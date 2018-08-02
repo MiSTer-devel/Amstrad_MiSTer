@@ -24,8 +24,8 @@ module Amstrad_motherboard
 	input         ce_4n,
 	input         ce_16,
 
-	input   [5:0] joy1,
-	input   [5:0] joy2,
+	input   [6:0] joy1,
+	input   [6:0] joy2,
 	input  [10:0] ps2_key,
 	output        key_nmi,
 

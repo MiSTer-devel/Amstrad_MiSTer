@@ -25,8 +25,8 @@ module keyboard
 
    input [10:0] ps2_key,
 
-   input  [5:0] joystick1,
-   input  [5:0] joystick2,
+   input  [6:0] joystick1,
+   input  [6:0] joystick2,
 
    input  [3:0] Y,
    output [7:0] X,
@@ -35,8 +35,8 @@ module keyboard
 
 reg [7:0] key[16] = '{default:0};
 
-wire [5:0] joy1 = (Y == 9) ? {joystick1[5:4], joystick1[0], joystick1[1], joystick1[2], joystick1[3]} : 6'd0;
-wire [5:0] joy2 = (Y == 6) ? {joystick2[5:4], joystick2[0], joystick2[1], joystick2[2], joystick2[3]} : 6'd0;
+wire [6:0] joy1 = (Y == 9) ? {joystick1[6:4], joystick1[0], joystick1[1], joystick1[2], joystick1[3]} : 7'd0;
+wire [6:0] joy2 = (Y == 6) ? {joystick2[6:4], joystick2[0], joystick2[1], joystick2[2], joystick2[3]} : 7'd0;
 
 assign X = ~(key[Y] | joy1 | joy2);
 
