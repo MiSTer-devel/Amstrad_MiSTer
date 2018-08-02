@@ -154,7 +154,7 @@ wire       line_new  = hcc_last;
 
 reg  [6:0] row;
 wire       row_last  = (row == R4_v_total) || !R4_v_total;
-wire [6:0] row_next  = row_last ? 7'd0 : row + 1'd1;
+wire [6:0] row_next  = (row_last & ~frame_adj) ? 7'd0 : row + 1'd1;
 wire       row_new   = line_new & line_last;
 
 wire       frame_adj = row_last && ~in_adj && R5_v_total_adj;
