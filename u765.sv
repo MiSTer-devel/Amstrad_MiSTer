@@ -57,7 +57,7 @@ module u765 #(parameter CYCLES = 20'd4000, SPECCY_SPEEDLOCK_HACK = 0)
 );
 
 //localparam OVERRUN_TIMEOUT = 26'd35000000;
-localparam OVERRUN_TIMEOUT = CYCLES / 8'd10;
+localparam OVERRUN_TIMEOUT = CYCLES;
 
 localparam UPD765_MAIN_D0B = 0;
 localparam UPD765_MAIN_D1B = 1;
@@ -235,6 +235,11 @@ wire       rd = nWR & ~nRD;
 wire       wr = ~nWR & nRD;
 wire [7:0] i_total_sectors;
 
+reg  [7:0] m_status;  //main status register
+reg  [7:0] m_data;    //data register
+
+assign dout = a0 ? m_data : m_status;
+
 always @(posedge clk_sys) begin
 
    //prefix internal CE protected registers with i_, so it's easier to write constraints
@@ -266,7 +271,7 @@ always @(posedge clk_sys) begin
 	reg [15:0] i_sector_size;
 	reg [7:0] i_current_sector;
 	reg [2:0] i_weak_sector;
-	reg [14:0] i_bytes_to_read;
+	reg [15:0] i_bytes_to_read;
 	reg [2:0] substate;
 	reg [1:0] old_mounted;
 	reg [1:0] image_wp;
@@ -276,7 +281,6 @@ always @(posedge clk_sys) begin
 	reg [19:0] i_timeout;
 	reg [7:0] i_head_timer;
 	reg i_rtrack, i_write, i_rw_deleted;
-	reg [7:0] m_status;  //main status register
 	reg [7:0] status[4] = '{0, 0, 0, 0}; //st0-3
 	state_t state, command;
    reg i_current_drive, i_scan_lock = 0;
@@ -492,7 +496,7 @@ always @(posedge clk_sys) begin
 						default: state <= COMMAND_INVALID;
 					endcase
 				end else if(~old_rd & rd & a0) begin
-					dout <= 8'hff;
+					m_data <= 8'hff;
 				end
 			end
 
@@ -505,20 +509,20 @@ always @(posedge clk_sys) begin
 			COMMAND_SENSE_INTERRUPT_STATUS1:
 			if (~old_rd & rd & a0) begin
 				if (int_state[0]) begin
-					dout <= ( ncn[0] == pcn[0] && ready[0] && image_ready[0] ) ? 8'h20 : 8'he8; //drive A: interrupt
+					m_data <= ( ncn[0] == pcn[0] && ready[0] && image_ready[0] ) ? 8'h20 : 8'he8; //drive A: interrupt
 					state <= COMMAND_SENSE_INTERRUPT_STATUS2;
 				end else if (int_state[1]) begin
-					dout <= ( ncn[1] == pcn[1] && ready[1] && image_ready[1] ) ? 8'h21 : 8'he9; //drive B: interrupt
+					m_data <= ( ncn[1] == pcn[1] && ready[1] && image_ready[1] ) ? 8'h21 : 8'he9; //drive B: interrupt
 					state <= COMMAND_SENSE_INTERRUPT_STATUS2;
 				end else begin
-					dout <= 8'h80;
+					m_data <= 8'h80;
 					state <= COMMAND_IDLE;
 				end;
 			end
 
 			COMMAND_SENSE_INTERRUPT_STATUS2:
 			if (~old_rd & rd & a0) begin
-				dout <= int_state[0] ? pcn[0] : pcn[1];
+				m_data <= int_state[0] ? pcn[0] : pcn[1];
 				int_state[int_state[0] ? 0 : 1] <= 0;
 				state <= COMMAND_IDLE;
 			end
@@ -535,7 +539,7 @@ always @(posedge clk_sys) begin
 
 			COMMAND_SENSE_DRIVE_STATUS_RD:
 			if (~old_rd & rd & a0) begin
-				dout <= { 1'b0,
+				m_data <= { 1'b0,
 							ready[ds0] & image_wp[ds0],         //write protected
 							available[ds0],                     //ready
 							image_ready[ds0] & !pcn[ds0],       //track 0
@@ -719,7 +723,6 @@ always @(posedge clk_sys) begin
 
 			COMMAND_RW_DATA_EXEC1:
 			begin
-				m_status[UPD765_MAIN_EXM] <= 1;
 				m_status[UPD765_MAIN_DIO] <= ~i_write;
 				if (i_rtrack) i_r <= 1;
 				i_bc <= 1;
@@ -782,7 +785,7 @@ always @(posedge clk_sys) begin
 				if (i_sk & ~i_rtrack & (i_rw_deleted ^ sector_st2[6])) begin
 					state <= COMMAND_RW_DATA_EXEC8;
 				end else begin
-					i_bytes_to_read <= i_n ? (8'h80 << i_n[2:0]) : i_dtl;
+					i_bytes_to_read <= i_n ? (8'h80 << (i_n[3] ? 4'h8 : i_n[2:0])) : i_dtl;
 					i_timeout <= OVERRUN_TIMEOUT;
 					i_weak_sector <= 0;
 					state <= COMMAND_RW_DATA_WAIT_SECTOR;
@@ -798,6 +801,7 @@ always @(posedge clk_sys) begin
 			//wait for the sector needed for positioning at the head (after 1/4 of the sector start)
 			COMMAND_RW_DATA_WAIT_SECTOR:
 			if ((i_current_sector_pos[ds0][hds] == i_current_sector - 1'd1) && (i_rpm_timer[ds0][hds] == 1)) begin
+				m_status[UPD765_MAIN_EXM] <= 1;
 				state <= COMMAND_RW_DATA_EXEC_WEAK;
 			end
 
@@ -818,6 +822,7 @@ always @(posedge clk_sys) begin
 				end
 			end else begin
 				next_weak_sector[ds0] <= 0;
+				if (i_bytes_to_read > i_sector_size) i_bytes_to_read <= i_sector_size;
 				state <= COMMAND_RW_DATA_EXEC5;
 			end
 
@@ -838,7 +843,6 @@ always @(posedge clk_sys) begin
 			if (~sd_busy & ~buff_wait) begin
 				if (!i_bytes_to_read) begin
 					//end of the current sector
-					m_status[UPD765_MAIN_RQM] <= 0;
 					if (i_write && buff_addr && i_seek_pos < image_size[ds0]) begin
 						sd_lba <= i_seek_pos[31:9];
 						sd_wr[ds0] <= 1;
@@ -852,6 +856,8 @@ always @(posedge clk_sys) begin
 					status[1] <= 8'h10; //overrun
 					status[2] <= sector_st2 | (i_rw_deleted ? 8'h40 : 8'h0);
 					state <= COMMAND_READ_RESULTS;
+				end else if (~m_status[UPD765_MAIN_RQM]) begin
+					m_status[UPD765_MAIN_RQM] <= 1;
 				end else if (~i_write & ~old_rd & rd & a0) begin
 					if (&buff_addr) begin
 						//sector continues on the next LBA
@@ -859,7 +865,7 @@ always @(posedge clk_sys) begin
 					end
 					//Speedlock: randomize 'weak' sectors last bytes
 					//weak sector is cyl 0, head 0, sector 2
-					dout <= (SPECCY_SPEEDLOCK_HACK &
+					m_data <= (SPECCY_SPEEDLOCK_HACK &
 								i_current_sector == 2 & !pcn[ds0] & ~hds &
 					         sector_st1[5] & sector_st2[5] & !i_bytes_to_read[14:2]) ?
 								i_timeout[7:0] :
@@ -877,11 +883,8 @@ always @(posedge clk_sys) begin
 					m_status[UPD765_MAIN_RQM] <= 0;
 					state <= COMMAND_RW_DATA_EXEC7;
 				end else begin
-					m_status[UPD765_MAIN_RQM] <= 1;
 					i_timeout <= i_timeout - 1'd1;
 				end
-			end else begin
-				m_status[UPD765_MAIN_RQM] <= 0;
 			end
 
 			COMMAND_RW_DATA_EXEC7:
@@ -1085,31 +1088,31 @@ always @(posedge clk_sys) begin
 				if (~old_rd & rd & a0) begin
 					case (substate)
 						0: begin
-								dout <= { status[0][7:3], hds, 1'b0, ds0 };
+								m_data <= { status[0][7:3], hds, 1'b0, ds0 };
 								substate <= 1;
 							end
 						1: begin
-								dout <= status[1];
+								m_data <= status[1];
 								substate <= 2;
 							end
 						2: begin
-								dout <= status[2];
+								m_data <= status[2];
 								substate <= 3;
 							end
 						3: begin
-								dout <= i_sector_c;
+								m_data <= i_sector_c;
 								substate <= 4;
 							end
 						4: begin
-								dout <= i_sector_h;
+								m_data <= i_sector_h;
 								substate <= 5;
 							end
 						5: begin
-								dout <= i_sector_r;
+								m_data <= i_sector_r;
 								substate <= 6;
 							end
 						6: begin
-								dout <= i_sector_n;
+								m_data <= i_sector_n;
 								state <= COMMAND_IDLE;
 							end
 						7: ;//not happen
@@ -1128,7 +1131,7 @@ always @(posedge clk_sys) begin
 			COMMAND_INVALID1:
 			if (~old_rd & rd & a0) begin
 				state <= COMMAND_IDLE;
-				dout <= status[0];
+				m_data <= status[0];
 			end
 
 			COMMAND_RELOAD_TRACKINFO:
@@ -1186,9 +1189,6 @@ always @(posedge clk_sys) begin
 
 		endcase //status
 
-		if (~old_rd & rd & ~a0) begin //read main status register
-			dout <= m_status;
-		end
 	end
 end
 
