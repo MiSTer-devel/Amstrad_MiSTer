@@ -27,6 +27,7 @@ module Amstrad_motherboard
 	input   [6:0] joy1,
 	input   [6:0] joy2,
 	input  [10:0] ps2_key,
+	input  [24:0] ps2_mouse,
 	output        key_nmi,
 
 	input   [3:0] ppi_jumpers,
@@ -241,12 +242,13 @@ YM2149 PSG
 );
 
 wire [7:0] kbd_out;
-keyboard KBD
+hid HID
 (
 	.reset(reset),
 	.clk(clk),
 
 	.ps2_key(ps2_key),
+	.ps2_mouse(ps2_mouse),
 
 	.joystick1(joy1),
 	.joystick2(joy2),

@@ -1,6 +1,6 @@
 //============================================================================
 //
-// Keyboard for Amstrad CPC
+// Input for Amstrad CPC
 // (c) 2018 Sorgelig
 //
 //  This program is free software; you can redistribute it and/or modify it
@@ -18,12 +18,13 @@
 //  51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 //============================================================================
 
-module keyboard
+module hid
 (
 	input        reset,
    input        clk,
 
    input [10:0] ps2_key,
+	input [24:0] ps2_mouse,
 
    input  [6:0] joystick1,
    input  [6:0] joystick2,
@@ -33,12 +34,19 @@ module keyboard
    output reg   key_nmi
 );
 
+wire row9 = (Y == 9);
+wire row6 = (Y == 6);
+assign X = ~(key[Y] | joy1 | joy2 | mouse);
+
+//================================= Joysticks ===========================================
+
+wire [6:0] joy1 = row9 ? {joystick1[6:4], joystick1[0], joystick1[1], joystick1[2], joystick1[3]} : 7'd0;
+wire [6:0] joy2 = row6 ? {joystick2[6:4], joystick2[0], joystick2[1], joystick2[2], joystick2[3]} : 7'd0;
+
+
+//================================== Keyboard ===========================================
+
 reg [7:0] key[16] = '{default:0};
-
-wire [6:0] joy1 = (Y == 9) ? {joystick1[6:4], joystick1[0], joystick1[1], joystick1[2], joystick1[3]} : 7'd0;
-wire [6:0] joy2 = (Y == 6) ? {joystick2[6:4], joystick2[0], joystick2[1], joystick2[2], joystick2[3]} : 7'd0;
-
-assign X = ~(key[Y] | joy1 | joy2);
 
 wire press = ps2_key[9];
 always @(posedge clk) begin
@@ -140,4 +148,66 @@ always @(posedge clk) begin
 	end
 end
 
+
+//=================================== Mouse =============================================
+
+wire [6:0] mouse = row9 ? {mbtn,mdir} : 7'd0;
+
+reg  [2:0] mbtn = 0;
+wire [3:0] mdir;
+
+mouse_axis mx(clk, mstb, {ps2_mouse[4],ps2_mouse[15:8]},  ~row9, {mdir[2], mdir[3]});
+mouse_axis my(clk, mstb, {ps2_mouse[5],ps2_mouse[23:16]}, ~row9, {mdir[1], mdir[0]});
+
+reg mstb = 0;
+always @(posedge clk) begin
+	reg old_status;
+
+	old_status <= ps2_mouse[24];
+	mstb <= 0;
+	if(old_status != ps2_mouse[24]) begin
+		mstb <= 1;
+		mbtn <= ps2_mouse[2:0];
+	end
+end
+
+endmodule
+
+module mouse_axis
+(
+	input       clk,
+
+	input       set,
+	input [8:0] offset,
+
+	input       reset,
+	output[1:0] dir
+);
+
+localparam [8:0] step = 2;
+
+reg signed [8:0] counter;
+always @(posedge clk) begin
+	reg old_reset;
+
+	if(set) counter <= offset;
+	else begin
+		old_reset <= reset;
+	
+		if(~old_reset & reset) dir <= 0;
+		else if(!dir && counter) begin
+			if(counter>0) begin
+				dir[0] <= 1;
+				if(counter > step) counter <= counter - step;
+				else counter <= 0;
+			end
+			else begin
+				dir[1] <= 1;
+				if((counter + step) < 0) counter <= counter + step;
+				else counter <= 0;
+			end
+		end
+	end
+end
+	
 endmodule
