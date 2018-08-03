@@ -40,6 +40,7 @@ module Amstrad_GA
    input      [7:0] D,
    input            WE,
    
+   input            PAL,
    output reg       CE_PIX,
    output reg       CE_PIX_FS,
    output reg [7:0] RED,
@@ -290,9 +291,18 @@ end
 reg  [1:0] vmode, vmode_fs;
 reg  [23:0] rgb;
 
-/*
-//ASIC palette
-wire [23:0] palette[32] = '{
+wire [23:0] palette[64] = '{
+	//GA palette
+	'h6E7D6B,'h6E7B6D,'h00F36B,'hF3F36D,
+	'h00026B,'hF00268,'h007868,'hF37D6B,
+	'hF30268,'hF3F36B,'hF3F30D,'hFFF3F9,
+	'hF30506,'hF302F4,'hF37D0D,'hFA80F9,
+	'h000268,'h02F36B,'h02F001,'h0FF3F2,
+	'h000000,'h0C02F4,'h027801,'h0C7BF4,
+	'h690268,'h71F36B,'h71F504,'h71F3F4,
+	'h6C0201,'h6C02F2,'h6E7B01,'h6E7BF6,
+
+	//ASIC palette
 	'h686764,'h666662,'h04f562,'hfdf563,
 	'h050663,'hFF0764,'h046764,'hfd6763,
 	'hfb0562,'hfbf361,'hfef504,'hfdf5f0,
@@ -301,19 +311,6 @@ wire [23:0] palette[32] = '{
 	'h000000,'h0507f1,'h046703,'h0567f1,
 	'h680764,'h68f564,'h68f500,'h68f5f1,
 	'h670600,'h6807F1,'h686704,'h6867f1
-};
-*/
-
-//GA palette
-wire [23:0] palette[32] = '{
-	'h6E7D6B,'h6E7B6D,'h00F36B,'hF3F36D,
-	'h00026B,'hF00268,'h007868,'hF37D6B,
-	'hF30268,'hF3F36B,'hF3F30D,'hFFF3F9,
-	'hF30506,'hF302F4,'hF37D0D,'hFA80F9,
-	'h000268,'h02F36B,'h02F001,'h0FF3F2,
-	'h000000,'h0C02F4,'h027801,'h0C7BF4,
-	'h690268,'h71F36B,'h71F504,'h71F3F4,
-	'h6C0201,'h6C02F2,'h6E7B01,'h6E7BF6
 };
 
 assign {RED,GREEN,BLUE} = (VBLANK | VBLANK) ? 24'h000000 : rgb;
@@ -397,10 +394,10 @@ always @(posedge CLK) begin
 		endcase
 
 		casex({de & ~first_sbyte,vmode})
-			'b110: rgb <= palette[pen[data[~cycle]]];
-			'b101: rgb <= palette[pen[{data[{1'b0,~cycle[2:1]}],data[{1'b1,~cycle[2:1]}]}]];
-			'b100: rgb <= palette[pen[{data[{2'b00,~cycle[2]}],data[{2'b10,~cycle[2]}],data[{2'b01,~cycle[2]}],data[{2'b11,~cycle[2]}]}]];
-			'b0xx: rgb <= palette[border];
+			'b110: rgb <= palette[{PAL,pen[data[~cycle]]}];
+			'b101: rgb <= palette[{PAL,pen[{data[{1'b0,~cycle[2:1]}],data[{1'b1,~cycle[2:1]}]}]}];
+			'b100: rgb <= palette[{PAL,pen[{data[{2'b00,~cycle[2]}],data[{2'b10,~cycle[2]}],data[{2'b01,~cycle[2]}],data[{2'b11,~cycle[2]}]}]}];
+			'b0xx: rgb <= palette[{PAL,border}];
 		endcase
 	end
 end

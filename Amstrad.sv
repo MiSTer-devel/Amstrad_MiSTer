@@ -118,7 +118,7 @@ localparam CONF_STR = {
 	"-;",
 	"O1,Aspect ratio,4:3,16:9;",
 	"O9A,Scandoubler Fx,None,HQ2x,CRT 25%,CRT 50%;",
-	"OBD,Display,Color,Green,Amber,Cyan,White;",
+	"OBD,Display,Color(GA),Color(ASIC),Green,Amber,Cyan,White;",
 	"O78,Stereo mix,none,25%,50%,100%;",
 	"OEF,Multiface 2,Enabled,Hidden,Disabled;",
 	"O5,Distributor,Amstrad,Schneider;",
@@ -516,6 +516,7 @@ Amstrad_motherboard motherboard
 	.audio_l(audio_l),
 	.audio_r(audio_r),
 
+	.pal(|status[13:11]),
 	.ce_pix_fs(ce_pix_fs),
 	.hblank(hbl),
 	.vblank(vbl),
@@ -555,7 +556,7 @@ color_mix color_mix
 (
 	.clk_vid(clk_sys),
 	.ce_pix(ce_pix),
-	.mono(status[13:11]),
+	.mix(status[13:11]),
 
 	.HSync_in(hs),
 	.VSync_in(vs),

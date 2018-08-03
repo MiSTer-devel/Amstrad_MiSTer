@@ -38,6 +38,7 @@ module Amstrad_motherboard
 	output  [7:0] audio_l,
 	output  [7:0] audio_r,
 
+	input         pal,
 	output        ce_pix,
 	output        ce_pix_fs,
 	output  [7:0] red,
@@ -166,6 +167,7 @@ Amstrad_GA GateArray
 
 	.INT(INT),
 
+	.PAL(pal),
 	.CE_PIX(ce_pix),
 	.CE_PIX_FS(ce_pix_fs),
 	.RED(red),
