@@ -58,6 +58,7 @@ module u765 #(parameter CYCLES = 20'd4000, SPECCY_SPEEDLOCK_HACK = 0)
 
 //localparam OVERRUN_TIMEOUT = 26'd35000000;
 localparam OVERRUN_TIMEOUT = CYCLES;
+localparam [19:0] TRACK_TIME = CYCLES*8'd200;
 
 localparam UPD765_MAIN_D0B = 0;
 localparam UPD765_MAIN_D1B = 1;
@@ -70,51 +71,6 @@ localparam UPD765_MAIN_RQM = 7;
 
 localparam UPD765_SD_BUFF_TRACKINFO = 1'd0;
 localparam UPD765_SD_BUFF_SECTOR = 1'd1;
-
-/*
-The cycles/sector table for various track lengths are created
-in Python3:
-
-for i in range(0,32):
-    for j in range (0,8):
-        if ((i+j != 0)): print ("CYCLES*%d/10," % (2000.0//(i*8+j)),end='')
-    print();
-*/
-
-logic [19:0] RPM_TIMES[0:255] = '{
-CYCLES,CYCLES*2000/10,CYCLES*1000/10,CYCLES*666/10,CYCLES*500/10,CYCLES*400/10,CYCLES*333/10,CYCLES*285/10,
-CYCLES*250/10,CYCLES*222/10,CYCLES*200/10,CYCLES*181/10,CYCLES*166/10,CYCLES*153/10,CYCLES*142/10,CYCLES*133/10,
-CYCLES*125/10,CYCLES*117/10,CYCLES*111/10,CYCLES*105/10,CYCLES*100/10,CYCLES*95/10,CYCLES*90/10,CYCLES*86/10,
-CYCLES*83/10,CYCLES*80/10,CYCLES*76/10,CYCLES*74/10,CYCLES*71/10,CYCLES*68/10,CYCLES*66/10,CYCLES*64/10,
-CYCLES*62/10,CYCLES*60/10,CYCLES*58/10,CYCLES*57/10,CYCLES*55/10,CYCLES*54/10,CYCLES*52/10,CYCLES*51/10,
-CYCLES*50/10,CYCLES*48/10,CYCLES*47/10,CYCLES*46/10,CYCLES*45/10,CYCLES*44/10,CYCLES*43/10,CYCLES*42/10,
-CYCLES*41/10,CYCLES*40/10,CYCLES*40/10,CYCLES*39/10,CYCLES*38/10,CYCLES*37/10,CYCLES*37/10,CYCLES*36/10,
-CYCLES*35/10,CYCLES*35/10,CYCLES*34/10,CYCLES*33/10,CYCLES*33/10,CYCLES*32/10,CYCLES*32/10,CYCLES*31/10,
-CYCLES*31/10,CYCLES*30/10,CYCLES*30/10,CYCLES*29/10,CYCLES*29/10,CYCLES*28/10,CYCLES*28/10,CYCLES*28/10,
-CYCLES*27/10,CYCLES*27/10,CYCLES*27/10,CYCLES*26/10,CYCLES*26/10,CYCLES*25/10,CYCLES*25/10,CYCLES*25/10,
-CYCLES*25/10,CYCLES*24/10,CYCLES*24/10,CYCLES*24/10,CYCLES*23/10,CYCLES*23/10,CYCLES*23/10,CYCLES*22/10,
-CYCLES*22/10,CYCLES*22/10,CYCLES*22/10,CYCLES*21/10,CYCLES*21/10,CYCLES*21/10,CYCLES*21/10,CYCLES*21/10,
-CYCLES*20/10,CYCLES*20/10,CYCLES*20/10,CYCLES*20/10,CYCLES*20/10,CYCLES*19/10,CYCLES*19/10,CYCLES*19/10,
-CYCLES*19/10,CYCLES*19/10,CYCLES*18/10,CYCLES*18/10,CYCLES*18/10,CYCLES*18/10,CYCLES*18/10,CYCLES*18/10,
-CYCLES*17/10,CYCLES*17/10,CYCLES*17/10,CYCLES*17/10,CYCLES*17/10,CYCLES*17/10,CYCLES*16/10,CYCLES*16/10,
-CYCLES*16/10,CYCLES*16/10,CYCLES*16/10,CYCLES*16/10,CYCLES*16/10,CYCLES*16/10,CYCLES*15/10,CYCLES*15/10,
-CYCLES*15/10,CYCLES*15/10,CYCLES*15/10,CYCLES*15/10,CYCLES*15/10,CYCLES*15/10,CYCLES*14/10,CYCLES*14/10,
-CYCLES*14/10,CYCLES*14/10,CYCLES*14/10,CYCLES*14/10,CYCLES*14/10,CYCLES*14/10,CYCLES*14/10,CYCLES*13/10,
-CYCLES*13/10,CYCLES*13/10,CYCLES*13/10,CYCLES*13/10,CYCLES*13/10,CYCLES*13/10,CYCLES*13/10,CYCLES*13/10,
-CYCLES*13/10,CYCLES*13/10,CYCLES*12/10,CYCLES*12/10,CYCLES*12/10,CYCLES*12/10,CYCLES*12/10,CYCLES*12/10,
-CYCLES*12/10,CYCLES*12/10,CYCLES*12/10,CYCLES*12/10,CYCLES*12/10,CYCLES*12/10,CYCLES*12/10,CYCLES*11/10,
-CYCLES*11/10,CYCLES*11/10,CYCLES*11/10,CYCLES*11/10,CYCLES*11/10,CYCLES*11/10,CYCLES*11/10,CYCLES*11/10,
-CYCLES*11/10,CYCLES*11/10,CYCLES*11/10,CYCLES*11/10,CYCLES*11/10,CYCLES*11/10,CYCLES*10/10,CYCLES*10/10,
-CYCLES*10/10,CYCLES*10/10,CYCLES*10/10,CYCLES*10/10,CYCLES*10/10,CYCLES*10/10,CYCLES*10/10,CYCLES*10/10,
-CYCLES*10/10,CYCLES*10/10,CYCLES*10/10,CYCLES*10/10,CYCLES*10/10,CYCLES*10/10,CYCLES*10/10,CYCLES*10/10,
-CYCLES*10/10,CYCLES*9/10,CYCLES*9/10,CYCLES*9/10,CYCLES*9/10,CYCLES*9/10,CYCLES*9/10,CYCLES*9/10,
-CYCLES*9/10,CYCLES*9/10,CYCLES*9/10,CYCLES*9/10,CYCLES*9/10,CYCLES*9/10,CYCLES*9/10,CYCLES*9/10,
-CYCLES*9/10,CYCLES*9/10,CYCLES*9/10,CYCLES*9/10,CYCLES*9/10,CYCLES*9/10,CYCLES*9/10,CYCLES*8/10,
-CYCLES*8/10,CYCLES*8/10,CYCLES*8/10,CYCLES*8/10,CYCLES*8/10,CYCLES*8/10,CYCLES*8/10,CYCLES*8/10,
-CYCLES*8/10,CYCLES*8/10,CYCLES*8/10,CYCLES*8/10,CYCLES*8/10,CYCLES*8/10,CYCLES*8/10,CYCLES*8/10,
-CYCLES*8/10,CYCLES*8/10,CYCLES*8/10,CYCLES*8/10,CYCLES*8/10,CYCLES*8/10,CYCLES*8/10,CYCLES*8/10,
-CYCLES*8/10,CYCLES*8/10,CYCLES*8/10,CYCLES*7/10,CYCLES*7/10,CYCLES*7/10,CYCLES*7/10,CYCLES*7/10
-};
 
 typedef enum
 {
@@ -215,7 +171,7 @@ u765_dpram sbuf
 
 //track offset buffer
 //single port buffer in RAM
-logic [15:0] image_track_offsets[0:1023]; //offset of tracks * 256 * 2 drives
+logic [15:0] image_track_offsets[1024]; //offset of tracks * 256 * 2 drives
 reg    [8:0] image_track_offsets_addr = 0;
 reg          image_track_offsets_wr;
 reg   [15:0] image_track_offsets_out, image_track_offsets_in;
@@ -254,6 +210,7 @@ always @(posedge clk_sys) begin
 	reg [1:0] image_scan_state[2] = '{ 0, 0 };
 	reg [7:0] i_current_track_sectors[2][2];  //number of sectors on the current track /head/drive
 	reg [7:0] i_current_sector_pos[2][2]; //sector where the head currently positioned
+	reg[19:0] i_rpm_time[2][2] = '{'{CYCLES,CYCLES}, '{CYCLES,CYCLES}};
 	reg[19:0] i_steptimer[2], i_rpm_timer[2][2];
 	reg [3:0] i_step_state[2]; //counting cycles for steptimer
 
@@ -447,7 +404,7 @@ always @(posedge clk_sys) begin
 		//disk rotation
 		if (motor[i_current_drive] & ~image_trackinfo_dirty[i_current_drive]) begin
 			for (int i=0; i<2 ;i++) begin
-				if (i_rpm_timer[i_current_drive][i] == RPM_TIMES[i_current_track_sectors[i_current_drive][i]]) begin
+				if (i_rpm_timer[i_current_drive][i] >= i_rpm_time[i_current_drive][i]) begin
 					i_current_sector_pos[i_current_drive][i] <=
 					i_current_sector_pos[i_current_drive][i] == i_current_track_sectors[i_current_drive][i] - 1'd1 ?
 						8'd0 : i_current_sector_pos[i_current_drive][i] + 1'd1;
@@ -849,7 +806,7 @@ always @(posedge clk_sys) begin
 						sd_busy <= 1;
 					end
 					state <= COMMAND_RW_DATA_EXEC8;
-					i_rpm_timer[ds0][hds] <= (RPM_TIMES[i_current_track_sectors[ds0][hds]]-(RPM_TIMES[i_current_track_sectors[ds0][hds]]>>2));					
+					i_rpm_timer[ds0][hds] <= (i_rpm_time[ds0][hds]-(i_rpm_time[ds0][hds]>>2));					
 				end else if (!i_timeout) begin
 					m_status[UPD765_MAIN_EXM] <= 0;
 					status[0] <= 8'h40;
@@ -1172,6 +1129,8 @@ always @(posedge clk_sys) begin
 			COMMAND_RELOAD_TRACKINFO3:
 			if (~sd_busy & ~buff_wait) begin
 				i_current_track_sectors[ds0][hds] <= buff_data_in;
+				i_rpm_time[ds0][hds] <= buff_data_in ? TRACK_TIME/buff_data_in : CYCLES;
+
 				//assume the head position is at the middle of a track after a seek
 				i_current_sector_pos[ds0][hds] <= buff_data_in[7:1];
 
