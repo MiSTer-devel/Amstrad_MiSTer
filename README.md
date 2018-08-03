@@ -1,22 +1,30 @@
-# Amstrad CPC 6128 for MiSTer
-This core is port of [CoreAmstrad by Renaud Hélias](https://github.com/renaudhelias/CoreAmstrad).
+# Amstrad CPC 6128 for MiST and MiSTer
+This core has been started as a port of [CoreAmstrad by Renaud Hélias](https://github.com/renaudhelias/CoreAmstrad) but every module has been either rewritten or replaced so, now it can be treated as a completely new core.
 
-## New features in this port
-* 2 disk drives with real write support.
-* Selectable 6128/664 mode with separate ROM sets
-* Multiface 2
-* Better CPU timings due to more presize model.
-* Selectable expansion ROM loading.
+## Features
+* Precise CPU timings including proper contention model.
+* Precise CRTC model supporting many tricks of Types 1 and 0.
+* (*) 2 disk drives
+* Disk write support.
+* Close to real disk drive emulation with support of some protections.
+* Selectable CPC 6128/664 mode with separate ROM sets.
+* Multiface 2.
+* Several monochrome modes and 2 types of palette (GA/ASIC).
+* (*) Selectable expansion ROM loading.
+* Joystick support with up to 3 buttons (2 on MiST)
+* Kempston, SYMBiFACE II and Multiplay mice.
+* HQ2x and Scanlines FX for scandoubler.
+(*) - Features available only on **MiSTer**
 
 ## Installation
-place RBF and amstrad.rom into root of SD card. Or you can rename ROM to boot.rom and put it into Amstrad folder.
+place RBF and **amstrad.rom** into root of SD card. Or on **MiSTer** you can rename ROM to boot.rom and put it into Amstrad folder.
 
 ## Disk support
 Put some *.DSK files into Amstrad folder and mount it from OSD menu.
 important Basic commands:
 * cat - list the files on mounted disk.
-* run" - load and start the program. ex: run"equinox
-* |a, |b - switch between drives
+* run" - load and start the program. ex: run"disc
+* |a, |b - switch between drives (MiSTer)
 
 ## Boot ROM
 Boot ROM has following structure:
@@ -25,7 +33,7 @@ OS6128 + BASIC1.1 + AMSDOS + MF2 + OS664 + BASIC664 + AMSDOS + MF2
 
 Every part is 16KB. You can create your own ROM if you have a special preference.
 
-## Expansion ROM
+## Expansion ROM (MiSTer)
 Expansion ROM should have file extension .eXX, where XX is hex number 00-FF of ROM page to load.
 Every page is 16KB. It's possible to load larger ROM. In this case every 16KB block will be loaded in subsequent pages.
 
