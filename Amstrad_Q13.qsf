@@ -366,6 +366,7 @@ set_global_assignment -name SYSTEMVERILOG_FILE YM2149.sv
 set_global_assignment -name VERILOG_FILE i8255.v
 set_global_assignment -name SYSTEMVERILOG_FILE color_mix.sv
 set_global_assignment -name SYSTEMVERILOG_FILE hid.sv
+set_global_assignment -name VERILOG_FILE kempston_mouse.v
 set_global_assignment -name VERILOG_FILE UM6845R.v
 set_global_assignment -name SYSTEMVERILOG_FILE Amstrad_GA.sv
 set_global_assignment -name VERILOG_FILE Amstrad_MMU.v

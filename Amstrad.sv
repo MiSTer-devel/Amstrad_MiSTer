@@ -485,6 +485,19 @@ always @(posedge clk_sys) begin
 
 end
 
+//////////////////////////////////////////////////////////////////////
+
+wire [7:0] kmouse_dout;
+
+kempston_mouse kmouse
+(
+	.clk_sys(clk_sys),
+	.reset(reset),
+	.ps2_mouse(ps2_mouse),
+	.addr({cpu_addr[0], ~cpu_addr[4] & ~cpu_addr[10] & io_rd, cpu_addr[8]}),
+	.dout(kmouse_dout)
+);
+
 /////////////////////////////////////////////////////////////////////////
 
 wire [15:0] cpu_addr;
@@ -503,7 +516,7 @@ Amstrad_motherboard motherboard
 	.ce_16(ce_16),
 
 	.ps2_key(ps2_key),
-	.ps2_mouse(ps2_mouse),
+	//.ps2_mouse(ps2_mouse),
 
 	.no_wait(status[6]),
 	.ppi_jumpers({2'b11, ~status[5], 1'b1}),
@@ -536,7 +549,7 @@ Amstrad_motherboard motherboard
 	.mem_addr(ram_a),
 	.cpu_addr(cpu_addr),
 	.cpu_dout(cpu_dout),
-	.cpu_din((ram_dout | rom_mask) & mf2_dout & fdc_dout),
+	.cpu_din((ram_dout | rom_mask) & mf2_dout & fdc_dout & kmouse_dout),
 	.io_wr(io_wr),
 	.io_rd(io_rd),
 	.m1(m1),
