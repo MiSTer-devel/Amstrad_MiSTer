@@ -40,25 +40,23 @@ wire signed [8:0] dyp = {ps2_mouse[5],ps2_mouse[23:16]};
 wire signed [5:0] dy  = (dyp > 31) ? 6'd31 : (dyp < -32) ? -6'd32 : dyp[5:0];
 
 always @(posedge clk_sys) begin
-	reg [1:0] avail;
+	reg [2:0] avail;
 	reg old_status, old_sel;
 
 	old_status <= ps2_mouse[24];
-	if(old_status != ps2_mouse[24]) avail <= 3;
+	if(old_status != ps2_mouse[24]) avail <= {|dy, |dx, 1'b1};
 
 	old_sel <= sel;
 	if(~old_sel & sel) begin
-		case(avail)
-			0: data <= 0;
-			1: data <= {5'b11000, ps2_mouse[2:0]};
-			2: data <= {2'b10, dy};
-			3: data <= {2'b01, dx};
+		casex(avail)
+			'b1xx: {avail[2],data} <= {3'b0_10, dy};
+			'b01x: {avail[1],data} <= {3'b0_01, dx};
+			'b001: {avail[0],data} <= {3'b0_11, 3'b000, ps2_mouse[2:0]};
+			'b000: data <= 0;
 		endcase
 	end
 
-	if(old_sel & ~sel & |avail) avail <= avail - 1'd1;
 	if(~sel)	data <= 8'hFF;
-
 	if(reset) avail <= 0;
 end
 

@@ -51,11 +51,8 @@ always @(posedge clk_sys) begin
 	if(~old_sel & sel) begin
 		case(addr)
 			 0: data <= {1'b0,ps2_mouse[2:0],4'b0000};
-			 1: data <= 0;
-			 2: if(avail[0]) begin data <= dx; avail[0] <= 0; end else data <= 0;
-			 3: if(avail[1]) begin data <= dy; avail[1] <= 0; end else data <= 0;
-			 4: data <= 0;
-			 5: data <= 0;
+			 2: if(avail[0]) {avail[0], data} <= {1'b0, dx}; else data <= 0;
+			 3: if(avail[1]) {avail[1], data} <= {1'b0, dy}; else data <= 0;
 			default: data <= 8'hFF;
 		endcase
 	end
