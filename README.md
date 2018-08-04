@@ -14,6 +14,7 @@ This core has been started as a port of [CoreAmstrad by Renaud Hélias](https://
 * Joystick support with up to 3 buttons (2 on MiST)
 * Kempston, SYMBiFACE II and Multiplay mice.
 * HQ2x and Scanlines FX for scandoubler.
+
 (*) - Features available only on **MiSTer**
 
 ## Installation
