@@ -113,7 +113,6 @@ localparam CONF_STR = {
 	"Amstrad;;",
 	"S0,DSK,Mount A:;",
 	"S1,DSK,Mount B:;",
-	"-;",
 	"F,E??,Load expansion;",
 	"-;",
 	"O1,Aspect ratio,4:3,16:9;",
@@ -125,9 +124,10 @@ localparam CONF_STR = {
 	"O4,Model,CPC 6128,CPC 664;",
 	"O2,CRTC,Type 1,Type 0;",
 	"O6,CPU timings,Original,Fast;",
+	"OG,FDD timings,Original,Fast;",
 	"R0,Reset & apply model;",
 	"J,Fire 1,Fire 2,Fire 3;",
-	"V,v1.57.",`BUILD_DATE
+	"V,v1.60.",`BUILD_DATE
 };
 
 //////////////////////////////////////////////////////////////////////////
@@ -380,6 +380,8 @@ u765 u765
 
 	.clk_sys(clk_sys),
 	.ce(ce_u765),
+	
+	.fast(status[16]),
 
 	.a0(fdc_sel[0]),
 	.ready(u765_ready),
