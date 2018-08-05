@@ -71,8 +71,7 @@ reg [4:0] addr;
 always @(*) begin
 	DO = 8'hFF;
 	if (ENABLE & ~nCS) begin
-		if (~RS) DO = ~CRTC_TYPE ? 8'hFF : vde ? 8'h00 : 8'h20; // status for CRTC1
-		else begin
+		if (RS) begin
 			case (addr)
 				10: DO = {R10_cursor_mode, R10_cursor_start};
 				11: DO = R11_cursor_end;
@@ -83,6 +82,9 @@ always @(*) begin
 				31: DO = CRTC_TYPE ? 8'hFF : 8'h00;
 			 default: DO = 0;
 			endcase
+		end
+		else if(CRTC_TYPE) begin
+			DO = vde ? 8'h00 : 8'h20; // status for CRTC1
 		end
 	end
 end
@@ -153,7 +155,7 @@ wire       line_new  = hcc_last;
 
 reg  [6:0] row;
 wire       row_last  = (row == R4_v_total) || !R4_v_total;
-wire [6:0] row_next  = (row_last & ~frame_adj) ? 7'd0 : row + 1'd1;
+wire [6:0] row_next  = (row_last & ~(frame_adj & CRTC_TYPE)) ? 7'd0 : row + 1'd1; //row+1 for CRTC1 in v_total_adj
 wire       row_new   = line_new & line_last;
 
 wire       frame_adj = row_last && ~in_adj && R5_v_total_adj;
