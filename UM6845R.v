@@ -131,7 +131,7 @@ wire       line_new  = hcc_last;
 
 reg  [6:0] row;
 wire       row_last  = (row == R4_v_total) || !R4_v_total;
-wire [6:0] row_next  = (row_last & ~(frame_adj & CRTC_TYPE)) ? 7'd0 : row + 1'd1; //row+1 for CRTC1 in v_total_adj
+wire [6:0] row_next  = (row_last & ~frame_adj) ? 7'd0 : row + 1'd1;
 wire       row_new   = line_new & line_last;
 
 wire       frame_adj = row_last && ~in_adj && R5_v_total_adj;
@@ -162,14 +162,15 @@ always @(posedge CLOCK) begin
 	end
 end
 
-wire first_raw_hcc0 = !row && !line_last && !hcc_next;
+wire CRTC1_reload =  CRTC_TYPE & ~line_last & !row & !hcc_next; //CRTC1 reloads addr on every line of 1st row
+wire CRTC0_reload = ~CRTC_TYPE & line_new & !R4_v_total & !R9_v_max_line;
 
 // address
 reg  [13:0] row_addr;
 always @(posedge CLOCK) begin
 	if(CLKEN) begin
-		if(hcc_next == R1_h_displayed && line_last)  row_addr <= row_addr + R1_h_displayed;
-		if(frame_new | (first_raw_hcc0 & CRTC_TYPE)) row_addr <= {R12_start_addr_h, R13_start_addr_l}; //CRTC1 reloads addr on every line of 1st row
+		if(hcc_next == R1_h_displayed && line_last) row_addr <= row_addr + R1_h_displayed;
+		if(frame_new | CRTC0_reload | CRTC1_reload) row_addr <= {R12_start_addr_h, R13_start_addr_l};
 	end
 end
 
