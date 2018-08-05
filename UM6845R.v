@@ -90,51 +90,27 @@ always @(*) begin
 end
 
 always @(posedge CLOCK) begin
-	if (~nRESET) begin
-		addr             <= 0;
-		R0_h_total       <= 0;
-		R1_h_displayed   <= 0;
-		R2_h_sync_pos    <= 0;
-		R3_v_sync_width  <= 0;
-		R3_h_sync_width  <= 0;
-		R4_v_total       <= 0;
-		R5_v_total_adj   <= 0;
-		R6_v_displayed   <= 0;
-		R7_v_sync_pos    <= 0;
-		R8_interlace     <= 0;
-		R8_skew          <= 0;
-		R9_v_max_line    <= 0;
-		R10_cursor_mode  <= 0;
-		R10_cursor_start <= 0;
-		R11_cursor_end   <= 0;
-		R12_start_addr_h <= 0;
-		R13_start_addr_l <= 0;
-		R14_cursor_h     <= 0;
-		R15_cursor_l     <= 0;
-	end
-	else begin
-		if (ENABLE & ~nCS & ~R_nW) begin
-			if (~RS) addr <= DI[4:0];
-			else begin
-				case (addr)
-					00: R0_h_total <= DI;
-					01: R1_h_displayed <= DI;
-					02: R2_h_sync_pos <= DI;
-					03: {R3_v_sync_width,R3_h_sync_width} <= DI;
-					04: R4_v_total <= DI[6:0];
-					05: R5_v_total_adj <= DI[4:0];
-					06: R6_v_displayed <= DI[6:0];
-					07: R7_v_sync_pos <= DI[6:0];
-					08: {R8_skew, R8_interlace} <= {DI[5:4],DI[1:0]};
-					09: R9_v_max_line <= DI[4:0];
-					10: {R10_cursor_mode,R10_cursor_start} <= DI[6:0];
-					11: R11_cursor_end <= DI[4:0];
-					12: R12_start_addr_h <= DI[5:0];
-					13: R13_start_addr_l <= DI[7:0];
-					14: R14_cursor_h <= DI[5:0];
-					15: R15_cursor_l <= DI[7:0];
-				endcase
-			end
+	if (ENABLE & ~nCS & ~R_nW) begin
+		if (~RS) addr <= DI[4:0];
+		else begin
+			case (addr)
+				00: R0_h_total <= DI;
+				01: R1_h_displayed <= DI;
+				02: R2_h_sync_pos <= DI;
+				03: {R3_v_sync_width,R3_h_sync_width} <= DI;
+				04: R4_v_total <= DI[6:0];
+				05: R5_v_total_adj <= DI[4:0];
+				06: R6_v_displayed <= DI[6:0];
+				07: R7_v_sync_pos <= DI[6:0];
+				08: {R8_skew, R8_interlace} <= {DI[5:4],DI[1:0]};
+				09: R9_v_max_line <= DI[4:0];
+				10: {R10_cursor_mode,R10_cursor_start} <= DI[6:0];
+				11: R11_cursor_end <= DI[4:0];
+				12: R12_start_addr_h <= DI[5:0];
+				13: R13_start_addr_l <= DI[7:0];
+				14: R14_cursor_h <= DI[5:0];
+				15: R15_cursor_l <= DI[7:0];
+			endcase
 		end
 	end
 end
@@ -164,7 +140,14 @@ wire       frame_new = row_new & (row_last | in_adj) & ~frame_adj;
 // counters
 reg  field;
 always @(posedge CLOCK) begin
-	if(CLKEN) begin
+	if(~nRESET) begin
+		hcc    <= 0;
+		line   <= 0;
+		row    <= 0;
+		in_adj <= 0;
+		field  <= 0;
+	end
+	else if(CLKEN) begin
 		hcc <= hcc_next;
 		if(line_new) line <= line_next;
 		if(row_new) begin
@@ -195,7 +178,12 @@ reg hde;
 always @(posedge CLOCK) begin
 	reg [3:0] hsc;
 
-	if (CLKEN) begin
+	if(~nRESET) begin
+		hsc    <= 0;
+		hde    <= 0;
+		HSYNC  <= 0;
+	end
+	else if (CLKEN) begin
 		if(line_new)                   hde <= 1;
 		if(hcc_next == R1_h_displayed) hde <= 0;
 
@@ -215,7 +203,12 @@ reg vde;
 always @(posedge CLOCK) begin
 	reg  [3:0] vsc;
 
-	if (CLKEN) begin
+	if(~nRESET) begin
+		vsc    <= 0;
+		vde    <= 0;
+		VSYNC  <= 0;
+	end
+	else if (CLKEN) begin
 		if(row_new) begin
 			if(frame_new)                  vde <= 1;
 			if(row_next == R6_v_displayed) vde <= 0;
