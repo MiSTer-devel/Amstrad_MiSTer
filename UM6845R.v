@@ -140,14 +140,13 @@ end
 wire [4:0] interlace = &R8_interlace[1:0];
 
 reg        in_adj;
-reg  [4:0] adj;
 
 reg  [7:0] hcc;
 wire       hcc_last  = (hcc == R0_h_total) && (CRTC_TYPE || R0_h_total); // always false if !R0_h_total on CRTC0
 wire [7:0] hcc_next  = hcc_last ? 8'h00 : hcc + 1'd1;
 
 reg  [4:0] line;
-wire [4:0] line_max  = (in_adj ? adj : R9_v_max_line) & ~interlace;
+wire [4:0] line_max  = (in_adj ? R5_v_total_adj-1'd1 : R9_v_max_line) & ~interlace;
 wire       line_last = (line == line_max) || !line_max;
 wire [4:0] line_next = (line_last ? 5'd0 : line + 1'd1 + interlace) & ~interlace;
 wire       line_new  = hcc_last;
@@ -167,10 +166,7 @@ always @(posedge CLOCK) begin
 		hcc <= hcc_next;
 		if(line_new) line <= line_next;
 		if(row_new) begin
-			if(frame_adj) begin
-				in_adj <= 1;
-				adj <= R5_v_total_adj - 1'd1;
-			end
+			if(frame_adj) in_adj <= 1;
 			else if(frame_new) begin
 				in_adj <= 0;
 				row <= 0;
