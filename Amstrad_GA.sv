@@ -325,10 +325,9 @@ always @(posedge CLK) begin
 
 	reg [2:0] cycle;
 	reg[15:0] data;
-	reg       de;
+	reg [1:0] de;
 	reg       vs,old_vs;
 	reg       hs,old_hs;
-	reg       first_sbyte;
 
 	integer   vborder;
 	integer   hborder;
@@ -341,19 +340,15 @@ always @(posedge CLK) begin
 		if (CE_4) begin
 			if (phase == 0) begin
 				data = vram_D;
-				first_sbyte = 0;
-				if(crtc_shift) begin
-					if(~de & crtc_de) first_sbyte = 1;
-					data[7:0] = vram_D[15:8];
-				end
+				if(crtc_shift) data[7:0] = vram_D[15:8];
 				cycle = 0;
-				de = crtc_de;
+				de = {de[0], crtc_de};
 				vs = VSYNC;
 				hs = HSYNC;
 			end
 			if (phase == 2) begin
+				de[1] = de[0];
 				data[7:0] = crtc_shift ? vram_D[7:0] : data[15:8];
-				first_sbyte = 0;
 			end
 		end
 
@@ -393,7 +388,7 @@ always @(posedge CLK) begin
 			0: CE_PIX <= !cycle[1:0];
 		endcase
 
-		casex({de & ~first_sbyte,vmode})
+		casex({de[crtc_shift],vmode})
 			'b110: rgb <= palette[{PAL,pen[data[~cycle]]}];
 			'b101: rgb <= palette[{PAL,pen[{data[{1'b0,~cycle[2:1]}],data[{1'b1,~cycle[2:1]}]}]}];
 			'b100: rgb <= palette[{PAL,pen[{data[{2'b00,~cycle[2]}],data[{2'b10,~cycle[2]}],data[{2'b01,~cycle[2]}],data[{2'b11,~cycle[2]}]}]}];
