@@ -226,7 +226,7 @@ always @(posedge CLOCK) begin
 	end
 end
 
-wire [3:0] de = {1'b0, dde[1:0], hde & vde};
+wire [3:0] de = {1'b0, dde[1:0], hde & vde & |R6_v_displayed};
 reg  [1:0] dde;
 always @(posedge CLOCK) if (CLKEN) dde <= {dde[0],de[0]};
 
