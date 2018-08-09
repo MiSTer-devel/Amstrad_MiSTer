@@ -98,10 +98,9 @@ module emu
 	output        SDRAM_nWE
 );
 
-assign {DDRAM_CLK, DDRAM_BURSTCNT, DDRAM_ADDR, DDRAM_DIN, DDRAM_BE, DDRAM_RD, DDRAM_WE} = 0;
 assign {SD_SCK, SD_MOSI, SD_CS} = 'Z;
 
-assign LED_USER  = mf2_en | ioctl_download;
+assign LED_USER  = mf2_en | ioctl_download | tape_led;
 assign LED_DISK  = 0;
 assign LED_POWER = 0;
 
@@ -115,6 +114,7 @@ localparam CONF_STR = {
 	"S1,DSK,Mount B:;",
 	"-;",
 	"F,E??,Load expansion;",
+	"F,CDT,Load tape;",
 	"-;",
 	"O1,Aspect ratio,4:3,16:9;",
 	"O9A,Scandoubler Fx,None,HQ2x,CRT 25%,CRT 50%;",
@@ -130,7 +130,7 @@ localparam CONF_STR = {
 	"O4,Model,CPC 6128,CPC 664;",
 	"R0,Reset & apply model;",
 	"J,Fire 1,Fire 2,Fire 3;",
-	"V,v1.60.",`BUILD_DATE
+	"V,v1.70.",`BUILD_DATE
 };
 
 //////////////////////////////////////////////////////////////////////////
@@ -182,7 +182,7 @@ wire  [7:0] ioctl_dout;
 wire        ioctl_download;
 wire  [7:0] ioctl_index;
 wire [31:0] ioctl_file_ext;
-reg         ioctl_wait;
+wire        ioctl_wait = romdl_wait | tapedl_wait;
 
 wire [10:0] ps2_key;
 wire [24:0] ps2_mouse;
@@ -232,13 +232,14 @@ hps_io #(.STRLEN($size(CONF_STR)>>3), .VDNUM(2)) hps_io
 	.ioctl_wait(ioctl_wait)
 );
 
-wire        rom_download = ioctl_download;
+wire        rom_download = ioctl_download && (ioctl_index[4:0] < 4);
 wire        reset = RESET | status[0] | buttons[1] | rom_download;
 
 reg         boot_wr = 0;
 reg  [22:0] boot_a;
 reg   [1:0] boot_bank;
 reg   [7:0] boot_dout;
+reg         romdl_wait = 0;
 
 wire  [7:0] rom_mask = {8{(ram_a[22] & ~rom_map[map_addr])}};
 
@@ -252,7 +253,7 @@ always @(posedge clk_sys) begin
 	reg       old_download;
 
 	if(rom_download & ioctl_wr) begin
-		ioctl_wait <= 1;
+		romdl_wait <= 1;
 		boot_dout <= ioctl_dout;
 
 		boot_a[13:0] <= ioctl_addr[13:0];
@@ -268,7 +269,7 @@ always @(posedge clk_sys) begin
 					1,5: boot_a[22:14] <= 9'h100;
 					2,6: boot_a[22:14] <= 9'h107;
 					3,7: boot_a[22:14] <= 9'h1ff; //MF2
-			  default:    ioctl_wait <= 0;
+			  default:    romdl_wait <= 0;
 			endcase
 
 			case(ioctl_addr[24:14])
@@ -279,13 +280,13 @@ always @(posedge clk_sys) begin
 	end
 
 	if(ce_ref) begin
-		boot_wr <= ioctl_wait;
-		if(boot_wr & ioctl_wait) begin
+		boot_wr <= romdl_wait;
+		if(boot_wr & romdl_wait) begin
 			boot_wr <= 0;
 			// load expansion ROM into both banks if manually loaded or boot name is boot.eXX
 			if((ioctl_index[7:6]==1 || ioctl_index[5:0]) && !boot_bank) boot_bank <= 1;
 			else begin
-				{boot_wr, ioctl_wait} <= 0;
+				{boot_wr, romdl_wait} <= 0;
 				if(boot_a[22]) rom_map[boot_a[21:14]] <= 1;
 				if(combo && &boot_a[13:0]) begin
 					combo <= 0;
@@ -531,6 +532,8 @@ wire        m1, key_nmi, NMI;
 wire        io_wr, io_rd;
 wire        ce_pix_fs;
 wire        field;
+wire  [9:0] Fn;
+wire        tape_rec;
 
 Amstrad_motherboard motherboard
 (
@@ -541,6 +544,7 @@ Amstrad_motherboard motherboard
 	.ce_16(ce_16),
 
 	.ps2_key(ps2_key),
+	.Fn(Fn),
 
 	.no_wait(status[6]),
 	.ppi_jumpers({2'b11, ~status[5], 1'b1}),
@@ -549,6 +553,10 @@ Amstrad_motherboard motherboard
 
 	.joy1(joy1),
 	.joy2(joy2),
+
+	.tape_in(tape_play),
+	.tape_out(tape_rec),
+	.tape_motor(tape_motor),
 
 	.audio_l(audio_l),
 	.audio_r(audio_r),
@@ -646,7 +654,72 @@ wire [7:0] audio_l, audio_r;
 assign AUDIO_S   = 0;
 assign AUDIO_MIX = status[8:7];
 
-assign AUDIO_L = {audio_l-audio_l[7:2],8'd0};
-assign AUDIO_R = {audio_r-audio_r[7:2],8'd0};
+assign AUDIO_L = {audio_l - audio_l[7:2] + {tape_rec, 1'b0, tape_play & ~tape_mute, 3'd0},8'd0};
+assign AUDIO_R = {audio_r - audio_r[7:2] + {tape_rec, 1'b0, tape_play & ~tape_mute, 3'd0},8'd0};
+
+//////////////////////////////////////////////////////////////////////
+
+assign DDRAM_CLK = clk_sys;
+
+wire tape_download = ioctl_download && (ioctl_index[4:0] == 4);
+wire tapedl_wait = tape_download && ~ddram_ready;
+
+wire ddram_ready;
+ddram ddram
+(
+	.*,
+	.addr(tape_download ? ioctl_addr : tape_addr),
+	.dout(tape_data),
+	.din(ioctl_dout),
+	.we(tape_download & ioctl_wr),
+	.rd(tape_rd),
+	.ready(ddram_ready)
+);
+
+reg tape_ready;
+always @(posedge clk_sys) begin
+	reg old_download;
+
+	old_download <= tape_download;
+	if(old_download & ~tape_download)           tape_ready <= 1;
+	if(reset | (Fn[2] & Fn[3]) | tape_download) tape_ready <= 0;
+end
+
+wire [24:0] tape_addr;
+wire  [7:0] tape_data;
+wire        tape_rd;
+wire        tape_play;
+wire        tape_led;
+wire        tape_motor;
+
+reg tape_mute = 0;
+always @(posedge clk_sys) begin
+	reg old_key;
+	
+	old_key <= Fn[1];
+	if(~old_key & Fn[1]) tape_mute <= ~tape_mute;
+end
+
+tape #(4500000) tape
+(
+	.clk_sys(clk_sys),
+	.ce(ce_4p),
+
+	.led(tape_led),
+
+	.tape_motor(tape_motor),
+	.key_play(Fn[2]),
+	.key_pause(Fn[3]),
+
+	.tape_ready(tape_ready),
+	.tape_size(ioctl_addr),
+
+	.audio_out(tape_play),
+
+	.rd_en(ddram_ready),
+	.rd(tape_rd),
+	.addr(tape_addr),
+	.din(tape_data)
+);
 
 endmodule

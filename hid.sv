@@ -21,17 +21,18 @@
 module hid
 (
 	input        reset,
-   input        clk,
+	input        clk,
 
-   input [10:0] ps2_key,
+	input [10:0] ps2_key,
 	input [24:0] ps2_mouse,
 
-   input  [6:0] joystick1,
-   input  [6:0] joystick2,
+	input  [6:0] joystick1,
+	input  [6:0] joystick2,
 
-   input  [3:0] Y,
-   output [7:0] X,
-   output reg   key_nmi
+	input  [3:0] Y,
+	output [7:0] X,
+	output reg   key_nmi,
+	output reg [9:0] Fn
 );
 
 wire row9 = (Y == 9);
@@ -51,38 +52,44 @@ reg [7:0] key[16] = '{default:0};
 wire press = ps2_key[9];
 always @(posedge clk) begin
 	reg old_flg, old_reset;
+	reg alt = 0;
 
 	old_flg <= ps2_key[10];
 	old_reset <= reset;
 
-	if(old_reset & ~reset) key <= '{default:0};
+	if(old_reset & ~reset) begin
+		key <= '{default:0};
+		Fn  <= 0;
+	end
 
 	if(old_flg ^ ps2_key[10]) begin
 
 		case(ps2_key[7:0])
+			8'h11: alt       <= press; // alt
+
 			8'h75: key[0][0] <= press; // up
 			8'h74: key[0][1] <= press; // right
 			8'h72: key[0][2] <= press; // down
-			8'h01: key[0][3] <= press; // F9
-			8'h0B: key[0][4] <= press; // F6
-			8'h04: key[0][5] <= press; // F3
+			8'h01: key[0][3] <= press & ~alt; // F9
+			8'h0B: key[0][4] <= press & ~alt; // F6
+			8'h04: key[0][5] <= press & ~alt; // F3
 			8'h69: key[0][6] <= press; // Enter (End)
 			8'h7A: key[0][7] <= press; // . (PgDn)
 
 			8'h6B: key[1][0] <= press; // left
 			8'h70: key[1][1] <= press; // copy (Insert)
-			8'h83: key[1][2] <= press; // F7
-			8'h0A: key[1][3] <= press; // F8
-			8'h03: key[1][4] <= press; // F5
-			8'h05: key[1][5] <= press; // F1
-			8'h06: key[1][6] <= press; // F2
-			8'h09: key[1][7] <= press; // F0
+			8'h83: key[1][2] <= press & ~alt; // F7
+			8'h0A: key[1][3] <= press & ~alt; // F8
+			8'h03: key[1][4] <= press & ~alt; // F5
+			8'h05: key[1][5] <= press & ~alt; // F1
+			8'h06: key[1][6] <= press & ~alt; // F2
+			8'h09: key[1][7] <= press & ~alt; // F0
 
 			8'h71: key[2][0] <= press; // CLR (DEL)
 			8'h5B: key[2][1] <= press; // [ (])
 			8'h5A: key[2][2] <= press; // Enter
 			8'h5D: key[2][3] <= press; // ] (\)
-			8'h0C: key[2][4] <= press; // F4
+			8'h0C: key[2][4] <= press & ~alt; // F4
 			8'h12: key[2][5] <= press; // LShift
 			8'h59: key[2][6] <= press; // \ (RShift)
 			8'h14: key[2][7] <= press; // Ctrl
@@ -145,6 +152,19 @@ always @(posedge clk) begin
 			
 			8'h78: key_nmi   <= press; // F11
 		endcase
+		
+		case(ps2_key[7:0])
+			8'h05: Fn[1] <= press & alt; // F1
+			8'h06: Fn[2] <= press & alt; // F2
+			8'h04: Fn[3] <= press & alt; // F3
+			8'h0C: Fn[4] <= press & alt; // F4
+			8'h03: Fn[5] <= press & alt; // F5
+			8'h0B: Fn[6] <= press & alt; // F6
+			8'h83: Fn[7] <= press & alt; // F7
+			8'h0A: Fn[8] <= press & alt; // F8
+			8'h01: Fn[9] <= press & alt; // F9
+			8'h09: Fn[0] <= press & alt; // F10
+		endcase;
 	end
 end
 

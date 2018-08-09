@@ -29,11 +29,16 @@ module Amstrad_motherboard
 	input  [10:0] ps2_key,
 	input  [24:0] ps2_mouse,
 	output        key_nmi,
+	output  [9:0] Fn,
 
 	input   [3:0] ppi_jumpers,
 	input         crtc_type,
 	input         resync,
 	input         no_wait,
+
+	input         tape_in,
+	output        tape_out,
+	output        tape_motor,
 
 	output  [7:0] audio_l,
 	output  [7:0] audio_r,
@@ -210,12 +215,14 @@ i8255 PPI
 
 	.ipa(portAin), 
 	.opa(portAout),
-	.ipb({3'b111, ppi_jumpers, crtc_vs}),
+	.ipb({tape_in, 2'b11, ppi_jumpers, crtc_vs}),
 	.opb(),
 	.ipc(8'hFF), 
 	.opc(portC)
 );
 
+assign tape_motor = portC[4];
+assign tape_out   = portC[5];
 
 assign audio_l = {1'b0, ch_a[7:1]} + {2'b00, ch_b[7:2]};
 assign audio_r = {1'b0, ch_c[7:1]} + {2'b00, ch_b[7:2]};
@@ -257,7 +264,8 @@ hid HID
 
 	.Y(portC[3:0]),
 	.X(kbd_out),
-	.key_nmi(key_nmi)
+	.key_nmi(key_nmi),
+	.Fn(Fn)
 );
 
 endmodule
