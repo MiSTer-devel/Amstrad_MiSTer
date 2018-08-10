@@ -221,8 +221,10 @@ always @(posedge CLK) begin
 	reg       hSyncReg;
 	reg [3:0] vSyncCount;
 	reg [1:0] syncs;
-	
-	localparam FLT_SZ = 50*4;
+	reg [7:0] vSyncFlt;
+
+	localparam HFLT_SZ = 50*4;
+	localparam VFLT_SZ = 200;
 
 	if(CE_4) begin
 		old_hsync <= crtc_hs;
@@ -247,7 +249,7 @@ always @(posedge CLK) begin
 			end
 		end
 		else begin
-			if(hSyncCount < FLT_SZ) hSyncCount = hSyncCount + 1'd1;
+			if(hSyncCount < HFLT_SZ) hSyncCount = hSyncCount + 1'd1;
 			else if(~old_hsync & crtc_hs) begin
 				hSyncCount = 0;
 				hSyncReg <= 1;
@@ -268,21 +270,22 @@ always @(posedge CLK) begin
 			shift <= 0;
 			old_vsync <= crtc_vs;
 			
+			if(~&vSyncFlt) vSyncFlt <= vSyncFlt + 1'd1;
+
 			if(crtc_vs) begin
-				if(~old_vsync) vSyncCount = 0;
+				if(~old_vsync && (vSyncFlt > VFLT_SZ)) begin
+					vSyncCount = 0;
+					vSyncFlt <= 0;
+				end
 				else if(~&vSyncCount) vSyncCount = vSyncCount + 1'd1;
 			end
-			else vSyncCount = 0;
 			
 			if(vSyncCount == 1) VSYNC <= 1;
 			if(!vSyncCount || (vSyncCount == 3)) VSYNC <= 0;
 		end
 
 		//force VSYNC disable earlier
-		if(~crtc_vs) begin
-			VSYNC <= 0;
-			vSyncCount <= 0;
-		end
+		if(~crtc_vs) VSYNC <= 0;
 
 		if(hSyncCount == 6*4) HSYNC <= 0;
 	end
