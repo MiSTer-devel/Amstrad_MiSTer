@@ -203,6 +203,7 @@ end
 reg vde;
 always @(posedge CLOCK) begin
 	reg  [3:0] vsc;
+	reg        old_hs;
 
 	if(~nRESET) begin
 		vsc    <= 0;
@@ -214,6 +215,10 @@ always @(posedge CLOCK) begin
 			if(frame_new)                  vde <= 1;
 			if(row_next == R6_v_displayed) vde <= 0;
 		end
+
+		// separate 2 concatenated VSYNCs
+		old_hs <= HSYNC;
+		if(old_hs && ~HSYNC && !vsc) VSYNC <= 0;
 
 		if(field ? (hcc_next == {1'b0, R0_h_total[7:1]}) : line_new) begin
 			if(vsc) vsc <= vsc - 1'd1;
