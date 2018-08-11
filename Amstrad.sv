@@ -124,7 +124,7 @@ localparam CONF_STR = {
 	"-;",
 	"OEF,Multiface 2,Enabled,Hidden,Disabled;",
 	"O6,CPU timings,Original,Fast;",
-	"OG,FDD timings,Original,Fast;",
+	"OGH,FDC,Original,Fast,Disabled;",
 	"-;",
 	"O5,Distributor,Amstrad,Schneider;",
 	"O4,Model,CPC 6128,CPC 664;",
@@ -351,7 +351,7 @@ wire [3:0] fdc_sel = {cpu_addr[10],cpu_addr[8],cpu_addr[7],cpu_addr[0]};
 
 reg  [7:0] fdc_dout;
 always_comb begin
-	case({io_rd,fdc_sel[3:1]})
+	case({io_rd & ~status[17],fdc_sel[3:1]})
 		'b1_000: fdc_dout = motor;     // motor read 
 		'b1_010: fdc_dout = u765_dout; // u765 read 
 		default: fdc_dout = 8'hFF;
@@ -371,7 +371,7 @@ always @(posedge clk_sys) begin
 end
 
 wire [7:0] u765_dout;
-wire       u765_sel = (fdc_sel[3:1] == 'b010);
+wire       u765_sel = (fdc_sel[3:1] == 'b010) & ~status[17];
 
 reg [1:0] u765_ready = 0;
 always @(posedge clk_sys) if(img_mounted[0]) u765_ready[0] <= |img_size;
