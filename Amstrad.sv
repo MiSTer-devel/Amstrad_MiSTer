@@ -241,8 +241,7 @@ reg   [1:0] boot_bank;
 reg   [7:0] boot_dout;
 reg         romdl_wait = 0;
 
-wire  [7:0] rom_mask = {8{(ram_a[22] & ~rom_map[map_addr])}};
-
+wire        rom_mask = ram_a[22] & (~rom_map[map_addr] | &{map_addr,status[15]});
 reg         rom_map[256] = '{default:0};
 reg   [7:0] map_addr;
 always @(posedge clk_sys) map_addr <= ram_a[21:14];
@@ -332,7 +331,7 @@ sdram sdram
 	.clk(clk_sys),
 	.clkref(ce_ref),
 
-	.oe  (reset ? 1'b0      : mem_rd & ~mf2_ram_en),
+	.oe  (reset ? 1'b0      : mem_rd & ~mf2_ram_en & ~rom_mask),
 	.we  (reset ? boot_wr   : mem_wr & ~mf2_ram_en & ~mf2_rom_en),
 	.addr(reset ? boot_a    : mf2_rom_en ? { 9'h1ff, cpu_addr[13:0] }: ram_a),
 	.bank(reset ? boot_bank : model),
@@ -581,7 +580,7 @@ Amstrad_motherboard motherboard
 	.mem_addr(ram_a),
 	.cpu_addr(cpu_addr),
 	.cpu_dout(cpu_dout),
-	.cpu_din((ram_dout | rom_mask) & mf2_dout & fdc_dout & kmouse_dout & smouse_dout & mmouse_dout),
+	.cpu_din(ram_dout & mf2_dout & fdc_dout & kmouse_dout & smouse_dout & mmouse_dout),
 	.io_wr(io_wr),
 	.io_rd(io_rd),
 	.m1(m1),
