@@ -100,7 +100,7 @@ always @(posedge clk_sys) begin
 
 		{old_motor,old_kpause,old_kplay} <= {tape_motor,key_pause,key_play};
 		if((~old_motor & tape_motor) | (key_play & ~old_kplay))   pause <= 0;
-		if((old_motor & ~tape_motor) | (key_pause & ~old_kpause)) pause <= 1;
+		if(((old_motor & ~tape_motor) | (key_pause & ~old_kpause)) && read_cnt > 100) pause <= 1;
 
 		if(hdrsz && read_done) begin
 			if(hdrsz == 7) freq[ 7:0] <= din_r;
