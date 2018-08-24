@@ -58,7 +58,7 @@ always @(posedge clk_sys) begin
 
 	reg        pause;
 	reg  [5:0] hdrsz;
-	reg [31:0] bitcnt;
+	reg [31:0] bitcnt,tmp;
 	reg [15:0] freq;
 	reg  [2:0] reload32;
 	reg [31:0] clk_play_cnt;
@@ -115,7 +115,9 @@ always @(posedge clk_sys) begin
 
 				if(read_done) begin
 					if(reload32 != 0) begin
-						bitcnt   <= {din_r, bitcnt[31:8]};
+						tmp  = {din_r, bitcnt[31:8]};
+						if(reload32 == 1 && tmp[31:15]) tmp = tmp - tmp[31:3];
+						bitcnt   <= tmp;
 						reload32 <= reload32 - 1'd1;
 					end else begin
 						if(din_r != 0) bitcnt <= {24'd0, din_r};

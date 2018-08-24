@@ -704,7 +704,7 @@ always @(posedge clk_sys) begin
 	if(~old_key & Fn[1]) tape_mute <= ~tape_mute;
 end
 
-tape #(5000000) tape
+tape #(4700000) tape
 (
 	.clk_sys(clk_sys),
 	.ce(ce_4p),
