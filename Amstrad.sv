@@ -351,15 +351,7 @@ always @(posedge clk_sys) if(reset) model <= status[4];
 //////////////////////////////////////////////////////////////////////////
 
 wire [3:0] fdc_sel = {cpu_addr[10],cpu_addr[8],cpu_addr[7],cpu_addr[0]};
-
-reg  [7:0] fdc_dout;
-always_comb begin
-	case({io_rd & ~status[17],fdc_sel[3:1]})
-		'b1_000: fdc_dout = motor;     // motor read 
-		'b1_010: fdc_dout = u765_dout; // u765 read 
-		default: fdc_dout = 8'hFF;
-	endcase
-end
+wire [7:0] fdc_dout = (u765_sel & io_rd) ? u765_dout : 8'hFF;
 
 reg motor = 0;
 always @(posedge clk_sys) begin
@@ -448,7 +440,7 @@ always @(posedge clk_sys) begin
 		mf2_ram[mf2_ram_a] <= mf2_ram_in;
 		mf2_ram_out <= mf2_ram_in;
 	end
-	mf2_ram_out <= mf2_ram[mf2_ram_a];
+	else mf2_ram_out <= mf2_ram[mf2_ram_a];
 end
 
 always @(posedge clk_sys) begin
