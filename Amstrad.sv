@@ -49,6 +49,7 @@ module emu
 	output        VGA_VS,
 	output        VGA_DE,    // = ~(VBlank | HBlank)
 	output        VGA_F1,
+	output [1:0]  VGA_SL,
 
 	output        LED_USER,  // 1 - ON, 0 - OFF.
 
@@ -95,9 +96,18 @@ module emu
 	output        SDRAM_nCS,
 	output        SDRAM_nCAS,
 	output        SDRAM_nRAS,
-	output        SDRAM_nWE
-);
+	output        SDRAM_nWE,
 
+	input         UART_CTS,
+	output        UART_RTS,
+	input         UART_RXD,
+	output        UART_TXD,
+	output        UART_DTR,
+	input         UART_DSR,
+
+	input         OSD_STATUS
+);
+assign {UART_RTS, UART_TXD, UART_DTR} = 0;
 assign {SD_SCK, SD_MOSI, SD_CS} = 'Z;
 
 assign LED_USER  = mf2_en | ioctl_download | tape_led;
@@ -146,6 +156,7 @@ pll pll
 	.refclk(CLK_50M),
 	.rst(0),
 	.outclk_0(clk_sys),
+	.outclk_1(SDRAM_CLK),
 	.locked(locked)
 );
 
@@ -323,8 +334,6 @@ wire  [7:0] ram_dout;
 
 wire [15:0] vram_dout;
 wire [14:0] vram_addr;
-
-assign SDRAM_CLK = clk_sys;
 
 sdram sdram
 (
@@ -622,6 +631,8 @@ wire       HSync, VSync, HBlank, VBlank;
 wire [1:0] scale = status[10:9];
 wire       hq2x = (scale == 1);
 
+assign VGA_SL = scale[1] ? scale : 2'b00;
+
 reg [2:0] interlace;
 always @(posedge clk_sys) begin
 	reg old_vs;
@@ -636,7 +647,7 @@ video_mixer #(800) video_mixer
 
 	.ce_pix_out(CE_PIXEL),
 
-	.scanlines({scale==3, scale==2}),
+	.scanlines(0),
 	.scandoubler((scale || forced_scandoubler) && !interlace),
 	.mono(0)
 );

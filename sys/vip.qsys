@@ -547,7 +547,6 @@
    internal="Reset_Source.reset_ctl"
    type="conduit"
    dir="end" />
- <interface name="uart" internal="HPS.uart1" type="conduit" dir="end" />
  <module name="Controller" kind="avalon_combiner" version="17.0" enabled="1" />
  <module name="Deinterlacer" kind="alt_vip_cl_dil" version="17.0" enabled="1">
   <parameter name="AUTO_DEVICE" value="5CSEBA6U23I7" />
@@ -763,8 +762,8 @@
   <parameter name="TRACE_PinMuxing" value="Unused" />
   <parameter name="UART0_Mode" value="N/A" />
   <parameter name="UART0_PinMuxing" value="Unused" />
-  <parameter name="UART1_Mode" value="Full" />
-  <parameter name="UART1_PinMuxing" value="FPGA" />
+  <parameter name="UART1_Mode" value="N/A" />
+  <parameter name="UART1_PinMuxing" value="Unused" />
   <parameter name="USB0_Mode" value="N/A" />
   <parameter name="USB0_PinMuxing" value="Unused" />
   <parameter name="USB1_Mode" value="N/A" />
@@ -869,7 +868,7 @@
  <module name="Output" kind="out_mix" version="17.0" enabled="1" />
  <module name="Reset_Source" kind="reset_source" version="17.0" enabled="1" />
  <module name="Scaler" kind="alt_vip_cl_scl" version="17.0" enabled="1">
-  <parameter name="ALGORITHM_NAME" value="BICUBIC" />
+  <parameter name="ALGORITHM_NAME" value="POLYPHASE" />
   <parameter name="ALWAYS_DOWNSCALE" value="0" />
   <parameter name="ARE_IDENTICAL" value="0" />
   <parameter name="AUTO_DEVICE" value="5CSEBA6U23I7" />
@@ -879,9 +878,9 @@
   <parameter name="DEFAULT_LOWER_BLUR" value="0" />
   <parameter name="DEFAULT_UPPER_BLUR" value="0" />
   <parameter name="ENABLE_FIR" value="0" />
-  <parameter name="EXTRA_PIPELINING" value="0" />
+  <parameter name="EXTRA_PIPELINING" value="1" />
   <parameter name="FAMILY" value="Cyclone V" />
-  <parameter name="H_BANKS" value="1" />
+  <parameter name="H_BANKS" value="2" />
   <parameter name="H_COEFF_FILE"><![CDATA[<enter file name (including full path)>]]></parameter>
   <parameter name="H_FRACTION_BITS" value="7" />
   <parameter name="H_FUNCTION" value="LANCZOS_3" />
@@ -892,8 +891,8 @@
   <parameter name="H_TAPS" value="4" />
   <parameter name="IS_420" value="0" />
   <parameter name="IS_422" value="0" />
-  <parameter name="LIMITED_READBACK" value="0" />
-  <parameter name="LOAD_AT_RUNTIME" value="0" />
+  <parameter name="LIMITED_READBACK" value="1" />
+  <parameter name="LOAD_AT_RUNTIME" value="1" />
   <parameter name="MAX_IN_HEIGHT" value="1080" />
   <parameter name="MAX_IN_WIDTH" value="1920" />
   <parameter name="MAX_OUT_HEIGHT" value="1080" />
@@ -905,11 +904,11 @@
   <parameter name="SYMBOLS_IN_PAR" value="3" />
   <parameter name="SYMBOLS_IN_SEQ" value="1" />
   <parameter name="USER_PACKET_FIFO_DEPTH" value="0" />
-  <parameter name="USER_PACKET_SUPPORT" value="PASSTHROUGH" />
-  <parameter name="V_BANKS" value="1" />
+  <parameter name="USER_PACKET_SUPPORT" value="DISCARD" />
+  <parameter name="V_BANKS" value="2" />
   <parameter name="V_COEFF_FILE"><![CDATA[<enter file name (including full path)>]]></parameter>
   <parameter name="V_FRACTION_BITS" value="7" />
-  <parameter name="V_FUNCTION" value="LANCZOS_3" />
+  <parameter name="V_FUNCTION" value="LANCZOS_2" />
   <parameter name="V_INTEGER_BITS" value="1" />
   <parameter name="V_PHASES" value="16" />
   <parameter name="V_SIGNED" value="1" />
