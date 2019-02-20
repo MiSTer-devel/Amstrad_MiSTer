@@ -143,7 +143,7 @@ localparam CONF_STR = {
 	"O4,Model,CPC 6128,CPC 664;",
 	"R0,Reset & apply model;",
 	"J,Fire 1,Fire 2,Fire 3;",
-	"V,v1.70.",`BUILD_DATE
+	"V,v",`BUILD_DATE
 };
 
 //////////////////////////////////////////////////////////////////////////
