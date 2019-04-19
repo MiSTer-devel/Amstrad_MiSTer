@@ -61,7 +61,9 @@ module emu
 	output [15:0] AUDIO_R,
 	output        AUDIO_S,   // 1 - signed audio samples, 0 - unsigned
 	output  [1:0] AUDIO_MIX, // 0 - no mix, 1 - 25%, 2 - 50%, 3 - 100% (mono)
-	input         TAPE_IN,
+
+	//ADC
+	inout   [3:0] ADC_BUS,
 
 	// SD-SPI
 	output        SD_SCK,
@@ -118,7 +120,7 @@ assign USER_OUT = '1;
 assign {UART_RTS, UART_TXD, UART_DTR} = 0;
 assign {SD_SCK, SD_MOSI, SD_CS} = 'Z;
 
-assign LED_USER  = mf2_en | ioctl_download | tape_led;
+assign LED_USER  = mf2_en | ioctl_download | tape_led | tape_adc_act;
 assign LED_DISK  = 0;
 assign LED_POWER = 0;
 
@@ -703,7 +705,6 @@ end
 wire [24:0] tape_addr;
 wire  [7:0] tape_data;
 wire        tape_rd;
-wire        tape_play;
 wire        tape_led;
 wire        tape_motor;
 
@@ -715,6 +716,9 @@ always @(posedge clk_sys) begin
 	if(~old_key & Fn[1]) tape_mute <= ~tape_mute;
 end
 
+wire tape_play = tape_ready ? tap_play : tape_adc;
+
+wire tap_play;
 tape #(4700000) tape
 (
 	.clk_sys(clk_sys),
@@ -729,12 +733,21 @@ tape #(4700000) tape
 	.tape_ready(tape_ready),
 	.tape_size(ioctl_addr),
 
-	.audio_out(tape_play),
+	.audio_out(tap_play),
 
 	.rd_en(ddram_ready),
 	.rd(tape_rd),
 	.addr(tape_addr),
 	.din(tape_data)
+);
+
+wire tape_adc, tape_adc_act;
+ltc2308_tape ltc2308_tape
+(
+	.clk(CLK_50M),
+	.ADC_BUS(ADC_BUS),
+	.dout(tape_adc),
+	.active(tape_adc_act)
 );
 
 endmodule
