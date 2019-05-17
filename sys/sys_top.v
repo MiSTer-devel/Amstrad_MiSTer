@@ -201,7 +201,7 @@ reg [15:0] cfg;
 
 reg  cfg_got   = 0;
 reg  cfg_set   = 0;
-//wire [2:0] hdmi_res  = cfg[10:8];
+wire hdmi_limited = cfg[8];
 wire dvi_mode  = cfg[7];
 wire audio_96k = cfg[6];
 wire ypbpr_en  = cfg[5];
@@ -610,7 +610,8 @@ hdmi_config hdmi_config
 	.I2C_SDA(HDMI_I2C_SDA),
 
 	.dvi_mode(dvi_mode),
-	.audio_96k(audio_96k)
+	.audio_96k(audio_96k),
+	.hdmi_limited(hdmi_limited)
 );
 
 wire [23:0] hdmi_data;
@@ -841,7 +842,7 @@ emu emu
 (
 	.CLK_50M(FPGA_CLK3_50),
 	.RESET(reset),
-	.HPS_BUS({HDMI_TX_VS, clk_100m, clk_vid, ce_pix, de, hs, vs, io_wait, clk_sys, io_fpga, io_uio, io_strobe, io_wide, io_din, io_dout}),
+	.HPS_BUS({f1, HDMI_TX_VS, clk_100m, clk_vid, ce_pix, de, hs, vs, io_wait, clk_sys, io_fpga, io_uio, io_strobe, io_wide, io_din, io_dout}),
 
 	.CLK_VIDEO(clk_vid),
 	.CE_PIXEL(ce_pix),
