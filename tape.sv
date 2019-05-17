@@ -53,6 +53,8 @@ reg         read_done;
 reg   [7:0] data;
 reg  [24:0] size;
 
+localparam MOTOR_TIMEOUT = CLOCK/20;
+
 always @(posedge clk_sys) begin
 	reg old_kpause, old_kplay, old_ready, old_rden;
 
@@ -63,7 +65,11 @@ always @(posedge clk_sys) begin
 	reg  [2:0] reload32;
 	reg [31:0] clk_play_cnt;
 	reg  [7:0] din_r;
+
 	reg        old_motor;
+	reg [31:0] clk_motor_cnt;
+	reg        motor_r;
+	reg        motor_d;
 
 	old_rden <= rd_en;
 	if(~old_rden & rd_en & rd) begin
@@ -98,9 +104,14 @@ always @(posedge clk_sys) begin
 		audio_out  <= 1;
 	end else if(ce) begin
 
-		{old_motor,old_kpause,old_kplay} <= {tape_motor,key_pause,key_play};
-		if((~old_motor & tape_motor) | (key_play & ~old_kplay))   pause <= 0;
-		if(((old_motor & ~tape_motor) | (key_pause & ~old_kpause)) && read_cnt > 100) pause <= 1;
+		motor_r <= tape_motor;
+		if(motor_r ^ tape_motor) clk_motor_cnt <= MOTOR_TIMEOUT;
+		else if(clk_motor_cnt) clk_motor_cnt <= clk_motor_cnt - 1;
+		else motor_d <= tape_motor;
+
+		{old_motor,old_kpause,old_kplay} <= {motor_d,key_pause,key_play};
+		if((~old_motor & motor_d) | (key_play & ~old_kplay))   pause <= 0;
+		if(((old_motor & ~motor_d) | (key_pause & ~old_kpause)) && read_cnt > 100) pause <= 1;
 
 		if(hdrsz && read_done) begin
 			if(hdrsz == 7) freq[ 7:0] <= din_r;
@@ -115,14 +126,11 @@ always @(posedge clk_sys) begin
 
 				if(read_done) begin
 					if(reload32 != 0) begin
-						tmp  = {din_r, bitcnt[31:8]};
-						if(reload32 == 1 && tmp[31:15]) tmp = tmp - tmp[31:3];
-						bitcnt   <= tmp;
+						bitcnt <= {din_r, bitcnt[31:8]};
 						reload32 <= reload32 - 1'd1;
 					end else begin
-						if(din_r != 0) bitcnt <= {24'd0, din_r};
-							else reload32 <= 4;
-
+						if(din_r != 0) bitcnt <= din_r;
+						else reload32 <= 4;
 						audio_out <= ~audio_out;
 					end
 
