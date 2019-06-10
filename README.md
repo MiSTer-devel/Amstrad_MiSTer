@@ -15,7 +15,7 @@ This core has been started as a port of [CoreAmstrad by Renaud Hélias](https://
 * Joystick support with up to 3 buttons (2 on MiST)
 * Kempston, SYMBiFACE II and Multiplay mice.
 * HQ2x and Scanlines FX for scandoubler.
-* Tape input through UART header (MiST)
+* Tape input through UART header (MiST) / ADC board (MiSTer)
 * Support *.CDT tape files.
 * Tape output through speaker.
 
@@ -63,11 +63,9 @@ USER LED will lit if there is a tape in the memory and still have data to play a
 
 Control keys:
 * Alt+F1 - mute/unmute the tape sound
-* Alt+F2 - force playback
-* Alt+F3 - force pause
-* Alt+F2+F3 - unload the tape (turn off the LED)
+* Alt+F2 - unload the tape (turn off the LED)
 
-CDT playback respects the tape motor state, so using F2/F3 is not required during playback.
+CDT playback respects the tape motor ON/OFF state.
 
 ## RAM
 CPC664 model has only 64KB RAM - use this model for programs not compatible with 128KB RAM.

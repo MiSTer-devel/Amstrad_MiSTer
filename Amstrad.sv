@@ -247,6 +247,8 @@ hps_io #(.STRLEN($size(CONF_STR)>>3), .VDNUM(2)) hps_io
 
 	.buttons(buttons),
 	.status(status),
+	.status_in({status[31:21],~status[20],status[19:0]}),
+	.status_set(Fn[1]),
 	.forced_scandoubler(forced_scandoubler),
 
 	.ioctl_wr(ioctl_wr),
@@ -405,14 +407,12 @@ reg         tape_rd;
 reg   [7:0] tape_dout;
 reg  [22:0] tape_play_addr;
 reg  [22:0] tape_last_addr;
-wire        tape_led = tape_motor;
 wire        tape_motor;
-reg         tape_mute = 0;
 
 always @(posedge clk_sys) begin
     reg old_tape_ack;
 
-    if (reset) begin
+    if (reset | Fn[2]) begin
         tape_play_addr <= 0;
         tape_last_addr <= 0;
         tape_rd <= 0;
@@ -447,21 +447,11 @@ tzxplayer tzxplayer
     .cass_motor(tape_motor)
 );
 
-reg tape_ready;
-always @(posedge clk_sys) begin
-	reg old_download;
+wire tape_ready = tape_last_addr && (tape_play_addr <= tape_last_addr);
+wire tape_led = act_cnt[24] ? act_cnt[23:16] > act_cnt[7:0] : act_cnt[23:16] <= act_cnt[7:0];
 
-	old_download <= tape_download;
-	if(old_download & ~tape_download)           tape_ready <= 1;
-	if(reset | (Fn[2] & Fn[3]) | tape_download) tape_ready <= 0;
-end
-
-always @(posedge clk_sys) begin
-	reg old_key;
-	
-	old_key <= Fn[1];
-	if(~old_key & Fn[1]) tape_mute <= ~tape_mute;
-end
+reg [24:0] act_cnt;
+always @(posedge clk_sys) if((tape_ready & tape_motor) || ~act_cnt[24] || act_cnt[23:0]) act_cnt <= act_cnt + 1'd1;
 
 //////////////////////////////////////////////////////////////////////////
 
@@ -483,7 +473,7 @@ end
 wire [7:0] u765_dout;
 wire       u765_sel = (fdc_sel[3:1] == 'b010) & ~status[17];
 
-reg [1:0] u765_ready = 0;
+reg  [1:0] u765_ready = 0;
 always @(posedge clk_sys) if(img_mounted[0]) u765_ready[0] <= |img_size;
 always @(posedge clk_sys) if(img_mounted[1]) u765_ready[1] <= |img_size;
 
@@ -763,16 +753,16 @@ assign CLK_VIDEO = clk_sys;
 //////////////////////////////////////////////////////////////////////
 
 wire [7:0] audio_l, audio_r;
-wire       tape_sound = status[20];
-wire       tape_play = tape_ready ? tape_read : tape_adc;
 
 assign AUDIO_S   = 0;
 assign AUDIO_MIX = status[8:7];
 
-assign AUDIO_L = {audio_l - audio_l[7:2] + {tape_rec, 1'b0, tape_play & ~tape_mute, 3'd0},8'd0};
-assign AUDIO_R = {audio_r - audio_r[7:2] + {tape_rec, 1'b0, tape_play & ~tape_mute, 3'd0},8'd0};
+assign AUDIO_L = {audio_l - audio_l[7:2] + {tape_rec, 1'b0, tape_play & status[20], 3'd0},8'd0};
+assign AUDIO_R = {audio_r - audio_r[7:2] + {tape_rec, 1'b0, tape_play & status[20], 3'd0},8'd0};
 
 //////////////////////////////////////////////////////////////////////
+
+wire tape_play = tape_ready ? tape_read : tape_adc;
 
 wire tape_adc, tape_adc_act;
 ltc2308_tape ltc2308_tape
