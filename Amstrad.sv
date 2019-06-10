@@ -120,6 +120,7 @@ assign ADC_BUS  = 'Z;
 assign USER_OUT = '1;
 assign {UART_RTS, UART_TXD, UART_DTR} = 0;
 assign {SD_SCK, SD_MOSI, SD_CS} = 'Z;
+assign {DDRAM_CLK, DDRAM_BURSTCNT, DDRAM_ADDR, DDRAM_DIN, DDRAM_BE, DDRAM_RD, DDRAM_WE} = 0;
 
 assign LED_USER  = mf2_en | ioctl_download | tape_led | tape_adc_act;
 assign LED_DISK  = 0;
@@ -136,6 +137,7 @@ localparam CONF_STR = {
 	"-;",
 	"F,E??,Load expansion;",
 	"F,CDT,Load tape;",
+	"OK,Tape sound,Disabled,Enabled;",
 	"-;",
 	"O1,Aspect ratio,4:3,16:9;",
 	"O9A,Scandoubler Fx,None,HQ2x,CRT 25%,CRT 50%;",
@@ -165,7 +167,6 @@ wire locked;
 pll pll
 (
 	.refclk(CLK_50M),
-	.rst(0),
 	.outclk_0(clk_sys),
 	.outclk_1(SDRAM_CLK),
 	.locked(locked)
@@ -207,7 +208,7 @@ wire  [7:0] ioctl_dout;
 wire        ioctl_download;
 wire  [7:0] ioctl_index;
 wire [31:0] ioctl_file_ext;
-wire        ioctl_wait = romdl_wait | tapedl_wait;
+wire        ioctl_wait = romdl_wait;
 
 wire [10:0] ps2_key;
 wire [24:0] ps2_mouse;
@@ -258,23 +259,27 @@ hps_io #(.STRLEN($size(CONF_STR)>>3), .VDNUM(2)) hps_io
 );
 
 wire        rom_download = ioctl_download && (ioctl_index[4:0] < 4);
-wire        reset = RESET | status[0] | buttons[1] | rom_download;
+wire        tape_download = ioctl_download && (ioctl_index == 4);
 
 reg         boot_wr = 0;
 reg  [22:0] boot_a;
 reg   [1:0] boot_bank;
 reg   [7:0] boot_dout;
-reg         romdl_wait = 0;
+
+reg         tape_wr = 0;
+wire        tape_ack;
 
 wire        rom_mask = ram_a[22] & (~rom_map[map_addr] | &{map_addr,status[15]});
 reg         rom_map[256] = '{default:0};
 reg   [7:0] map_addr;
 always @(posedge clk_sys) map_addr <= ram_a[21:14];
 
+reg         romdl_wait = 0;
 always @(posedge clk_sys) begin
 	reg [8:0] page = 0;
 	reg       combo = 0;
 	reg       old_download;
+	reg       old_tape_ack;
 
 	if(rom_download & ioctl_wr) begin
 		romdl_wait <= 1;
@@ -321,7 +326,7 @@ always @(posedge clk_sys) begin
 	end
 
 	old_download <= ioctl_download;
-	if(~old_download & ioctl_download) begin
+	if(~old_download & ioctl_download & rom_download) begin
 		if(ioctl_index) begin
 			page <= 9'h1EE; // some unused page for malformed file extension
 			combo <= 0;
@@ -331,6 +336,16 @@ always @(posedge clk_sys) begin
 			if(ioctl_file_ext[7:0]  >= "A" && ioctl_file_ext[7:0]  <= "F") page[3:0] <= ioctl_file_ext[3:0] +4'd9;
 			if(ioctl_file_ext[15:0] == "ZZ") page <= 0;
 			if(ioctl_file_ext[15:0] == "Z0") begin page <= 0; combo <= 1; end
+		end
+	end
+
+	old_tape_ack <= tape_ack;
+	if(tape_download) begin
+		if(old_tape_ack ^ tape_ack) tape_wr <= 0;
+		if(ioctl_wr) begin
+			tape_wr <= 1;
+			boot_dout <= ioctl_dout;
+			boot_a <= ioctl_addr[22:0];
 		end
 	end
 end
@@ -357,16 +372,96 @@ sdram sdram
 	.oe  (reset ? 1'b0      : mem_rd & ~mf2_ram_en & ~rom_mask),
 	.we  (reset ? boot_wr   : mem_wr & ~mf2_ram_en & ~mf2_rom_en),
 	.addr(reset ? boot_a    : mf2_rom_en ? { 9'h1ff, cpu_addr[13:0] }: ram_a),
-	.bank(reset ? boot_bank : model),
+	.bank(reset ? boot_bank : { 1'b0, model } ),
 	.din (reset ? boot_dout : cpu_dout),
 	.dout(ram_dout),
 
 	.vram_addr({2'b10,vram_addr,1'b0}),
-	.vram_dout(vram_dout)
+	.vram_dout(vram_dout),
+
+	.tape_addr(tape_download ? boot_a : tape_play_addr),
+	.tape_din(boot_dout),
+	.tape_dout(tape_dout),
+	.tape_wr(tape_wr),
+	.tape_rd(tape_rd),
+	.tape_ack(tape_ack)
 );
 
 reg model = 0;
-always @(posedge clk_sys) if(reset) model <= status[4];
+reg reset;
+
+always @(posedge clk_sys) begin
+	if(reset) model <= status[4];
+	reset <= RESET | status[0] | buttons[1] | rom_download;
+end
+
+////////////////////// CDT playback ///////////////////////////////
+
+wire        tape_read;
+wire        tape_data_req;
+reg         tape_data_ack;
+reg         tape_reset;
+reg         tape_rd;
+reg   [7:0] tape_dout;
+reg  [22:0] tape_play_addr;
+reg  [22:0] tape_last_addr;
+wire        tape_led = tape_motor;
+wire        tape_motor;
+reg         tape_mute = 0;
+
+always @(posedge clk_sys) begin
+    reg old_tape_ack;
+
+    if (reset) begin
+        tape_play_addr <= 0;
+        tape_last_addr <= 0;
+        tape_rd <= 0;
+        tape_reset <= 1;
+    end else begin
+        old_tape_ack <= tape_ack;
+        tape_reset <= 0;
+        if (tape_download) begin
+            tape_play_addr <= 0;
+            tape_last_addr <= boot_a;
+            tape_reset <= 1;
+        end
+        if (!ioctl_download && tape_rd && tape_ack ^ old_tape_ack) begin
+            tape_data_ack <= tape_data_req;
+            tape_rd <= 0;
+            tape_play_addr <= tape_play_addr + 1'd1;
+        end else if (!ioctl_download && tape_play_addr <= tape_last_addr && !tape_rd && (tape_data_req ^ tape_data_ack)) begin
+            tape_rd <= 1;
+        end
+    end
+end
+
+tzxplayer tzxplayer
+(
+    .clk(clk_sys),
+    .ce(1),
+    .restart_tape(tape_reset),
+    .host_tap_in(tape_dout),
+    .tzx_req(tape_data_req),
+    .tzx_ack(tape_data_ack),
+    .cass_read(tape_read),
+    .cass_motor(tape_motor)
+);
+
+reg tape_ready;
+always @(posedge clk_sys) begin
+	reg old_download;
+
+	old_download <= tape_download;
+	if(old_download & ~tape_download)           tape_ready <= 1;
+	if(reset | (Fn[2] & Fn[3]) | tape_download) tape_ready <= 0;
+end
+
+always @(posedge clk_sys) begin
+	reg old_key;
+	
+	old_key <= Fn[1];
+	if(~old_key & Fn[1]) tape_mute <= ~tape_mute;
+end
 
 //////////////////////////////////////////////////////////////////////////
 
@@ -668,6 +763,8 @@ assign CLK_VIDEO = clk_sys;
 //////////////////////////////////////////////////////////////////////
 
 wire [7:0] audio_l, audio_r;
+wire       tape_sound = status[20];
+wire       tape_play = tape_ready ? tape_read : tape_adc;
 
 assign AUDIO_S   = 0;
 assign AUDIO_MIX = status[8:7];
@@ -676,71 +773,6 @@ assign AUDIO_L = {audio_l - audio_l[7:2] + {tape_rec, 1'b0, tape_play & ~tape_mu
 assign AUDIO_R = {audio_r - audio_r[7:2] + {tape_rec, 1'b0, tape_play & ~tape_mute, 3'd0},8'd0};
 
 //////////////////////////////////////////////////////////////////////
-
-assign DDRAM_CLK = clk_sys;
-
-wire tape_download = ioctl_download && (ioctl_index[4:0] == 4);
-wire tapedl_wait = tape_download && ~ddram_ready;
-
-wire ddram_ready;
-ddram ddram
-(
-	.*,
-	.addr(tape_download ? ioctl_addr : tape_addr),
-	.dout(tape_data),
-	.din(ioctl_dout),
-	.we(tape_download & ioctl_wr),
-	.rd(tape_rd),
-	.ready(ddram_ready)
-);
-
-reg tape_ready;
-always @(posedge clk_sys) begin
-	reg old_download;
-
-	old_download <= tape_download;
-	if(old_download & ~tape_download)           tape_ready <= 1;
-	if(reset | (Fn[2] & Fn[3]) | tape_download) tape_ready <= 0;
-end
-
-wire [24:0] tape_addr;
-wire  [7:0] tape_data;
-wire        tape_rd;
-wire        tape_led;
-wire        tape_motor;
-
-reg tape_mute = 0;
-always @(posedge clk_sys) begin
-	reg old_key;
-	
-	old_key <= Fn[1];
-	if(~old_key & Fn[1]) tape_mute <= ~tape_mute;
-end
-
-wire tape_play = tape_ready ? tap_play : tape_adc;
-
-wire tap_play;
-tape #(4700000) tape
-(
-	.clk_sys(clk_sys),
-	.ce(ce_4p),
-
-	.led(tape_led),
-
-	.tape_motor(tape_motor),
-	.key_play(Fn[2]),
-	.key_pause(Fn[3]),
-
-	.tape_ready(tape_ready),
-	.tape_size(ioctl_addr),
-
-	.audio_out(tap_play),
-
-	.rd_en(ddram_ready),
-	.rd(tape_rd),
-	.addr(tape_addr),
-	.din(tape_data)
-);
 
 wire tape_adc, tape_adc_act;
 ltc2308_tape ltc2308_tape

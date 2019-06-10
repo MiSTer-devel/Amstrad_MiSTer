@@ -16,7 +16,7 @@ This core has been started as a port of [CoreAmstrad by Renaud Hélias](https://
 * Kempston, SYMBiFACE II and Multiplay mice.
 * HQ2x and Scanlines FX for scandoubler.
 * Tape input through UART header (MiST)
-* Support *.CDT tape files (MiSTer)
+* Support *.CDT tape files.
 * Tape output through speaker.
 
 
