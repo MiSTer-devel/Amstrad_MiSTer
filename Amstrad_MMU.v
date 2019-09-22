@@ -40,7 +40,8 @@ module Amstrad_MMU
 reg lowerROMen;
 reg upperROMen;
 reg [2:0] RAMmap;
-reg [2:0] RAMpage;
+reg [4:0] RAMpage;
+reg       RAMpageEx;
 reg [7:0] ROMbank;
 
 always @(posedge CLK) begin
@@ -49,7 +50,7 @@ always @(posedge CLK) begin
 	if (reset) begin
 		ROMbank    <=0;
 		RAMmap     <=0;
-		RAMpage    <=0;
+		RAMpage    <=3;
 		lowerROMen <=1;
 		upperROMen <=1;
 	end
@@ -62,7 +63,7 @@ always @(posedge CLK) begin
 			end
 			
 			if (~A[15] && D[7:6] == 'b11 && ~ram64k) begin //7Fxx PAL MMR
-				RAMpage <= D[5:3];
+				RAMpage <= {1'b0, ~A[8], D[5:3]} + 5'd3;
 				RAMmap  <= D[2:0];
 			end
 
@@ -73,13 +74,13 @@ end
 
 always @(*) begin
 	casex({lowerROMen&~mem_WR&(!A[15:14]), upperROMen&~mem_WR&(&A[15:14]), RAMmap, A[15:14]})
-		'b1x_xxx_xx: ram_A[22:14] = 0;                // lower rom
-		'b01_xxx_xx: ram_A[22:14] = {1'b1,  ROMbank}; // upper rom
-		'b00_0x1_11,                                                      // map1&3 bank3
-		'b00_010_xx: ram_A[22:14] = {2'b00, RAMpage, 2'b11,    A[15:14]}; // map2 bank0-3
-		'b00_011_01: ram_A[22:14] = {2'b00,  3'b000, 2'b10,       2'b11}; // map3 bank1
-		'b00_1xx_01: ram_A[22:14] = {2'b00, RAMpage, 2'b11, RAMmap[1:0]}; // map4 bank1
-		    default: ram_A[22:14] = {2'b00,  3'b000, 2'b10,    A[15:14]}; // default 64KB map
+		'b1x_xxx_xx: ram_A[22:14] = 0;                             // lower rom
+		'b01_xxx_xx: ram_A[22:14] = {1'b1, ROMbank};               // upper rom
+		'b00_0x1_11,                                               // map1&3 bank3
+		'b00_010_xx: ram_A[22:14] = {2'b00, RAMpage,    A[15:14]}; // map2   bank0-3 (ext  0..3)
+		'b00_011_01: ram_A[22:14] = {2'b00,    5'd2,       2'b11}; // map3   bank1   (base 3)
+		'b00_1xx_01: ram_A[22:14] = {2'b00, RAMpage, RAMmap[1:0]}; // map4-7 bank1   (ext  0..3)
+		    default: ram_A[22:14] = {2'b00,    5'd2,    A[15:14]}; // base 64KB map  (base 0..3)
 	endcase
 
 	ram_A[13:0] = A[13:0];
