@@ -229,6 +229,7 @@ always @(posedge clk_sys) begin
 	reg [7:0] i_sector_st1, i_sector_st2;
 	reg [15:0] i_sector_size;
 	reg [7:0] i_current_sector;
+	reg i_scanning;
 	reg [2:0] i_weak_sector;
 	reg [15:0] i_bytes_to_read;
 	reg [2:0] i_substate;
@@ -407,7 +408,7 @@ always @(posedge clk_sys) begin
 		endcase
 
 		//disk rotation
-		if (motor[i_current_drive] & ~image_trackinfo_dirty[i_current_drive]) begin
+		if (motor[i_current_drive]) begin
 			for (int i=0; i<2 ;i++) begin
 				if (i_rpm_timer[i_current_drive][i] >= i_rpm_time[i_current_drive][i]) begin
 					i_current_sector_pos[i_current_drive][i] <=
@@ -695,6 +696,7 @@ always @(posedge clk_sys) begin
 			COMMAND_RW_DATA_EXEC2:
 			if (~sd_busy & ~buff_wait) begin
 				i_current_sector <= 1'd1;
+				i_scanning <= 0;
 				sd_buff_type <= UPD765_SD_BUFF_TRACKINFO;
 				i_seek_pos <= {image_track_offsets_in+1'd1,8'd0}; //TrackInfo+256bytes
 				buff_addr <= {image_track_offsets_in[0], 8'h14}; //sector size
@@ -709,7 +711,7 @@ always @(posedge clk_sys) begin
 					if (!image_edsk[ds0]) i_sector_size <= 8'h80 << buff_data_in[2:0];
 					buff_addr[7:0] <= 8'h18; //sector info list
 					buff_wait <= 1;
-				end else if (i_current_sector > i_total_sectors) begin
+				end else if (i_current_sector_pos[ds0][hds] == i_current_sector - 1'd1 && i_scanning) begin
 					m_status[UPD765_MAIN_EXM] <= 0;
 					//sector not found or end of track
 					status[0] <= i_rtrack ? 8'h00 : 8'h40;
@@ -727,6 +729,8 @@ always @(posedge clk_sys) begin
 						5: i_sector_st2 <= buff_data_in;
 						6: if (image_edsk[ds0]) i_sector_size[7:0] <= buff_data_in;
 						7: begin
+								// start scanning of the sector IDs from the sector at the current head position
+								if (i_current_sector_pos[ds0][hds] == i_current_sector - 1'd1) i_scanning <= 1;
 								if (image_edsk[ds0]) i_sector_size[15:8] <= buff_data_in;
 								state <= COMMAND_RW_DATA_EXEC4;
 							end
@@ -738,8 +742,9 @@ always @(posedge clk_sys) begin
 
 			//found the sector?
 			COMMAND_RW_DATA_EXEC4:
-			if ((i_rtrack && i_current_sector == i_r) ||
-				(~i_rtrack && i_sector_c == i_c && i_sector_r == i_r && i_sector_h == i_h && (i_sector_n == i_n || !i_n))) begin
+			if (i_scanning &&
+			   ((i_rtrack && i_current_sector == i_r) ||
+			    (~i_rtrack && i_sector_c == i_c && i_sector_r == i_r && i_sector_h == i_h && (i_sector_n == i_n || !i_n)))) begin
 				//sector found in the sector info list
 				if (i_sk & ~i_rtrack & (i_rw_deleted ^ i_sector_st2[6])) begin
 					state <= COMMAND_RW_DATA_EXEC8;
@@ -752,8 +757,15 @@ always @(posedge clk_sys) begin
 			end else begin
 				//try the next sector in the sectorinfo list
 				if (i_sector_c == i_c) i_bc <= 0;
-				i_current_sector <= i_current_sector + 1'd1;
-				i_seek_pos <= i_seek_pos + i_sector_size;
+				if (i_current_sector == i_total_sectors) begin
+					i_current_sector <= 1;
+					i_seek_pos <= {image_track_offsets_in+1'd1,8'd0}; //TrackInfo+256bytes
+					buff_addr[7:0] <= 8'h18; //sector info list
+					buff_wait <= 1;
+				end else begin
+					i_current_sector <= i_current_sector + 1'd1;
+					i_seek_pos <= i_seek_pos + i_sector_size;
+				end
 				state <= COMMAND_RW_DATA_EXEC3;
 			end
 
@@ -1106,7 +1118,7 @@ always @(posedge clk_sys) begin
 
 			COMMAND_RELOAD_TRACKINFO:
 			if (image_ready[ds0] & image_trackinfo_dirty[ds0]) begin
-				i_rpm_timer[ds0] <= '{ 0, 0 };
+				//i_rpm_timer[ds0] <= '{ 0, 0 };
 				next_weak_sector[ds0] <= 0;
 				image_track_offsets_addr <= { pcn[ds0], 1'b0 };
 				old_hds <= hds;
@@ -1145,7 +1157,8 @@ always @(posedge clk_sys) begin
 				i_rpm_time[ds0][hds] <= buff_data_in ? TRACK_TIME/buff_data_in : CYCLES;
 
 				//assume the head position is at the middle of a track after a seek
-				i_current_sector_pos[ds0][hds] <= buff_data_in[7:1];
+				if (i_current_sector_pos[ds0][hds] >= buff_data_in)
+					i_current_sector_pos[ds0][hds] <= buff_data_in[7:1];
 
 				if (hds == image_sides[ds0]) begin
 					image_trackinfo_dirty[ds0] <= 0;
