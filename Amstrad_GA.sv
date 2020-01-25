@@ -109,8 +109,7 @@ always @(posedge CLK) begin
 		if (WE) begin //7Fxx gate array --
 			if (D[7:6] == 2'b10)	begin
 				//http://www.cpctech.org.uk/docs/garray.html
-				if (D[1:0] == 3) MODE_select <= 0;
-				else MODE_select <= D[1:0];
+				MODE_select <= D[1:0];
 			end
 			else if (~D[7]) begin
 				// palette
@@ -382,19 +381,20 @@ always @(posedge CLK) begin
 		case(vmode_fs)
 			2: CE_PIX_FS <= 1;
 			1: CE_PIX_FS <= !cycle[0];
-			0: CE_PIX_FS <= !cycle[1:0];
+			0,3: CE_PIX_FS <= !cycle[1:0];
 		endcase
 
 		case(vmode)
 			2: CE_PIX <= 1;
 			1: CE_PIX <= !cycle[0];
-			0: CE_PIX <= !cycle[1:0];
+			0,3: CE_PIX <= !cycle[1:0];
 		endcase
 
 		casex({de[crtc_shift],vmode})
 			'b110: rgb <= palette[{PAL,pen[data[~cycle]]}];
 			'b101: rgb <= palette[{PAL,pen[{data[{1'b0,~cycle[2:1]}],data[{1'b1,~cycle[2:1]}]}]}];
 			'b100: rgb <= palette[{PAL,pen[{data[{2'b00,~cycle[2]}],data[{2'b10,~cycle[2]}],data[{2'b01,~cycle[2]}],data[{2'b11,~cycle[2]}]}]}];
+			'b111: rgb <= palette[{PAL,pen[{data[{2'b01,~cycle[2]}],data[{2'b11,~cycle[2]}]}]}];
 			'b0xx: rgb <= palette[{PAL,border}];
 		endcase
 	end
