@@ -220,10 +220,10 @@ always @(posedge CLK) begin
 	reg       hSyncReg;
 	reg [3:0] vSyncCount;
 	reg [1:0] syncs;
-	reg [7:0] vSyncFlt;
+	reg [8:0] vSyncFlt;
 
 	localparam HFLT_SZ = 50*4;
-	localparam VFLT_SZ = 200;
+	localparam VFLT_SZ = 260;
 
 	if(CE_4) begin
 		old_hsync <= crtc_hs;
