@@ -54,9 +54,12 @@ module sdram
 	input      [22:0] tape_addr,
 	input       [7:0] tape_din,
 	output reg  [7:0] tape_dout,
+
 	input             tape_wr,
+	output reg        tape_wr_ack,
+
 	input             tape_rd,
-	output reg        tape_ack
+	output reg        tape_rd_ack
 );
 
 assign SDRAM_CKE = 1;
@@ -78,6 +81,8 @@ localparam MODE = { 3'b000, NO_WRITE_BURST, OP_MODE, CAS_LATENCY, ACCESS_TYPE, B
 localparam STATE_IDLE  = 3'd0;   // first state in cycle
 localparam STATE_START = 3'd1;   // state in which a new command can be started
 localparam STATE_CONT  = STATE_START + RASCAS_DELAY; // 3 command can be continued
+localparam STATE_READ  = STATE_CONT + CAS_LATENCY + 3'd1; // 6
+localparam STATE_READY = STATE_READ + 3'd1; // 7
 localparam STATE_LAST  = 3'd7;   // last state in cycle
 
 reg  [2:0] q;
@@ -195,16 +200,19 @@ always @(posedge clk) begin
 		if(ram_req & wr) ram_dout <= din;
 	end
 
+	data <= SDRAM_DQ;
 	SDRAM_DQ <= 16'hZZZZ;
 	if(q == STATE_CONT && wr) SDRAM_DQ <= tape_req ? {tape_din, tape_din} : {din, din};
 
-	if(q == STATE_CONT+CAS_LATENCY+1 && tape_req) tape_ack <= ~tape_ack;
-
-	data <= SDRAM_DQ;
-	if (q == STATE_CONT+CAS_LATENCY+2) begin
+	tape_wr_ack	<= 0;
+	if (q == STATE_READY) begin
 		if (~wr & ram_req) ram_dout <= a[0] ? data[15:8] : data[7:0];
 		else if (vram_req) vram_dout<=data;
 		else if (~wr & tape_req) tape_dout <= a[0] ? data[15:8] : data[7:0];
+		if(tape_req) begin
+			if(wr) tape_wr_ack <= 1;
+			else tape_rd_ack <= ~tape_rd_ack;
+		end
 	end
 end
 

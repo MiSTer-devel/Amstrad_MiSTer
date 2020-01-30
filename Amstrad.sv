@@ -275,9 +275,6 @@ reg  [22:0] boot_a;
 reg   [1:0] boot_bank;
 reg   [7:0] boot_dout;
 
-reg         tape_wr = 0;
-wire        tape_ack;
-
 wire        rom_mask = ram_a[22] & (~rom_map[map_addr] | &{map_addr,status[15]});
 reg         rom_map[256] = '{default:0};
 reg   [7:0] map_addr;
@@ -288,7 +285,6 @@ always @(posedge clk_sys) begin
 	reg [8:0] page = 0;
 	reg       combo = 0;
 	reg       old_download;
-	reg       old_tape_ack;
 
 	if(rom_download & ioctl_wr) begin
 		romdl_wait <= 1;
@@ -347,16 +343,6 @@ always @(posedge clk_sys) begin
 			if(ioctl_file_ext[15:0] == "Z0") begin page <= 0; combo <= 1; end
 		end
 	end
-
-	old_tape_ack <= tape_ack;
-	if(tape_download) begin
-		if(old_tape_ack ^ tape_ack) tape_wr <= 0;
-		if(ioctl_wr) begin
-			tape_wr <= 1;
-			boot_dout <= ioctl_dout;
-			boot_a <= ioctl_addr[22:0];
-		end
-	end
 end
 
 
@@ -388,12 +374,13 @@ sdram sdram
 	.vram_addr({2'b10,vram_addr,1'b0}),
 	.vram_dout(vram_dout),
 
-	.tape_addr(tape_download ? boot_a : tape_play_addr),
-	.tape_din(boot_dout),
+	.tape_addr(tape_download ? tape_last_addr : tape_play_addr),
+	.tape_din(tape_din),
 	.tape_dout(tape_dout),
 	.tape_wr(tape_wr),
-	.tape_rd(tape_rd),
-	.tape_ack(tape_ack)
+	.tape_wr_ack(tape_wr_ack),
+	.tape_rd(tape_data_req ^ tape_data_ack),
+	.tape_rd_ack(tape_data_ack)
 );
 
 reg model = 0;
@@ -406,52 +393,57 @@ end
 
 ////////////////////// CDT playback ///////////////////////////////
 
+reg  [22:0] tape_last_addr;
+reg   [7:0] tape_din;
+reg         tape_wr = 0;
+wire        tape_wr_ack;
 wire        tape_read;
 wire        tape_data_req;
-reg         tape_data_ack;
+wire        tape_data_ack;
 reg         tape_reset;
-reg         tape_rd;
-reg   [7:0] tape_dout;
+wire  [7:0] tape_dout;
 reg  [22:0] tape_play_addr;
-reg  [22:0] tape_last_addr;
 wire        tape_motor;
 
 always @(posedge clk_sys) begin
-    reg old_tape_ack;
+	reg old_tape_ack;
 
-    if (reset | Fn[2]) begin
-        tape_play_addr <= 0;
-        tape_last_addr <= 0;
-        tape_rd <= 0;
-        tape_reset <= 1;
-    end else begin
-        old_tape_ack <= tape_ack;
-        tape_reset <= 0;
-        if (tape_download) begin
-            tape_play_addr <= 0;
-            tape_last_addr <= boot_a;
-            tape_reset <= 1;
-        end
-        if (!ioctl_download && tape_rd && tape_ack ^ old_tape_ack) begin
-            tape_data_ack <= tape_data_req;
-            tape_rd <= 0;
-            tape_play_addr <= tape_play_addr + 1'd1;
-        end else if (!ioctl_download && tape_play_addr <= tape_last_addr && !tape_rd && (tape_data_req ^ tape_data_ack)) begin
-            tape_rd <= 1;
-        end
-    end
+	if(tape_wr_ack | reset) tape_wr <= 0;
+	if(tape_download && ioctl_wr) begin
+		tape_wr <= 1;
+		tape_din <= ioctl_dout;
+		tape_last_addr <= ioctl_addr[22:0];
+	end
+
+	old_tape_ack <= tape_data_ack;
+
+	if (reset | Fn[2]) begin
+		tape_play_addr <= 0;
+		tape_last_addr <= 0;
+		tape_reset <= 1;
+	end
+	else begin
+		tape_reset <= 0;
+		if (tape_download) begin
+			tape_play_addr <= 0;
+			tape_reset <= 1;
+		end
+		else if ((old_tape_ack ^ tape_data_ack) && (tape_play_addr < tape_last_addr)) begin
+			tape_play_addr <= tape_play_addr + 1'd1;
+		end
+	end
 end
 
 tzxplayer tzxplayer
 (
-    .clk(clk_sys),
-    .ce(1),
-    .restart_tape(tape_reset),
-    .host_tap_in(tape_dout),
-    .tzx_req(tape_data_req),
-    .tzx_ack(tape_data_ack),
-    .cass_read(tape_read),
-    .cass_motor(tape_motor)
+	.clk(clk_sys),
+	.ce(1),
+	.restart_tape(tape_reset),
+	.host_tap_in(tape_dout),
+	.tzx_req(tape_data_req),
+	.tzx_ack(tape_data_ack),
+	.cass_read(tape_read),
+	.cass_motor(tape_motor)
 );
 
 wire tape_ready = tape_last_addr && (tape_play_addr <= tape_last_addr);
@@ -654,7 +646,7 @@ Amstrad_motherboard motherboard
 	.ps2_key(ps2_key),
 	.Fn(Fn),
 
-	.no_wait(status[6]),
+	.no_wait(status[6] & ~tape_motor),
 	.ppi_jumpers({2'b11, ~status[5], 1'b1}),
 	.crtc_type(~status[2]),
 	.resync(1),
