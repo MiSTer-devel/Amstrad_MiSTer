@@ -29,10 +29,11 @@ module sdram
 	output            SDRAM_DQML, // byte mask
 	output            SDRAM_DQMH, // byte mask
 	output reg  [1:0] SDRAM_BA,   // two banks
-	output reg        SDRAM_nCS,  // a single chip select
+	output            SDRAM_nCS,  // a single chip select
 	output reg        SDRAM_nWE,  // write enable
 	output reg        SDRAM_nRAS, // row address select
 	output reg        SDRAM_nCAS, // columns address select
+	output            SDRAM_CLK,
 	output            SDRAM_CKE,
 
 	// cpu/chipset interface
@@ -59,6 +60,7 @@ module sdram
 );
 
 assign SDRAM_CKE = 1;
+assign SDRAM_nCS = 0;
 assign {SDRAM_DQMH, SDRAM_DQML} = SDRAM_A[12:11];
 
 assign dout = oe ? ram_dout : 8'hFF;
@@ -75,7 +77,7 @@ localparam MODE = { 3'b000, NO_WRITE_BURST, OP_MODE, CAS_LATENCY, ACCESS_TYPE, B
 
 localparam STATE_IDLE  = 3'd0;   // first state in cycle
 localparam STATE_START = 3'd1;   // state in which a new command can be started
-localparam STATE_CONT  = STATE_START  + RASCAS_DELAY; // 3 command can be continued
+localparam STATE_CONT  = STATE_START + RASCAS_DELAY; // 3 command can be continued
 localparam STATE_LAST  = 3'd7;   // last state in cycle
 
 reg  [2:0] q;
@@ -149,31 +151,32 @@ always @(posedge clk) begin
 	end
 end
 
-localparam CMD_INHIBIT         = 4'b1111;
-localparam CMD_NOP             = 4'b0111;
-localparam CMD_ACTIVE          = 4'b0011;
-localparam CMD_READ            = 4'b0101;
-localparam CMD_WRITE           = 4'b0100;
-localparam CMD_BURST_TERMINATE = 4'b0110;
-localparam CMD_PRECHARGE       = 4'b0010;
-localparam CMD_AUTO_REFRESH    = 4'b0001;
-localparam CMD_LOAD_MODE       = 4'b0000;
+localparam CMD_NOP             = 3'b111;
+localparam CMD_ACTIVE          = 3'b011;
+localparam CMD_READ            = 3'b101;
+localparam CMD_WRITE           = 3'b100;
+localparam CMD_BURST_TERMINATE = 3'b110;
+localparam CMD_PRECHARGE       = 3'b010;
+localparam CMD_AUTO_REFRESH    = 3'b001;
+localparam CMD_LOAD_MODE       = 3'b000;
 
 reg [7:0] ram_dout;
 
 // SDRAM state machines
 always @(posedge clk) begin
+	reg [15:0] data;
+
 	casex({ram_req|vram_req|tape_req,wr,mode,q})
-		{2'b1X, MODE_NORMAL, STATE_START}: {SDRAM_nCS, SDRAM_nRAS, SDRAM_nCAS, SDRAM_nWE} <= CMD_ACTIVE;
-		{2'b11, MODE_NORMAL, STATE_CONT }: {SDRAM_nCS, SDRAM_nRAS, SDRAM_nCAS, SDRAM_nWE} <= CMD_WRITE;
-		{2'b10, MODE_NORMAL, STATE_CONT }: {SDRAM_nCS, SDRAM_nRAS, SDRAM_nCAS, SDRAM_nWE} <= CMD_READ;
-		{2'b0X, MODE_NORMAL, STATE_START}: {SDRAM_nCS, SDRAM_nRAS, SDRAM_nCAS, SDRAM_nWE} <= CMD_AUTO_REFRESH;
+		{2'b1X, MODE_NORMAL, STATE_START}: {SDRAM_nRAS, SDRAM_nCAS, SDRAM_nWE} <= CMD_ACTIVE;
+		{2'b11, MODE_NORMAL, STATE_CONT }: {SDRAM_nRAS, SDRAM_nCAS, SDRAM_nWE} <= CMD_WRITE;
+		{2'b10, MODE_NORMAL, STATE_CONT }: {SDRAM_nRAS, SDRAM_nCAS, SDRAM_nWE} <= CMD_READ;
+		{2'b0X, MODE_NORMAL, STATE_START}: {SDRAM_nRAS, SDRAM_nCAS, SDRAM_nWE} <= CMD_AUTO_REFRESH;
 
 		// init
-		{2'bXX,    MODE_LDM, STATE_START}: {SDRAM_nCS, SDRAM_nRAS, SDRAM_nCAS, SDRAM_nWE} <= CMD_LOAD_MODE;
-		{2'bXX,    MODE_PRE, STATE_START}: {SDRAM_nCS, SDRAM_nRAS, SDRAM_nCAS, SDRAM_nWE} <= CMD_PRECHARGE;
+		{2'bXX,    MODE_LDM, STATE_START}: {SDRAM_nRAS, SDRAM_nCAS, SDRAM_nWE} <= CMD_LOAD_MODE;
+		{2'bXX,    MODE_PRE, STATE_START}: {SDRAM_nRAS, SDRAM_nCAS, SDRAM_nWE} <= CMD_PRECHARGE;
 
-		                          default: {SDRAM_nCS, SDRAM_nRAS, SDRAM_nCAS, SDRAM_nWE} <= CMD_INHIBIT;
+		                          default: {SDRAM_nRAS, SDRAM_nCAS, SDRAM_nWE} <= CMD_NOP;
 	endcase
 
 	casex({ram_req|vram_req|tape_req,mode,q})
@@ -195,12 +198,39 @@ always @(posedge clk) begin
 	SDRAM_DQ <= 16'hZZZZ;
 	if(q == STATE_CONT && wr) SDRAM_DQ <= tape_req ? {tape_din, tape_din} : {din, din};
 
-	if (q == STATE_CONT+CAS_LATENCY+1) begin
-		if (~wr & ram_req) ram_dout <= a[0] ? SDRAM_DQ[15:8] : SDRAM_DQ[7:0];
-		else if (vram_req) vram_dout<=SDRAM_DQ;
-		else if (~wr & tape_req) tape_dout <= a[0] ? SDRAM_DQ[15:8] : SDRAM_DQ[7:0];
-		if (tape_req) tape_ack <= ~tape_ack;
+	if(q == STATE_CONT+CAS_LATENCY+1 && tape_req) tape_ack <= ~tape_ack;
+
+	data <= SDRAM_DQ;
+	if (q == STATE_CONT+CAS_LATENCY+2) begin
+		if (~wr & ram_req) ram_dout <= a[0] ? data[15:8] : data[7:0];
+		else if (vram_req) vram_dout<=data;
+		else if (~wr & tape_req) tape_dout <= a[0] ? data[15:8] : data[7:0];
 	end
 end
+
+altddio_out
+#(
+	.extend_oe_disable("OFF"),
+	.intended_device_family("Cyclone V"),
+	.invert_output("OFF"),
+	.lpm_hint("UNUSED"),
+	.lpm_type("altddio_out"),
+	.oe_reg("UNREGISTERED"),
+	.power_up_high("OFF"),
+	.width(1)
+)
+sdramclk_ddr
+(
+	.datain_h(1'b0),
+	.datain_l(1'b1),
+	.outclock(clk),
+	.dataout(SDRAM_CLK),
+	.aclr(1'b0),
+	.aset(1'b0),
+	.oe(1'b1),
+	.outclocken(1'b1),
+	.sclr(1'b0),
+	.sset(1'b0)
+);
 
 endmodule
