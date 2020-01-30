@@ -225,6 +225,7 @@ wire  [6:0] joy2;
 wire [31:0] status;
 
 wire        forced_scandoubler;
+wire [21:0] gamma_bus;
 
 hps_io #(.STRLEN($size(CONF_STR)>>3), .VDNUM(2)) hps_io
 (
@@ -256,6 +257,7 @@ hps_io #(.STRLEN($size(CONF_STR)>>3), .VDNUM(2)) hps_io
 	.status_in({status[31:21],~status[20],status[19:0]}),
 	.status_set(Fn[1]),
 	.forced_scandoubler(forced_scandoubler),
+	.gamma_bus(gamma_bus),
 
 	.ioctl_wr(ioctl_wr),
 	.ioctl_addr(ioctl_addr),
@@ -743,10 +745,11 @@ always @(posedge clk_sys) begin
 	if(~old_vs & vs) interlace <= {interlace[1:0], VGA_F1};
 end
 
-video_mixer #(800) video_mixer
+video_mixer #(.LINE_LENGTH(800), .GAMMA(1)) video_mixer
 (
 	.*,
 
+	.clk_vid(CLK_VIDEO),
 	.ce_pix_out(CE_PIXEL),
 
 	.scanlines(0),
