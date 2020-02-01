@@ -1156,9 +1156,9 @@ always @(posedge clk_sys) begin
 				i_current_track_sectors[ds0][hds] <= buff_data_in;
 				i_rpm_time[ds0][hds] <= buff_data_in ? TRACK_TIME/buff_data_in : CYCLES;
 
-				//assume the head position is at the middle of a track after a seek
+				//assume the head position is at the start of a track after a seek
 				if (i_current_sector_pos[ds0][hds] >= buff_data_in)
-					i_current_sector_pos[ds0][hds] <= buff_data_in[7:1];
+					i_current_sector_pos[ds0][hds] <= 0;
 
 				if (hds == image_sides[ds0]) begin
 					image_trackinfo_dirty[ds0] <= 0;
