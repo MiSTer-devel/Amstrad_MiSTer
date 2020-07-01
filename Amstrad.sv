@@ -662,7 +662,6 @@ Amstrad_motherboard motherboard
 	.audio_l(audio_l),
 	.audio_r(audio_r),
 
-	.pal(|status[13:11]),
 	.ce_pix_fs(ce_pix_fs),
 	.hblank(hbl),
 	.vblank(vbl),
@@ -696,7 +695,7 @@ Amstrad_motherboard motherboard
 
 wire ce_pix = hq2x ? ce_pix_fs : ce_16;
 
-wire [7:0] b, g, r;
+wire [1:0] b, g, r;
 wire       hs, vs, hbl, vbl;
 
 color_mix color_mix
