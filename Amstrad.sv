@@ -277,7 +277,7 @@ reg   [1:0] boot_bank;
 reg   [7:0] boot_dout;
 
 wire        rom_mask = ram_a[22] & (~rom_map[map_addr] | &{map_addr,status[15]});
-reg         rom_map[256] = '{default:0};
+reg [255:0] rom_map = '0;
 reg   [7:0] map_addr;
 always @(posedge clk_sys) map_addr <= ram_a[21:14];
 
@@ -676,6 +676,7 @@ Amstrad_motherboard motherboard
 	.vram_din(vram_dout),
 	.vram_addr(vram_addr),
 
+	.rom_map(rom_map),
 	.ram64k(model),
 	.mem_rd(mem_rd),
 	.mem_wr(mem_wr),
