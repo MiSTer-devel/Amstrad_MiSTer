@@ -25,7 +25,7 @@ module Amstrad_GA
    input            CE_4,
    input            CE_16,
    input            RESET,
-   
+
    input      [1:0] phase,
    input            resync,
 
@@ -35,13 +35,12 @@ module Amstrad_GA
    input            crtc_de,
    output           crtc_shift,
    input     [15:0] vram_D,
-   
+
    input            INTack,
    input      [7:0] D,
    input            WE,
-   
-   output reg       CE_PIX,
-   output reg       CE_PIX_FS,
+
+   output     [1:0] MODE,
    output     [1:0] RED,
    output     [1:0] GREEN,
    output     [1:0] BLUE,
@@ -189,7 +188,6 @@ end
 // vmode is applied after HSync
 always @(posedge CLK) begin
 	reg old_hsync, old_hsync2;
-	reg old_vsync;
 	reg hsact;
 
 	old_hsync2 <= HSYNC;
@@ -199,9 +197,6 @@ always @(posedge CLK) begin
 		vmode <= MODE_select; //standard vmode
 		hsact <= 0;
 	end
-
-	old_vsync <= crtc_vs;
-	if(~old_vsync & crtc_vs) vmode_fs <= MODE_select; //HQ2x friendly vmode
 end
 
 reg hs4,shift;
@@ -289,7 +284,7 @@ always @(posedge CLK) begin
 	end
 end
 
-reg  [1:0] vmode, vmode_fs;
+reg  [1:0] vmode;
 reg  [4:0] rgb;
 
 always @(posedge CLK) begin
@@ -306,11 +301,9 @@ always @(posedge CLK) begin
 	reg       vs,old_vs;
 	reg       hs,old_hs;
 
-	integer   vborder;
-	integer   hborder;
+	reg [9:0] vborder;
+	reg [9:0] hborder;
 
-	CE_PIX <= 0;
-	CE_PIX_FS <= 0;
 	if (CE_16) begin
 		cycle = cycle + 1'd1;
 
@@ -329,16 +322,16 @@ always @(posedge CLK) begin
 			end
 		end
 
-		hborder = hborder + 1;
+		if(~&hborder) hborder <= hborder + 1'd1;
 		old_hs <= hs;
 		if (~old_hs & hs) begin
-			hborder = 0;
+			hborder <= 0;
 			HBLANK <= 1;
 
-			vborder = vborder + 1;
+			if(~&vborder) vborder <= vborder + 1'd1;
 			old_vs <= vs;
 			if(~old_vs & vs) begin
-				vborder = 0;
+				vborder <= 0;
 				VBLANK <= 1;
 			end
 		end
@@ -352,18 +345,6 @@ always @(posedge CLK) begin
 			HBLANK <= 1;
 			if(vborder == END_VBORDER) VBLANK <= 1;
 		end
-
-		case(vmode_fs)
-			2: CE_PIX_FS <= 1;
-			1: CE_PIX_FS <= !cycle[0];
-			0,3: CE_PIX_FS <= !cycle[1:0];
-		endcase
-
-		case(vmode)
-			2: CE_PIX <= 1;
-			1: CE_PIX <= !cycle[0];
-			0,3: CE_PIX <= !cycle[1:0];
-		endcase
 
 		casex({de[crtc_shift],vmode})
 			'b110: rgb <= pen[data[~cycle]];
@@ -382,5 +363,6 @@ assign GREEN[1] = (~rgb[2] & rgb[0]) | rgb[1];
 assign RED[0]   = ~(rgb[1] | rgb[2] | rgb[3] | rgb[4]) | (rgb[3] & rgb[4]);
 assign RED[1]   = (rgb[0] & ~rgb[4]) | rgb[3];
 
+assign MODE = MODE_select;
 
 endmodule

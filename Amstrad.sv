@@ -631,10 +631,10 @@ wire [15:0] cpu_addr;
 wire  [7:0] cpu_dout;
 wire        m1, key_nmi, NMI;
 wire        io_wr, io_rd;
-wire        ce_pix_fs;
 wire        field;
 wire  [9:0] Fn;
 wire        tape_rec;
+wire  [1:0] mode;
 
 Amstrad_motherboard motherboard
 (
@@ -662,7 +662,8 @@ Amstrad_motherboard motherboard
 	.audio_l(audio_l),
 	.audio_r(audio_r),
 
-	.ce_pix_fs(ce_pix_fs),
+	.mode(mode),
+
 	.hblank(hbl),
 	.vblank(vbl),
 	.hsync(hs),
@@ -692,6 +693,31 @@ Amstrad_motherboard motherboard
 );
 
 //////////////////////////////////////////////////////////////////////
+
+reg ce_pix_fs;
+always @(posedge clk_sys) begin
+	reg [1:0] mode_fs;
+	reg [1:0] cycle;
+	reg       old_vsync;
+
+	ce_pix_fs <= 0;
+
+	if (ce_16) begin
+		cycle <= cycle + 1'd1;
+
+		case(mode_fs)
+			2:   ce_pix_fs <= 1;
+			1:   ce_pix_fs <= !cycle[0];
+			0,3: ce_pix_fs <= !cycle[1:0];
+		endcase
+
+		old_vsync <= vs;
+		if(~old_vsync & vs) begin
+			mode_fs <= mode; //HQ2x friendly vmode
+			cycle <= 0;
+		end
+	end
+end
 
 wire ce_pix = hq2x ? ce_pix_fs : ce_16;
 
