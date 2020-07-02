@@ -36,6 +36,51 @@ wire resync = 1;
 reg hs4,shift;
 assign SHIFT = shift ^ hs4;
 
+
+// generate HSync if original is absent for almost whole frame
+reg hsync, no_hsync;
+always @(posedge CLK) begin
+	reg [15:0] dcnt;
+	reg [10:0] hsz, hcnt;
+
+	reg old_vsync, old_hsync;
+	reg no_hsync_next;
+	
+	if(CE_4) begin
+		if(&dcnt) no_hsync_next <= 1; else dcnt <= dcnt + 1'd1;
+		
+		old_hsync <= HSYNC_I;
+		if(~old_hsync & HSYNC_I) begin
+			dcnt <= 0;
+			if(no_hsync && !hsz) begin
+				hsz <= dcnt[10:0];
+				hsync <= 1;
+				hcnt <= 0;
+			end
+		end
+		
+		if(no_hsync && hsz) begin
+			hcnt <= hcnt + 1'd1;
+			if(hcnt == 13) hsync <= 0;
+			if(hcnt == hsz) begin
+				hsync <= 1;
+				hcnt <= 0;
+			end
+		end
+		
+		old_vsync <= VSYNC_I;
+		if(~old_vsync & VSYNC_I) begin
+			no_hsync <= no_hsync_next;
+			no_hsync_next <= 0;
+			hsz <= 0;
+		end
+	end
+
+end
+
+wire hsync_i = no_hsync ? hsync : HSYNC_I;
+
+
 // Generate HSync,VSync for monitor
 // HSync: delayed by 2us for set, immediate reset and limited by 4us.
 // VSync: delayed by 2 lines for set, immediate reset and limited by 2 lines.
@@ -54,22 +99,22 @@ always @(posedge CLK) begin
 	localparam VFLT_SZ = 260;
 
 	if(CE_4) begin
-		old_hsync <= HSYNC_I;
+		old_hsync <= hsync_i;
 
 		if(resync) begin
 			if(~&hSyncCount) hSyncCount = hSyncCount + 1'd1;
-			if(~old_hsync & HSYNC_I) old_vs <= VSYNC_I;
+			if(~old_hsync & hsync_i) old_vs <= VSYNC_I;
 
 			//re-align restored hsync to the first hsync of vsync
-			if((~old_vs & VSYNC_I & ~old_hsync & HSYNC_I) || (hSyncCount >= hSyncSize)) begin
+			if((~old_vs & VSYNC_I & ~old_hsync & hsync_i) || (hSyncCount >= hSyncSize)) begin
 				hSyncCount = 0;
-				if(~old_hsync & HSYNC_I) hSyncReg <= 1;
+				if(~old_hsync & hsync_i) hSyncReg <= 1;
 			end
 			
 			// Calc line size from length of 2 first lines after VSync
 			// 2 lines are needed to neutralize fake interlace video
 			if(~&hSyncCount2x) hSyncCount2x = hSyncCount2x + 1'd1;
-			if(~old_hsync & HSYNC_I) begin
+			if(~old_hsync & hsync_i) begin
 				if(~VSYNC_I & ~&syncs) syncs = syncs + 1'd1;
 				if(VSYNC_I) {syncs,hSyncCount2x} = 0;
 				if(syncs == 2) hSyncSize <= hSyncCount2x[9:1];
@@ -77,13 +122,13 @@ always @(posedge CLK) begin
 		end
 		else begin
 			if(hSyncCount < HFLT_SZ) hSyncCount = hSyncCount + 1'd1;
-			else if(~old_hsync & HSYNC_I) begin
+			else if(~old_hsync & hsync_i) begin
 				hSyncCount = 0;
 				hSyncReg <= 1;
 			end
 		end
 
-		if(old_hsync & ~HSYNC_I & hSyncReg) begin
+		if(old_hsync & ~hsync_i & hSyncReg) begin
 			hSyncReg <= 0;
 			if(hSyncCount > 7*4) hs4 <= 0;
 			if((hSyncCount >= 4*4-1) && (hSyncCount < 6*4-1)) begin
