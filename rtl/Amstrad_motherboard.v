@@ -20,8 +20,6 @@ module Amstrad_motherboard
 	input         reset,
 
 	input         clk,
-	input         ce_4p,
-	input         ce_4n,
 	input         ce_16,
 
 	input   [6:0] joy1,
@@ -33,7 +31,7 @@ module Amstrad_motherboard
 
 	input   [3:0] ppi_jumpers,
 	input         crtc_type,
-	input         resync,
+	input         sync_filter,
 	input         no_wait,
 
 	input         tape_in,
@@ -72,7 +70,9 @@ module Amstrad_motherboard
 	input         nmi
 );
 
-assign vram_addr = {MA[13:12], RA[2:0], MA[9:0]} - crtc_shift;
+wire crtc_shift;
+
+assign vram_addr = {MA[13:12], RA[2:0], MA[9:0]};
 
 assign io_rd = ~(RD_n | IORQ_n);
 assign io_wr = ~(WR_n | IORQ_n);
@@ -84,9 +84,6 @@ assign cpu_dout = D;
 assign cpu_addr = A;
 assign m1 = ~M1_n;
 
-reg [1:0] phase;
-always @(posedge clk) if(ce_4p) phase <= phase + 1'd1;
-
 wire [15:0] A;
 wire  [7:0] D;
 wire RD_n;
@@ -94,7 +91,7 @@ wire WR_n;
 wire MREQ_n;
 wire IORQ_n;
 wire RFSH_n;
-wire INT;
+wire INT_n;
 wire M1_n;
 
 T80pa CPU
@@ -102,8 +99,8 @@ T80pa CPU
 	.reset_n(~reset),
 	
 	.clk(clk),
-	.cen_p(ce_4p),
-	.cen_n(ce_4n),
+	.cen_p(phi_en_p),
+	.cen_n(phi_en_n),
 
 	.a(A),
 	.do(D),
@@ -117,19 +114,20 @@ T80pa CPU
 	.rfsh_n(RFSH_n),
 
 	.busrq_n(1),
-	.int_n(~INT),
+	.int_n(INT_n),
 	.nmi_n(~nmi),
-	.wait_n((phase == 0) | (IORQ_n & MREQ_n) | no_wait)
+	.wait_n(ready | (IORQ_n & MREQ_n) | no_wait) // workaround a bug in T80pa: should wait only in memory or io cycles
 );
 
 wire crtc_hs, crtc_vs, crtc_de;
 wire [13:0] MA;
 wire  [4:0] RA;
 wire  [7:0] crtc_dout;
+
 UM6845R CRTC
 (
 	.CLOCK(clk),
-	.CLKEN((phase == 0) & ce_4p),
+	.CLKEN(cclk_en_n),
 	.nRESET(~reset),
 	.CRTC_TYPE(crtc_type),
 
@@ -149,38 +147,97 @@ UM6845R CRTC
 	.RA(RA)
 );
 
-wire crtc_shift;
-Amstrad_GA GateArray
+reg vram_bs;
+reg [7:0] vram_d;
+reg [7:0] vram_din_shift;
+always @(posedge clk) begin
+	// simulate two 8-bit fetches in the vram cycle
+	reg cas_n_old;
+	cas_n_old <= cas_n;
+	if (!cpu_n) vram_bs <= 0;
+	else begin
+		if (!ras_n & !cas_n_old & cas_n) vram_bs <= 1;
+		if (!ras_n & !cas_n)
+			if (sync_filter & crtc_shift) begin
+				if (vram_bs) vram_din_shift <= crtc_de ? vram_din[15:8] : 8'd0;
+				vram_d <= vram_bs ? vram_din[7:0] : vram_din_shift;
+			end else
+				vram_d <= vram_bs ? vram_din[15:8] : vram_din[7:0];
+	end
+end
+
+wire cclk_en_n, cclk_en_p;
+wire phi_en_n, phi_en_p;
+wire e244_n, cpu_n, ras_n, cas_n;
+wire [7:0] ga_din = e244_n ? vram_d : D;
+wire ready;
+wire rom;
+
+wire hsync_ga, hsync_filtered;
+wire vsync_ga, vsync_filtered;
+
+wire vblank_ga;
+wire hblank_filtered;
+wire vblank_filtered;
+
+assign hsync = sync_filter ? hsync_filtered : hsync_ga;
+assign vsync = sync_filter ? vsync_filtered : vsync_ga;
+assign hblank = sync_filter ? hblank_filtered : crtc_hs;
+assign vblank = sync_filter ? vblank_filtered : vblank_ga;
+
+crt_filter crt_filter
 (
-	.RESET(reset),
-
 	.CLK(clk),
-	.CE_4(ce_4p),
-	.CE_16(ce_16),
+	.CE_4(phi_en_n),
+	.HSYNC_I(crtc_hs),
+	.VSYNC_I(crtc_vs),
+	.HSYNC_O(hsync_filtered),
+	.VSYNC_O(vsync_filtered),
+	.HBLANK(hblank_filtered),
+	.VBLANK(vblank_filtered),
+	.SHIFT(crtc_shift)
+);
 
-	.phase(phase),
-	.resync(resync),
-
-	.INTack(~M1_n & ~IORQ_n),
-	.WE((A[15:14] == 1) & io_wr),
-	.D(D),
-
-	.crtc_shift(crtc_shift),
-	.crtc_vs(crtc_vs),
-	.crtc_hs(crtc_hs),
-	.crtc_de(crtc_de),
-	.vram_D(vram_din),
-
-	.INT(INT),
-
+ga40010 GateArray (
+	.clk(clk),
+	.cen_16(ce_16),
+	.RESET_N(~reset),
+	.A(A[15:14]),
+	.D(ga_din),
+	.MREQ_N(MREQ_n),
+	.M1_N(M1_n),
+	.RD_N(RD_n),
+	.IORQ_N(IORQ_n),
+	.HSYNC_I(crtc_hs),
+	.VSYNC_I(crtc_vs),
+	.DISPEN(crtc_de),
+	.CCLK(),
+	.CCLK_EN_P(cclk_en_p),
+	.CCLK_EN_N(cclk_en_n),
+	.PHI_N(),
+	.PHI_EN_N(phi_en_n),
+	.PHI_EN_P(phi_en_p),
+	.RAS_N(ras_n),
+	.CAS_N(cas_n),
+	.READY(ready),
+	.CASAD_N(),
+	.CPU_N(cpu_n),
+	.MWE_N(),
+	.E244_N(e244_n),
+	.ROM(rom),
+	.RAMRD_N(),
+	.HSYNC_O(hsync_ga),
+	.VSYNC_O(vsync_ga),
+	.VBLANK(vblank_ga),
 	.MODE(mode),
-	.RED(red),
-	.GREEN(green),
-	.BLUE(blue),
-	.VBLANK(vblank),
-	.HBLANK(hblank),
-	.HSYNC(hsync),
-	.VSYNC(vsync)
+	.SYNC_N(),
+	.INT_N(INT_n),
+	.BLUE_OE_N(blue[0]),
+	.BLUE(blue[1]),
+	.GREEN_OE_N(green[0]),
+	.GREEN(green[1]),
+	.RED_OE_N(red[0]),
+	.RED(red[1])
 );
 
 Amstrad_MMU MMU
@@ -188,11 +245,11 @@ Amstrad_MMU MMU
 	.CLK(clk),
 	.reset(reset),
 	.ram64k(ram64k),
+	.romen_n(~rom | mem_wr),
 	.rom_map(rom_map),
 	.A(A),
 	.D(D),
 	.io_WR(io_wr),
-	.mem_WR(mem_wr),
 	.ram_A(mem_addr)
 );
 
@@ -233,7 +290,7 @@ YM2149 PSG
 	.RESET(reset),
 
 	.CLK(clk),
-	.CE((phase == 0) & ce_4n),
+	.CE(cclk_en_p),
 	.SEL(0),
 	.MODE(0),
 

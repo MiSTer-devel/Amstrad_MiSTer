@@ -142,8 +142,8 @@ localparam CONF_STR = {
 	"S0,DSK,Mount A:;",
 	"S1,DSK,Mount B:;",
 	"-;",
-	"F,E??,Load expansion;",
-	"F,CDT,Load tape;",
+	"F3,E??,Load expansion;",
+	"F4,CDT,Load tape;",
 	"OK,Tape sound,Disabled,Enabled;",
 	"-;",
 	"O1,Aspect ratio,4:3,16:9;",
@@ -156,7 +156,7 @@ localparam CONF_STR = {
 	"OJ,Mouse,Enabled,Disabled;",
 	"-;",
 	"OEF,Multiface 2,Enabled,Hidden,Disabled;",
-	"O6,CPU timings,Original,Fast;",
+	//"O6,CPU timings,Original,Fast;",
 	"OGH,FDC,Original,Fast,Disabled;",
 	"-;",
 	"O5,Distributor,Amstrad,Schneider;",
@@ -178,18 +178,14 @@ pll pll
 	.locked(locked)
 );
 
-reg ce_4n;
-reg ce_4p, ce_ref, ce_u765;
+reg ce_ref, ce_u765;
 reg ce_16;
 always @(posedge clk_sys) begin
-	reg [3:0] div = 0;
+	reg [2:0] div = 0;
 
 	div     <= div + 1'd1;
 
-	ce_4n   <= (div == 8);
-	ce_4p   <= !div;
 	ce_ref  <= !div;
-
 	ce_u765 <= !div[2:0]; //8 MHz
 	ce_16   <= !div[1:0]; //16 MHz
 end
@@ -640,17 +636,15 @@ Amstrad_motherboard motherboard
 (
 	.reset(reset),
 	.clk(clk_sys),
-	.ce_4p(ce_4p),
-	.ce_4n(ce_4n),
 	.ce_16(ce_16),
 
 	.ps2_key(ps2_key),
 	.Fn(Fn),
 
-	.no_wait(status[6] & ~tape_motor),
+	//.no_wait(status[6] & ~tape_motor),
 	.ppi_jumpers({2'b11, ~status[5], 1'b1}),
 	.crtc_type(~status[2]),
-	.resync(1),
+	.sync_filter(1),
 
 	.joy1(status[18] ? joy2 : joy1),
 	.joy2(status[18] ? joy1 : joy2),
@@ -697,6 +691,7 @@ Amstrad_motherboard motherboard
 reg ce_pix_fs;
 always @(posedge clk_sys) begin
 	reg [1:0] mode_fs;
+	reg [1:0] mode_next;
 	reg [1:0] cycle;
 	reg       old_vsync;
 
@@ -713,9 +708,13 @@ always @(posedge clk_sys) begin
 
 		old_vsync <= vs;
 		if(~old_vsync & vs) begin
-			mode_fs <= mode; //HQ2x friendly vmode
+			mode_fs <= mode_next; //HQ2x friendly vmode
+			mode_next <= 0;
 			cycle <= 0;
 		end
+
+		// choose highest pixel rate during the wholw active time
+		if (~hbl && ~vbl && ~&mode && mode > mode_next) mode_next <= mode;
 	end
 end
 

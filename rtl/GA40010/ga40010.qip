@@ -1,0 +1,5 @@
+set_global_assignment -name SYSTEMVERILOG_FILE [file join $::quartus(qip_path) ga40010.sv ]
+set_global_assignment -name SYSTEMVERILOG_FILE [file join $::quartus(qip_path) video.sv ]
+set_global_assignment -name VERILOG_FILE [file join $::quartus(qip_path) syncgen_sync.v ]
+set_global_assignment -name VERILOG_FILE [file join $::quartus(qip_path) casgen_sync.v ]
+set_global_assignment -name VERILOG_FILE [file join $::quartus(qip_path) rslatch.v ]

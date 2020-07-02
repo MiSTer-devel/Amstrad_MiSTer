@@ -1,4 +1,5 @@
 set_global_assignment -name QIP_FILE rtl/T80/T80.qip
+set_global_assignment -name QIP_FILE rtl/GA40010/ga40010.qip
 set_global_assignment -name VERILOG_FILE rtl/sdram.v
 set_global_assignment -name SYSTEMVERILOG_FILE rtl/u765.sv
 set_global_assignment -name VHDL_FILE rtl/tzxplayer.vhd
@@ -10,7 +11,7 @@ set_global_assignment -name VERILOG_FILE rtl/multiplay_mouse.v
 set_global_assignment -name VERILOG_FILE rtl/symbiface_mouse.v
 set_global_assignment -name VERILOG_FILE rtl/kempston_mouse.v
 set_global_assignment -name VERILOG_FILE rtl/UM6845R.v
-set_global_assignment -name SYSTEMVERILOG_FILE rtl/Amstrad_GA.sv
+set_global_assignment -name VERILOG_FILE rtl/crt_filter.v
 set_global_assignment -name VERILOG_FILE rtl/Amstrad_MMU.v
 set_global_assignment -name VERILOG_FILE rtl/Amstrad_motherboard.v
 set_global_assignment -name SDC_FILE Amstrad.sdc
