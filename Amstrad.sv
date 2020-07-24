@@ -473,8 +473,6 @@ always @(posedge clk_sys) begin
 	if(~old_wr && io_wr && !fdc_sel[3:1]) begin
 		motor <= cpu_dout[0];
 	end
-	
-	if(img_mounted) motor <= 0;
 end
 
 wire [7:0] u765_dout;
