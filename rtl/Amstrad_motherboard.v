@@ -201,6 +201,7 @@ crt_filter crt_filter
 ga40010 GateArray (
 	.clk(clk),
 	.cen_16(ce_16),
+	.fast(no_wait),
 	.RESET_N(~reset),
 	.A(A[15:14]),
 	.D(ga_din),

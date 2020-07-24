@@ -164,7 +164,7 @@ localparam CONF_STR = {
 	"P2O2,CRTC,Type 1,Type 0;",
 	"P2-;",
 	"P2OEF,Multiface 2,Enabled,Hidden,Disabled;",
-	//"P2O6,CPU timings,Original,Fast;",
+	"P2O6,CPU timings,Original,Fast;",
 	"P2OGH,FDC,Original,Fast,Disabled;",
 	"P2-;",
 	"P2O5,Distributor,Amstrad,Schneider;",
@@ -651,7 +651,7 @@ Amstrad_motherboard motherboard
 	.ps2_key(ps2_key),
 	.Fn(Fn),
 
-	//.no_wait(status[6] & ~tape_motor),
+	.no_wait(status[6] & ~tape_motor),
 	.ppi_jumpers({2'b11, ~status[5], 1'b1}),
 	.crtc_type(~status[2]),
 	.sync_filter(1),

@@ -25,6 +25,7 @@
 module ga40010 (
 	input  clk,
 	input  cen_16,
+	input fast, // CPU won't WAIT
 `ifdef VERILATOR
 	input  clk_16,
 `endif
@@ -174,7 +175,8 @@ reg        lromen;
 reg        mode1;
 reg        mode0;
 
-wire       reg_sel   = S[0] & S[7] & ~IORQ_N & ~A[15] & A[14] & M1_N;
+wire       reg_latch = (S[0] & S[7]) | (fast & ~E244_N);
+wire       reg_sel   = reg_latch & ~IORQ_N & ~A[15] & A[14] & M1_N;
 wire       ink_en    = reg_sel & ~D[7] & ~D[6];
 wire       border_en = reg_sel & ~D[7] &  D[6] &  inksel[4];
 wire       ctrl_en   = reg_sel &  D[7] & ~D[6];
