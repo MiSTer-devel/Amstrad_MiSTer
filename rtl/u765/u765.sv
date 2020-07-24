@@ -485,7 +485,7 @@ always @(posedge clk_sys) begin : fdc
 			end
 
 			6:
-			if (~sd_busy & ~tinfo_wait) begin
+			if (~tinfo_wait) begin
 				i_current_track_sectors[i_current_drive][tinfo_hds] <= tinfo_data;
 				i_rpm_time[i_current_drive][tinfo_hds] <= tinfo_data ? TRACK_TIME/tinfo_data : CYCLES;
 
@@ -538,7 +538,10 @@ always @(posedge clk_sys) begin : fdc
 			2:
 			if (~tinfo_wait) begin
 				i_current_sector <= 0;
-				sector_offset[sector_search_ds0][sector_search_hds] <= {image_track_offsets_in+1'd1,8'd0}; //TrackInfo+256bytes
+				// TrackInfo+256bytes, and another +256 bytes if sectors/track > 29 -
+				// Simon Owen's extension for Puffy's Saga and other Rubi's protected EDSK files
+				sector_offset[sector_search_ds0][sector_search_hds] <=
+					{image_track_offsets_in + ((i_current_track_sectors[sector_search_ds0][sector_search_hds] > 29) ? 2'd2 : 2'd1), 8'd0};
 				tinfo_addr <= {image_track_offsets_in[0], 8'h14}; //sector size
 				tinfo_hds <= sector_search_hds;
 				tinfo_ds0 <= sector_search_ds0;
@@ -1068,7 +1071,7 @@ always @(posedge clk_sys) begin : fdc
 
 			//End of reading/writing sector, what's next?
 			COMMAND_RW_DATA_EXEC8:
-			if (~sd_busy) begin
+			begin
 				dbg_chksum <= chksum;
 				if (~i_rtrack & ~(i_sk & (i_rw_deleted ^ i_sector_st2[6])) &
 					((i_sector_st1[5] & i_sector_st2[5]) | (i_rw_deleted ^ i_sector_st2[6]))) begin
