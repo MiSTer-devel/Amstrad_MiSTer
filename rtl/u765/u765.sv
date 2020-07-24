@@ -208,6 +208,7 @@ reg  [1:0] sd_rd_sector;
 reg  [1:0] sd_wr_sector;
 reg        sd_busy_sector;
 reg [31:0] i_seek_pos;
+reg        i_write_prev;
 
 always @(posedge clk_sys) begin : sdcontrol
 
@@ -239,7 +240,7 @@ always @(posedge clk_sys) begin : sdcontrol
 				sd_buff_type <= UPD765_SD_BUFF_SECTOR;
 				sd_busy_sector <= 1;
 			end else if (sd_wr_sector != 2'b00) begin
-				sd_lba <= i_seek_pos[31:9];
+				sd_lba <= i_seek_pos[31:9] - i_write_prev;
 				sd_wr  <= sd_wr_sector;
 				sd_buff_type <= UPD765_SD_BUFF_SECTOR;
 				sd_busy_sector <= 1;
@@ -1040,6 +1041,7 @@ always @(posedge clk_sys) begin : fdc
 				if (!i_bytes_to_read) begin
 					//end of the current sector
 					if (i_write && buff_addr && i_seek_pos < image_size[ds0]) begin
+					    i_write_prev <= 0;
 						sd_wr_sector[ds0] <= 1;
 					end
 					state <= COMMAND_RW_DATA_EXEC8;
@@ -1101,6 +1103,7 @@ always @(posedge clk_sys) begin : fdc
 					//sector continues on the next LBA
 					//so write out the current before reading the next
 					if (i_seek_pos < image_size[ds0]) begin
+					    i_write_prev <= 1; // seek pos advanced to the next sector, but must write the previous
 						sd_wr_sector[ds0] <= 1;
 					end
 					state <= COMMAND_RW_DATA_EXEC5;
