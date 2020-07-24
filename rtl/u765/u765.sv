@@ -60,7 +60,7 @@ module u765 #(parameter CYCLES = 20'd4000, SPECCY_SPEEDLOCK_HACK = 0)
 /* verilator lint_off WIDTH */
 
 //localparam OVERRUN_TIMEOUT = 26'd35000000;
-localparam OVERRUN_TIMEOUT = CYCLES / 8'd10;
+localparam OVERRUN_TIMEOUT = CYCLES;
 localparam [19:0] TRACK_TIME = CYCLES*8'd200;
 
 localparam UPD765_MAIN_D0B = 0;
