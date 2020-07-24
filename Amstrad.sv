@@ -277,6 +277,10 @@ hps_io #(.STRLEN($size(CONF_STR)>>3), .VDNUM(2)) hps_io
 wire        rom_download = ioctl_download && (ioctl_index[4:0] < 4);
 wire        tape_download = ioctl_download && (ioctl_index == 4);
 
+// A 8MB bank is split to 2 halves
+// Fist 4 MB is OS ROM + RAM pages + MF2 ROM
+// Second 4 MB is max. 256 pages of HI rom
+
 reg         boot_wr = 0;
 reg  [22:0] boot_a;
 reg   [1:0] boot_bank;
@@ -303,16 +307,16 @@ always @(posedge clk_sys) begin
 		end
 		else begin
 			case(ioctl_addr[24:14])
-					0,4: boot_a[22:14] <= 9'h000;
-					1,5: boot_a[22:14] <= 9'h100;
-					2,6: boot_a[22:14] <= 9'h107;
-					3,7: boot_a[22:14] <= 9'h1ff; //MF2
+					0,4: boot_a[22:14] <= 9'h000; //OS
+					1,5: boot_a[22:14] <= 9'h100; //BASIC
+					2,6: boot_a[22:14] <= 9'h107; //AMSDOS
+					3,7: boot_a[22:14] <= 9'h0ff; //MF2
 			  default:    romdl_wait <= 0;
 			endcase
 
 			case(ioctl_addr[24:14])
-			  0,1,2,3: boot_bank <= 0;
-			  4,5,6,7: boot_bank <= 1;
+			  0,1,2,3: boot_bank <= 0; //CPC6128
+			  4,5,6,7: boot_bank <= 1; //CPC664
 			endcase
 		end
 	end
@@ -370,7 +374,7 @@ sdram sdram
 
 	.oe  (reset ? 1'b0      : mem_rd & ~mf2_ram_en),
 	.we  (reset ? boot_wr   : mem_wr & ~mf2_ram_en & ~mf2_rom_en),
-	.addr(reset ? boot_a    : mf2_rom_en ? { 9'h1ff, cpu_addr[13:0] }: ram_a),
+	.addr(reset ? boot_a    : mf2_rom_en ? { 9'h0ff, cpu_addr[13:0] }: ram_a),
 	.bank(reset ? boot_bank : { 1'b0, model } ),
 	.din (reset ? boot_dout : cpu_dout),
 	.dout(ram_dout),
