@@ -151,22 +151,37 @@ typedef enum
 
 
 // sector/trackinfo buffers
-reg    [7:0] buff_data_in, buff_data_out;
-reg    [8:0] buff_addr;
+reg    [7:0] buff_data_in, buff_data_out, tinfo_data;
+reg    [8:0] buff_addr, tinfo_addr;
 reg          buff_wr, buff_wait;
 reg          sd_buff_type;
 reg          hds, ds0;
 
-u765_dpram sbuf
+u765_dpram #(8, 11) tinfo_ram
 (
 	.clock(clk_sys),
 
-	.address_a({ds0, sd_buff_type,hds,sd_buff_addr}),
+	.address_a({ds0, hds,sd_buff_addr}),
 	.data_a(sd_buff_dout),
-	.wren_a(sd_buff_wr & sd_ack),
+	.wren_a(sd_buff_wr & sd_ack & sd_buff_type == UPD765_SD_BUFF_TRACKINFO),
+	.q_a(),
+
+	.address_b({ds0,hds,tinfo_addr}),
+	.data_b(),
+	.wren_b(1'b0),
+	.q_b(tinfo_data)
+);
+
+u765_dpram #(8, 9) sector_ram
+(
+	.clock(clk_sys),
+
+	.address_a(sd_buff_addr),
+	.data_a(sd_buff_dout),
+	.wren_a(sd_buff_wr & sd_ack & sd_buff_type == UPD765_SD_BUFF_SECTOR),
 	.q_a(sd_buff_din),
 
-	.address_b({ds0, sd_buff_type,hds,buff_addr}),
+	.address_b(buff_addr),
 	.data_b(buff_data_out),
 	.wren_b(buff_wr),
 	.q_b(buff_data_in)
@@ -611,24 +626,24 @@ always @(posedge clk_sys) begin : fdc
 			COMMAND_READ_ID_WAIT_SECTOR:
 			if (~sd_busy & ~buff_wait & (!i_rpm_timer[ds0][hds] | fast)) begin
 				sd_buff_type <= UPD765_SD_BUFF_TRACKINFO;
-				buff_addr <= { image_track_offsets_in[0], 8'h18 + (i_current_sector_pos[ds0][hds] << 3) }; //get the current sectorInfo
+								tinfo_addr <= { image_track_offsets_in[0], 8'h18 + (i_current_sector_pos[ds0][hds] << 3) }; //get the current sectorInfo
 				buff_wait <= 1;
 				state <= COMMAND_READ_ID_EXEC2;
 			end
 
 			COMMAND_READ_ID_EXEC2:
 			if (~buff_wait) begin
-				if (buff_addr[2:0] == 8'h00) i_sector_c <= buff_data_in;
-				else if (buff_addr[2:0] == 8'h01) i_sector_h <= buff_data_in;
-				else if (buff_addr[2:0] == 8'h02) i_sector_r <= buff_data_in;
-				else if (buff_addr[2:0] == 8'h03) begin
-					i_sector_n <= buff_data_in;
+				if (tinfo_addr[2:0] == 8'h00) i_sector_c <= tinfo_data;
+				else if (tinfo_addr[2:0] == 8'h01) i_sector_h <= tinfo_data;
+				else if (tinfo_addr[2:0] == 8'h02) i_sector_r <= tinfo_data;
+				else if (tinfo_addr[2:0] == 8'h03) begin
+					i_sector_n <= tinfo_data;
 					status[0] <= 0;
 					status[1] <= 0;
 					status[2] <= 0;
 					state <= COMMAND_READ_RESULTS;
 				end
-				buff_addr <= buff_addr + 1'd1;
+				tinfo_addr <= tinfo_addr + 1'd1;
 				buff_wait <= 1;
 			end
 
@@ -702,7 +717,7 @@ always @(posedge clk_sys) begin : fdc
 				i_scanning <= 0;
 				sd_buff_type <= UPD765_SD_BUFF_TRACKINFO;
 				i_seek_pos <= {image_track_offsets_in+1'd1,8'd0}; //TrackInfo+256bytes
-				buff_addr <= {image_track_offsets_in[0], 8'h14}; //sector size
+				tinfo_addr <= {image_track_offsets_in[0], 8'h14}; //sector size
 				buff_wait <= 1;
 				state <= COMMAND_RW_DATA_EXEC3;
 			end
@@ -710,9 +725,9 @@ always @(posedge clk_sys) begin : fdc
 			//process trackInfo + sectorInfo
 			COMMAND_RW_DATA_EXEC3:
 			if (~sd_busy & ~buff_wait) begin
-				if (buff_addr[7:0] == 8'h14) begin
-					if (!image_edsk[ds0]) i_sector_size <= 8'h80 << buff_data_in[2:0];
-					buff_addr[7:0] <= 8'h18; //sector info list
+				if (tinfo_addr[7:0] == 8'h14) begin
+					if (!image_edsk[ds0]) i_sector_size <= 8'h80 << tinfo_data[2:0];
+					tinfo_addr[7:0] <= 8'h18; //sector info list
 					buff_wait <= 1;
 				end else if (i_current_sector_pos[ds0][hds] == i_current_sector - 1'd1 && i_scanning) begin
 					m_status[UPD765_MAIN_EXM] <= 0;
@@ -723,22 +738,22 @@ always @(posedge clk_sys) begin : fdc
 					state <= COMMAND_READ_RESULTS;
 				end else begin
 					//process sector info list
-					case (buff_addr[2:0])
-						0: i_sector_c <= buff_data_in;
-						1: i_sector_h <= buff_data_in;
-						2: i_sector_r <= buff_data_in;
-						3: i_sector_n <= buff_data_in;
-						4: i_sector_st1 <= buff_data_in;
-						5: i_sector_st2 <= buff_data_in;
-						6: if (image_edsk[ds0]) i_sector_size[7:0] <= buff_data_in;
+					case (tinfo_addr[2:0])
+						0: i_sector_c <= tinfo_data;
+						1: i_sector_h <= tinfo_data;
+						2: i_sector_r <= tinfo_data;
+						3: i_sector_n <= tinfo_data;
+						4: i_sector_st1 <= tinfo_data;
+						5: i_sector_st2 <= tinfo_data;
+						6: if (image_edsk[ds0]) i_sector_size[7:0] <= tinfo_data;
 						7: begin
 								// start scanning of the sector IDs from the sector at the current head position
 								if (i_current_sector_pos[ds0][hds] == i_current_sector - 1'd1) i_scanning <= 1;
-								if (image_edsk[ds0]) i_sector_size[15:8] <= buff_data_in;
+								if (image_edsk[ds0]) i_sector_size[15:8] <= tinfo_data;
 								state <= COMMAND_RW_DATA_EXEC4;
 							end
 					endcase
-					buff_addr <= buff_addr + 1'd1;
+					tinfo_addr <= tinfo_addr + 1'd1;
 					buff_wait <= 1;
 				end
 			end
@@ -763,7 +778,7 @@ always @(posedge clk_sys) begin : fdc
 				if (i_current_sector == i_total_sectors) begin
 					i_current_sector <= 1;
 					i_seek_pos <= {image_track_offsets_in+1'd1,8'd0}; //TrackInfo+256bytes
-					buff_addr[7:0] <= 8'h18; //sector info list
+					tinfo_addr[7:0] <= 8'h18; //sector info list
 					buff_wait <= 1;
 				end else begin
 					i_current_sector <= i_current_sector + 1'd1;
@@ -1149,18 +1164,18 @@ always @(posedge clk_sys) begin : fdc
 
 			COMMAND_RELOAD_TRACKINFO2:
 			if (~sd_busy) begin
-				buff_addr <= {image_track_offsets_in[0], 8'h15}; //number of sectors
+				tinfo_addr <= {image_track_offsets_in[0], 8'h15}; //number of sectors
 				buff_wait <= 1;
 				state <= COMMAND_RELOAD_TRACKINFO3;
 			end
 
 			COMMAND_RELOAD_TRACKINFO3:
 			if (~sd_busy & ~buff_wait) begin
-				i_current_track_sectors[ds0][hds] <= buff_data_in;
+				i_current_track_sectors[ds0][hds] <= tinfo_data;
 				i_rpm_time[ds0][hds] <= buff_data_in ? TRACK_TIME/buff_data_in : CYCLES;
 
 				//assume the head position is at the start of a track after a seek
-				if (i_current_sector_pos[ds0][hds] >= buff_data_in)
+				if (i_current_sector_pos[ds0][hds] >= tinfo_data)
 					i_current_sector_pos[ds0][hds] <= 0;
 
 				if (hds == image_sides[ds0]) begin
