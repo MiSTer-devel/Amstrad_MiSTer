@@ -35,6 +35,7 @@ module UM6845R
 	output reg       HSYNC,
 	output           DE,
 	output           FIELD,
+	output           CURSOR,
 
 	output    [13:0] MA,
 	output     [4:0] RA
@@ -235,4 +236,21 @@ wire [3:0] de = {1'b0, dde[1:0], hde & vde & |R6_v_displayed};
 reg  [1:0] dde;
 always @(posedge CLOCK) if (CLKEN) dde <= {dde[0],de[0]};
 
+// Cursor control
+reg cursor_line;
+assign CURSOR = hde & vde & MA == {R14_cursor_h, R15_cursor_l} & cursor_line;
+
+always @(posedge CLOCK) begin
+
+	if(~nRESET) begin
+		cursor_line <= 0;
+	end
+	else if (CLKEN) begin
+		if (line == R10_cursor_start)
+			cursor_line <= 1;
+		else if (line == R11_cursor_end)
+			cursor_line <= 0;
+		end
+	end
+	
 endmodule
