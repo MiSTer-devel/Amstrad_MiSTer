@@ -579,7 +579,7 @@ always @(posedge clk_sys) begin
 	end
 
 	if (~old_io_wr & io_wr & cpu_addr[15:2] == 14'b11111110111010) begin //fee8/feea
-		mf2_en <= ~cpu_addr[1] & ~mf2_hidden;
+		mf2_en <= ~cpu_addr[1] & ~mf2_hidden & ~status[15];
 	end else if (~old_io_wr & io_wr & |mf2_store_addr[12:0]) begin //store hw register in MF2 RAM
 		if (cpu_addr[15:8] == 8'h7f & cpu_dout[7:6] == 2'b00) mf2_pen_index <= cpu_dout[4:0];
 		if (cpu_addr[15:8] == 8'hbc) mf2_crtc_register <= cpu_dout[3:0];
