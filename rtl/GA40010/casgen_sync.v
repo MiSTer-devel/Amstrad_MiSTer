@@ -1,7 +1,7 @@
 // ====================================================================
 //
 //  Amstrad CPC Gate Array
-//  Based on 40010-simplified_V03.pdf by Gerard
+//  Based on 40010-simplified_V03.pdf by Gerald
 //
 //  Copyright (C) 2020 Gyorgy Szombathelyi <gyurco@freemail.hu>
 //
