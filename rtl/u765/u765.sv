@@ -807,7 +807,7 @@ always @(posedge clk_sys) begin : fdc
 					status[1] <= 8'b101;
 					status[2] <= 0;
 					state <= COMMAND_READ_RESULTS;
-				end else if (i_rpm_timer[ds0][hds] < (i_rpm_time[ds0][hds] >> 2) && i_secinfo_valid[ds0][hds]) begin
+				end else if (i_rpm_timer[ds0][hds] < (i_rpm_time[ds0][hds] >> 4) && i_secinfo_valid[ds0][hds]) begin
 					// should wait for the ID field on the disc
 					i_sector_c <= sector_c[ds0][hds];
 					i_sector_h <= sector_h[ds0][hds];
