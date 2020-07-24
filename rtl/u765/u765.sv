@@ -553,6 +553,15 @@ always @(posedge clk_sys) begin : fdc
 					if (!image_edsk[sector_search_ds0]) sector_length[sector_search_hds][sector_search_ds0] <= 8'h80 << tinfo_data[2:0];
 					tinfo_addr[7:0] <= 8'h18; //sector info list
 					tinfo_wait <= 1;
+				end else if (i_current_sector == 8'h1D && ~tinfo_addr[0]) begin
+					// hack: synthesize an entry for the 30th sector, since EDSK format doesn't have place for it,
+					// and its sectorinfo slips into the next data block.
+					sector_r[sector_search_ds0][sector_search_hds] <= sector_r[sector_search_ds0][sector_search_hds] + 1'd1;
+					sector_n[sector_search_ds0][sector_search_hds] <= 8'h02; // Le Maraudeur
+					sector_length[sector_search_ds0][sector_search_hds] <= 16'h200;
+					sector_st1[sector_search_ds0][sector_search_hds] <= 0;
+					sector_st2[sector_search_ds0][sector_search_hds] <= 0;
+					sector_search_state <= 4;
 				end else begin
 					//process sector info list
 					case (tinfo_addr[2:0])
