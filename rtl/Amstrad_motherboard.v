@@ -24,6 +24,9 @@ module Amstrad_motherboard
 
 	input   [6:0] joy1,
 	input   [6:0] joy2,
+	input         key_extended,
+	input         right_shift_mod,
+	input         keypad_mod,
 	input  [10:0] ps2_key,
 	input  [24:0] ps2_mouse,
 	output        key_nmi,
@@ -313,6 +316,10 @@ hid HID
 (
 	.reset(reset),
 	.clk(clk),
+	
+	.key_extended(key_extended),
+	.right_shift_mod(right_shift_mod),
+	.keypad_mod(keypad_mod),
 
 	.ps2_key(ps2_key),
 	.ps2_mouse(ps2_mouse),

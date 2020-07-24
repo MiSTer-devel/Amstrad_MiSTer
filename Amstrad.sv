@@ -149,6 +149,8 @@ localparam CONF_STR = {
 	"-;",
 	"OI,Joysticks swap,No,Yes;",
 	"OJ,Mouse,Enabled,Disabled;",
+	"OM,Right Shift,Backslash,Shift;",
+	"ON,Keypad,Numbers,Symbols;",
 	"-;",
 	
 	"P1,Audio & Video;",
@@ -180,6 +182,8 @@ localparam CONF_STR = {
 
 wire clk_sys;
 wire locked;
+wire st_right_shift_mod = status[22];
+wire st_keypad_mod = status[23];
 
 pll pll
 (
@@ -647,6 +651,9 @@ Amstrad_motherboard motherboard
 	.clk(clk_sys),
 	.ce_16(ce_16),
 
+    .key_extended(key_extended),
+	.right_shift_mod(st_right_shift_mod),
+	.keypad_mod(st_keypad_mod),
 	.ps2_key(ps2_key),
 	.Fn(Fn),
 
