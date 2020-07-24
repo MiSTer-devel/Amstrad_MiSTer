@@ -47,7 +47,7 @@ module u765 #(parameter CYCLES = 20'd4000, SPECCY_SPEEDLOCK_HACK = 0)
 	input      [1:0] img_mounted, // signaling that new image has been mounted
 	input            img_wp,      // write protect. latched at img_mounted
 	input     [31:0] img_size,    // size of image in bytes
-	output    [31:0] sd_lba,
+	output reg[31:0] sd_lba,
 	output reg [1:0] sd_rd,
 	output reg [1:0] sd_wr,
 	input            sd_ack,
@@ -56,6 +56,8 @@ module u765 #(parameter CYCLES = 20'd4000, SPECCY_SPEEDLOCK_HACK = 0)
 	output     [7:0] sd_buff_din,
 	input            sd_buff_wr
 );
+
+/* verilator lint_off WIDTH */
 
 //localparam OVERRUN_TIMEOUT = 26'd35000000;
 localparam OVERRUN_TIMEOUT = CYCLES / 8'd10;
@@ -85,7 +87,7 @@ typedef enum
  COMMAND_READ_DELETED_DATA,
  COMMAND_READ_DATA,
 
- COMMAND_RW_DATA_EXEC,
+ COMMAND_RW_DATA_EXEC, // 6
  COMMAND_RW_DATA_EXEC1,
  COMMAND_RW_DATA_EXEC2,
  COMMAND_RW_DATA_EXEC3,
@@ -97,14 +99,14 @@ typedef enum
  COMMAND_RW_DATA_EXEC7,
  COMMAND_RW_DATA_EXEC8,
 
- COMMAND_READ_ID,
+ COMMAND_READ_ID, // 17
  COMMAND_READ_ID1,
  COMMAND_READ_ID2,
  COMMAND_READ_ID_EXEC1,
  COMMAND_READ_ID_WAIT_SECTOR,
  COMMAND_READ_ID_EXEC2,
 
- COMMAND_FORMAT_TRACK,
+ COMMAND_FORMAT_TRACK, // 23
  COMMAND_FORMAT_TRACK1,
  COMMAND_FORMAT_TRACK2,
  COMMAND_FORMAT_TRACK3,
@@ -114,33 +116,33 @@ typedef enum
  COMMAND_FORMAT_TRACK7,
  COMMAND_FORMAT_TRACK8,
 
- COMMAND_SCAN_EQUAL,
+ COMMAND_SCAN_EQUAL, // 32
  COMMAND_SCAN_LOW_OR_EQUAL,
  COMMAND_SCAN_HIGH_OR_EQUAL,
 
- COMMAND_RECALIBRATE,
+ COMMAND_RECALIBRATE, // 35
 
- COMMAND_SENSE_INTERRUPT_STATUS,
+ COMMAND_SENSE_INTERRUPT_STATUS, // 36
  COMMAND_SENSE_INTERRUPT_STATUS1,
  COMMAND_SENSE_INTERRUPT_STATUS2,
 
- COMMAND_SPECIFY,
+ COMMAND_SPECIFY, // 39
  COMMAND_SPECIFY_WR,
 
- COMMAND_SENSE_DRIVE_STATUS,
+ COMMAND_SENSE_DRIVE_STATUS, // 41
  COMMAND_SENSE_DRIVE_STATUS_RD,
 
- COMMAND_SEEK,
+ COMMAND_SEEK, // 43
  COMMAND_SEEK_EXEC1,
 
- COMMAND_SETUP,
+ COMMAND_SETUP, // 45
 
- COMMAND_READ_RESULTS,
+ COMMAND_READ_RESULTS, // 46
 
- COMMAND_INVALID,
+ COMMAND_INVALID, // 47
  COMMAND_INVALID1,
 
- COMMAND_RELOAD_TRACKINFO,
+ COMMAND_RELOAD_TRACKINFO, // 49
  COMMAND_RELOAD_TRACKINFO1,
  COMMAND_RELOAD_TRACKINFO2,
  COMMAND_RELOAD_TRACKINFO3
@@ -190,29 +192,29 @@ end
 
 wire       rd = nWR & ~nRD;
 wire       wr = ~nWR & nRD;
-wire [7:0] i_total_sectors;
+reg  [7:0] i_total_sectors;
 
 reg  [7:0] m_status;  //main status register
 reg  [7:0] m_data;    //data register
 
 assign dout = a0 ? m_data : m_status;
 
-always @(posedge clk_sys) begin
+always @(posedge clk_sys) begin : fdc
 
    //prefix internal CE protected registers with i_, so it's easier to write constraints
 
 	//per-drive data
 	reg[31:0] image_size[2];
-	reg       image_ready[2] = '{ 0, 0 };
+	reg       image_ready[2];
 	reg [7:0] image_tracks[2];
 	reg       image_sides[2]; //1 side - 0, 2 sides - 1
 	reg [1:0] image_wp;
 	reg       image_trackinfo_dirty[2];
 	reg       image_edsk[2]; //DSK - 0, EDSK - 1
-	reg [1:0] image_scan_state[2] = '{ 0, 0 };
+	reg [1:0] image_scan_state[2];
 	reg [7:0] i_current_track_sectors[2][2];  //number of sectors on the current track /head/drive
 	reg [7:0] i_current_sector_pos[2][2]; //sector where the head currently positioned
-	reg[19:0] i_rpm_time[2][2] = '{'{CYCLES,CYCLES}, '{CYCLES,CYCLES}};
+	reg[19:0] i_rpm_time[2][2];
 	reg[19:0] i_steptimer[2], i_rpm_timer[2][2];
 	reg [3:0] i_step_state[2]; //counting cycles for steptimer
 
@@ -240,9 +242,9 @@ always @(posedge clk_sys) begin
 	reg [19:0] i_timeout;
 	reg [7:0] i_head_timer;
 	reg i_rtrack, i_write, i_rw_deleted;
-	reg [7:0] status[4] = '{0, 0, 0, 0}; //st0-3
+	reg [7:0] status[4]; //st0-3
 	state_t state, i_command;
-   reg i_current_drive, i_scan_lock = 0;
+    reg i_current_drive, i_scan_lock;
 	reg [3:0] i_srt; //stepping rate
 //	reg [3:0] i_hut; //head unload time
 //	reg [6:0] i_hlt; //head load time
@@ -268,10 +270,10 @@ always @(posedge clk_sys) begin
 	//new image mounted
 	for(int i=0;i<2;i++) begin 
 		old_mounted[i] <= img_mounted[i];
-		if(old_mounted[i] & ~img_mounted[i]) begin
+		if(~old_mounted[i] & img_mounted[i]) begin
 			image_wp[i] <= img_wp;
 			image_size[i] <= img_size;
-			image_scan_state[i] <= |img_size; //hacky
+			image_scan_state[i] <= {1'b0, |img_size}; //hacky
 			image_ready[i] <= 0;
 			int_state[i] <= 0;
 			seek_state[i] <= 0;
@@ -412,7 +414,8 @@ always @(posedge clk_sys) begin
 			for (int i=0; i<2 ;i++) begin
 				if (i_rpm_timer[i_current_drive][i] >= i_rpm_time[i_current_drive][i]) begin
 					i_current_sector_pos[i_current_drive][i] <=
-					i_current_sector_pos[i_current_drive][i] == i_current_track_sectors[i_current_drive][i] - 1'd1 ?
+					((i_current_sector_pos[i_current_drive][i] == i_current_track_sectors[i_current_drive][i] - 1'd1) ||
+					 (i_current_track_sectors[i_current_drive][i] == 0)) ?
 						8'd0 : i_current_sector_pos[i_current_drive][i] + 1'd1;
 					i_rpm_timer[i_current_drive][i] <= 0;
 				end else begin
@@ -437,17 +440,17 @@ always @(posedge clk_sys) begin
 					i_sk <= din[5];
 
 					i_substate <= 0;
-					casex (din[7:0])
-						8'bXXX_00110: state <= COMMAND_READ_DATA;
-						8'bXXX_01100: state <= COMMAND_READ_DELETED_DATA;
-						8'bXX0_00101: state <= COMMAND_WRITE_DATA;
-						8'bXX0_01001: state <= COMMAND_WRITE_DELETED_DATA;
-						8'b0XX_00010: state <= COMMAND_READ_TRACK;
-						8'b0X0_01010: state <= COMMAND_READ_ID;
-						8'b0X0_01101: state <= COMMAND_FORMAT_TRACK;
-						8'bXXX_10001: state <= COMMAND_SCAN_EQUAL;
-						8'bXXX_11001: state <= COMMAND_SCAN_LOW_OR_EQUAL;
-						8'bXXX_11101: state <= COMMAND_SCAN_HIGH_OR_EQUAL;
+					casez (din[7:0])
+						8'b???_00110: state <= COMMAND_READ_DATA;
+						8'b???_01100: state <= COMMAND_READ_DELETED_DATA;
+						8'b??0_00101: state <= COMMAND_WRITE_DATA;
+						8'b??0_01001: state <= COMMAND_WRITE_DELETED_DATA;
+						8'b0??_00010: state <= COMMAND_READ_TRACK;
+						8'b0?0_01010: state <= COMMAND_READ_ID;
+						8'b0?0_01101: state <= COMMAND_FORMAT_TRACK;
+						8'b???_10001: state <= COMMAND_SCAN_EQUAL;
+						8'b???_11001: state <= COMMAND_SCAN_LOW_OR_EQUAL;
+						8'b???_11101: state <= COMMAND_SCAN_HIGH_OR_EQUAL;
 						8'b000_00111: state <= COMMAND_RECALIBRATE;
 						8'b000_01000: state <= COMMAND_SENSE_INTERRUPT_STATUS;
 						8'b000_00011: state <= COMMAND_SPECIFY;
