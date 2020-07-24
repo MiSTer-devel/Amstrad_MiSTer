@@ -197,6 +197,56 @@ always @(posedge clk_sys) begin
 	end
 end
 
+//// SD Card control
+
+reg  [5:0] ack;
+reg  [1:0] sd_rd_mount;
+reg        sd_busy_mount;
+reg  [1:0] sd_rd_tinfo;
+reg        sd_busy_tinfo;
+reg  [1:0] sd_rd_sector;
+reg  [1:0] sd_wr_sector;
+reg        sd_busy_sector;
+reg [31:0] i_seek_pos;
+
+always @(posedge clk_sys) begin : sdcontrol
+
+		ack <= {ack[4:0], sd_ack};
+		if(ack[5:4] == 'b01)	begin
+			sd_rd <= 0;
+			sd_wr <= 0;
+		end
+		if(ack[5:4] == 'b10) begin
+			sd_busy_mount <= 0;
+			sd_busy_tinfo <= 0;
+			sd_busy_sector <= 0;
+		end
+
+		if (!sd_busy_mount & !sd_busy_tinfo & !sd_busy_sector) begin
+			if (sd_rd_mount != 2'b00) begin
+				sd_lba <= 0;
+				sd_rd  <= sd_rd_mount;
+				sd_buff_type <= UPD765_SD_BUFF_SECTOR;
+				sd_busy_mount <= 1;
+			end else if (sd_rd_tinfo != 2'b00) begin
+				sd_lba <= image_track_offsets_in[15:1];
+				sd_rd  <= sd_rd_tinfo;
+				sd_buff_type <= UPD765_SD_BUFF_TRACKINFO;
+				sd_busy_tinfo <= 1;
+			end else if (sd_rd_sector != 2'b00) begin
+				sd_lba <= i_seek_pos[31:9];
+				sd_rd  <= sd_rd_sector;
+				sd_buff_type <= UPD765_SD_BUFF_SECTOR;
+				sd_busy_sector <= 1;
+			end else if (sd_wr_sector != 2'b00) begin
+				sd_lba <= i_seek_pos[31:9];
+				sd_wr  <= sd_wr_sector;
+				sd_buff_type <= UPD765_SD_BUFF_SECTOR;
+				sd_busy_sector <= 1;
+			end
+		end
+end
+
 ////
 
 wire       rd = nWR & ~nRD;
@@ -251,7 +301,6 @@ always @(posedge clk_sys) begin : fdc
 
 	reg old_wr, old_rd;
 	reg [7:0] i_track_size;
-	reg [31:0] i_seek_pos;
 	reg [7:0] i_sector_c, i_sector_h, i_sector_r, i_sector_n;
 	reg [7:0] i_sector_st1, i_sector_st2;
 	reg [15:0] i_sector_size;
@@ -263,8 +312,6 @@ always @(posedge clk_sys) begin : fdc
 	reg [2:0] i_substate;
 	reg [1:0] old_mounted;
 	reg [15:0] i_track_offset;
-	reg [5:0] ack;
-	reg sd_busy;
 	reg [19:0] i_timeout;
 	reg [7:0] i_head_timer;
 	reg i_rtrack, i_write, i_rw_deleted;
@@ -318,12 +365,9 @@ always @(posedge clk_sys) begin : fdc
 		case (image_scan_state[i_current_drive])
 			0: ;//no new image
 			1: //read the first 512 byte
-				if (~sd_busy & ~i_scan_lock & state == COMMAND_IDLE) begin
-					sd_buff_type <= UPD765_SD_BUFF_SECTOR;
+				if (!sd_busy_mount & !i_scan_lock & state == COMMAND_IDLE) begin
 					i_scan_lock <= 1;
-					sd_rd[i_current_drive] <= 1;
-					sd_lba <= 0;
-					sd_busy <= 1;
+					sd_rd_mount[i_current_drive] <= 1;
 					i_track_offset<= 16'h1; //offset 100h
 					image_track_offsets_addr <= {i_current_drive, 9'd0};
 					buff_addr <= 0;
@@ -331,7 +375,8 @@ always @(posedge clk_sys) begin : fdc
 					image_scan_state[i_current_drive] <= 2;
 				end
 			2: //process the header
-				if (~sd_busy & ~buff_wait) begin
+			if (!sd_busy_mount & sd_rd_mount == 2'b00) begin
+				if (!buff_wait) begin
 					if (buff_addr == 0) begin
 						if (buff_data_in == "E")
 							image_edsk[i_current_drive] <= 1;
@@ -366,6 +411,9 @@ always @(posedge clk_sys) begin : fdc
 					buff_addr <= buff_addr + 1'd1;
 					buff_wait <= 1;
 				end
+			end else begin
+				sd_rd_mount <= 0;
+			end
 			3: begin
 					image_track_offsets_wr <= 0;
 					image_track_offsets_addr <= image_track_offsets_addr + { ~image_sides[i_current_drive], image_sides[i_current_drive] };
@@ -376,6 +424,10 @@ always @(posedge clk_sys) begin : fdc
 
 	//the FDC
 	if (reset) begin
+		sd_rd_mount <= 0;
+		sd_rd_tinfo <= 0;
+		sd_rd_sector <= 0;
+		sd_wr_sector <= 0;
 		m_status <= 8'h80;
 		state <= COMMAND_IDLE;
 		status[0] <= 0;
@@ -388,9 +440,6 @@ always @(posedge clk_sys) begin : fdc
 		i_seek_start <= '{ 0, 0 };
 		image_trackinfo_dirty <= '{ 1, 1 };
 		i_secinfo_valid <= '{ '{ 0, 0}, '{ 0, 0} };
-		{ ack, sd_busy } <= 0;
-		sd_rd <= 0;
-		sd_wr <= 0;
 		image_track_offsets_wr <= 0;
 		//restart "mounting" of image(s)
 		if (image_scan_state[0]) image_scan_state[0] <= 1;
@@ -399,13 +448,6 @@ always @(posedge clk_sys) begin : fdc
 		i_srt <= 4;
 		tinfo_lock <= 0;
 	end else if (ce) begin
-
-		ack <= {ack[4:0], sd_ack};
-		if(ack[5:4] == 'b01)	begin
-			sd_rd <= 0;
-			sd_wr <= 0;
-		end
-		if(ack[5:4] == 'b10) sd_busy <= 0;
 
 		old_wr <= wr;
 		old_rd <= rd;
@@ -461,12 +503,9 @@ always @(posedge clk_sys) begin : fdc
 			end
 
 			4:
-			if (~tinfo_wait & ~sd_busy) begin
+			if (!sd_busy_tinfo & !tinfo_wait) begin
 				if (image_ready[i_current_drive] && image_track_offsets_in) begin
-					sd_buff_type <= UPD765_SD_BUFF_TRACKINFO;
-					sd_rd[i_current_drive] <= 1;
-					sd_lba <= image_track_offsets_in[15:1];
-					sd_busy <= 1;
+					sd_rd_tinfo[i_current_drive] <= 1;
 					seek_state[i_current_drive] <= 5;
 				end else begin
 					$display("reload trackinfo: empty track");
@@ -478,14 +517,16 @@ always @(posedge clk_sys) begin : fdc
 			end
 
 			5:
-			if (~sd_busy) begin
+			if (!sd_busy_tinfo & sd_rd_tinfo == 2'b00) begin
 				tinfo_addr <= {image_track_offsets_in[0], 8'h15}; //number of sectors
 				tinfo_wait <= 1;
 				seek_state[i_current_drive] <= 6;
+			end else begin
+				sd_rd_tinfo <= 0;
 			end
 
 			6:
-			if (~tinfo_wait) begin
+			if (!tinfo_wait) begin
 				i_current_track_sectors[i_current_drive][tinfo_hds] <= tinfo_data;
 				i_rpm_time[i_current_drive][tinfo_hds] <= tinfo_data ? TRACK_TIME/tinfo_data : CYCLES;
 
@@ -983,25 +1024,23 @@ always @(posedge clk_sys) begin : fdc
 
 			//Read the LBA for the sector into the RAM
 			COMMAND_RW_DATA_EXEC5:
-			if (~sd_busy) begin
-				sd_buff_type <= UPD765_SD_BUFF_SECTOR;
-				sd_rd[ds0] <= 1;
-				sd_lba <= i_seek_pos[31:9];
-				sd_busy <= 1;
+			if (!sd_busy_sector & sd_rd_sector == 2'b00 & sd_wr_sector == 2'b00) begin
+				sd_rd_sector[ds0] <= 1;
 				buff_addr <= i_seek_pos[8:0];
 				buff_wait <= 1;
 				state <= COMMAND_RW_DATA_EXEC6;
+			end else begin
+				sd_rd_sector <= 0;
+				sd_wr_sector <= 0;
 			end
 
 			//Read from/write to Speccy
 			COMMAND_RW_DATA_EXEC6:
-			if (~sd_busy & ~buff_wait) begin
+			if (!sd_busy_sector & sd_rd_sector == 2'b00 & sd_wr_sector == 2'b00) begin
 				if (!i_bytes_to_read) begin
 					//end of the current sector
 					if (i_write && buff_addr && i_seek_pos < image_size[ds0]) begin
-						sd_lba <= i_seek_pos[31:9];
-						sd_wr[ds0] <= 1;
-						sd_busy <= 1;
+						sd_wr_sector[ds0] <= 1;
 					end
 					state <= COMMAND_RW_DATA_EXEC8;
 				end else if (!i_timeout) begin
@@ -1012,7 +1051,7 @@ always @(posedge clk_sys) begin : fdc
 					state <= COMMAND_READ_RESULTS;
 				end else if (~m_status[UPD765_MAIN_RQM]) begin
 					m_status[UPD765_MAIN_RQM] <= 1;
-				end else if (~i_write & ~old_rd & rd & a0) begin
+				end else if (~i_write & ~old_rd & rd & a0 & ~buff_wait) begin
 					if (&buff_addr) begin
 						//sector continues on the next LBA
 						state <= COMMAND_RW_DATA_EXEC5;
@@ -1043,6 +1082,9 @@ always @(posedge clk_sys) begin : fdc
 				end else begin
 					i_timeout <= i_timeout - 1'd1;
 				end
+			end else begin
+				sd_rd_sector <= 0;
+				sd_wr_sector <= 0;
 			end
 
 			COMMAND_RW_DATA_EXEC7:
@@ -1059,9 +1101,7 @@ always @(posedge clk_sys) begin : fdc
 					//sector continues on the next LBA
 					//so write out the current before reading the next
 					if (i_seek_pos < image_size[ds0]) begin
-						sd_lba <= i_seek_pos[31:9];
-						sd_wr[ds0] <= 1;
-						sd_busy <= 1;
+						sd_wr_sector[ds0] <= 1;
 					end
 					state <= COMMAND_RW_DATA_EXEC5;
 				end else begin
@@ -1071,7 +1111,7 @@ always @(posedge clk_sys) begin : fdc
 
 			//End of reading/writing sector, what's next?
 			COMMAND_RW_DATA_EXEC8:
-			begin
+			if (!sd_busy_sector & sd_rd_sector == 2'b00 & sd_wr_sector == 2'b00) begin
 				dbg_chksum <= chksum;
 				if (~i_rtrack & ~(i_sk & (i_rw_deleted ^ i_sector_st2[6])) &
 					((i_sector_st1[5] & i_sector_st2[5]) | (i_rw_deleted ^ i_sector_st2[6]))) begin
@@ -1097,6 +1137,9 @@ always @(posedge clk_sys) begin : fdc
 					if (~i_mt | hds | ~image_sides[ds0]) i_r <= i_r + 1'd1;
 					state <= COMMAND_RW_DATA_EXEC2;
 				end
+			end else begin
+				sd_rd_sector <= 0;
+				sd_wr_sector <= 0;
 			end
 
 			COMMAND_FORMAT_TRACK:
