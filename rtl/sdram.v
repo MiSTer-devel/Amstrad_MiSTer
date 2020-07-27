@@ -112,19 +112,15 @@ always @(posedge clk) begin
 			wr <= we;
 			a <= addr;
 		end
+		else if(tape_rd | tape_wr) begin
+			tape_req <= 1;
+			wr <= tape_wr;
+			a <= tape_addr;
+		end
 		else if(old_addr[15:1] != vram_addr[15:1]) begin
 			vram_req <= 1;
 			old_addr <= vram_addr;
 			a <= vram_addr;
-		end
-		else begin
-			// The IO Controller advances in about 5-6 SDRAM cycles, thus
-			// no tape read/write should skipped even in this lowest priority
-			if(tape_rd | tape_wr) begin
-				tape_req <= 1;
-				wr <= tape_wr;
-				a <= tape_addr;
-			end
 		end
 	end
 

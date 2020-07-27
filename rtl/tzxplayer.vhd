@@ -149,8 +149,8 @@ begin
 		if pulse_len /= 0 then
 			if ce = '1' then
 				tick_cnt <= tick_cnt + 3500;
-				if tick_cnt >= (TZX_MS - 3500) then
-					tick_cnt <= tick_cnt - (TZX_MS - 3500);
+				if tick_cnt >= TZX_MS then
+					tick_cnt <= tick_cnt - TZX_MS;
 					wave_cnt <= wave_cnt + 1;
 					if wave_cnt = pulse_len then
 						wave_cnt <= (others => '0');
