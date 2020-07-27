@@ -149,6 +149,8 @@ localparam CONF_STR = {
 	"-;",
 	"OI,Joysticks swap,No,Yes;",
 	"OJ,Mouse,Enabled,Disabled;",
+	"OM,Right Shift,Backslash,Shift;",
+	"ON,Keypad,Numbers,Symbols;",
 	"-;",
 	
 	"P1,Audio & Video;",
@@ -164,7 +166,7 @@ localparam CONF_STR = {
 	"P2O2,CRTC,Type 1,Type 0;",
 	"P2-;",
 	"P2OEF,Multiface 2,Enabled,Hidden,Disabled;",
-	//"P2O6,CPU timings,Original,Fast;",
+	"P2O6,CPU timings,Original,Fast;",
 	"P2OGH,FDC,Original,Fast,Disabled;",
 	"P2-;",
 	"P2O5,Distributor,Amstrad,Schneider;",
@@ -180,6 +182,8 @@ localparam CONF_STR = {
 
 wire clk_sys;
 wire locked;
+wire st_right_shift_mod = status[22];
+wire st_keypad_mod = status[23];
 
 pll pll
 (
@@ -277,15 +281,16 @@ hps_io #(.STRLEN($size(CONF_STR)>>3), .VDNUM(2)) hps_io
 wire        rom_download = ioctl_download && (ioctl_index[4:0] < 4);
 wire        tape_download = ioctl_download && (ioctl_index == 4);
 
+// A 8MB bank is split to 2 halves
+// Fist 4 MB is OS ROM + RAM pages + MF2 ROM
+// Second 4 MB is max. 256 pages of HI rom
+
 reg         boot_wr = 0;
 reg  [22:0] boot_a;
 reg   [1:0] boot_bank;
 reg   [7:0] boot_dout;
 
-wire        rom_mask = ram_a[22] & (~rom_map[map_addr] | &{map_addr,status[15]});
 reg [255:0] rom_map = '0;
-reg   [7:0] map_addr;
-always @(posedge clk_sys) map_addr <= ram_a[21:14];
 
 reg         romdl_wait = 0;
 always @(posedge clk_sys) begin
@@ -306,16 +311,16 @@ always @(posedge clk_sys) begin
 		end
 		else begin
 			case(ioctl_addr[24:14])
-					0,4: boot_a[22:14] <= 9'h000;
-					1,5: boot_a[22:14] <= 9'h100;
-					2,6: boot_a[22:14] <= 9'h107;
-					3,7: boot_a[22:14] <= 9'h1ff; //MF2
+					0,4: boot_a[22:14] <= 9'h000; //OS
+					1,5: boot_a[22:14] <= 9'h100; //BASIC
+					2,6: boot_a[22:14] <= 9'h107; //AMSDOS
+					3,7: boot_a[22:14] <= 9'h0ff; //MF2
 			  default:    romdl_wait <= 0;
 			endcase
 
 			case(ioctl_addr[24:14])
-			  0,1,2,3: boot_bank <= 0;
-			  4,5,6,7: boot_bank <= 1;
+			  0,1,2,3: boot_bank <= 0; //CPC6128
+			  4,5,6,7: boot_bank <= 1; //CPC664
 			endcase
 		end
 	end
@@ -371,9 +376,9 @@ sdram sdram
 	.clk(clk_sys),
 	.clkref(ce_ref),
 
-	.oe  (reset ? 1'b0      : mem_rd & ~mf2_ram_en & ~rom_mask),
+	.oe  (reset ? 1'b0      : mem_rd & ~mf2_ram_en),
 	.we  (reset ? boot_wr   : mem_wr & ~mf2_ram_en & ~mf2_rom_en),
-	.addr(reset ? boot_a    : mf2_rom_en ? { 9'h1ff, cpu_addr[13:0] }: ram_a),
+	.addr(reset ? boot_a    : mf2_rom_en ? { 9'h0ff, cpu_addr[13:0] }: ram_a),
 	.bank(reset ? boot_bank : { 1'b0, model } ),
 	.din (reset ? boot_dout : cpu_dout),
 	.dout(ram_dout),
@@ -472,8 +477,6 @@ always @(posedge clk_sys) begin
 	if(~old_wr && io_wr && !fdc_sel[3:1]) begin
 		motor <= cpu_dout[0];
 	end
-	
-	if(img_mounted) motor <= 0;
 end
 
 wire [7:0] u765_dout;
@@ -578,7 +581,7 @@ always @(posedge clk_sys) begin
 	end
 
 	if (~old_io_wr & io_wr & cpu_addr[15:2] == 14'b11111110111010) begin //fee8/feea
-		mf2_en <= ~cpu_addr[1] & ~mf2_hidden;
+		mf2_en <= ~cpu_addr[1] & ~mf2_hidden & ~status[15];
 	end else if (~old_io_wr & io_wr & |mf2_store_addr[12:0]) begin //store hw register in MF2 RAM
 		if (cpu_addr[15:8] == 8'h7f & cpu_dout[7:6] == 2'b00) mf2_pen_index <= cpu_dout[4:0];
 		if (cpu_addr[15:8] == 8'hbc) mf2_crtc_register <= cpu_dout[3:0];
@@ -648,10 +651,13 @@ Amstrad_motherboard motherboard
 	.clk(clk_sys),
 	.ce_16(ce_16),
 
+    .key_extended(key_extended),
+	.right_shift_mod(st_right_shift_mod),
+	.keypad_mod(st_keypad_mod),
 	.ps2_key(ps2_key),
 	.Fn(Fn),
 
-	//.no_wait(status[6] & ~tape_motor),
+	.no_wait(status[6] & ~tape_motor),
 	.ppi_jumpers({2'b11, ~status[5], 1'b1}),
 	.crtc_type(~status[2]),
 	.sync_filter(1),

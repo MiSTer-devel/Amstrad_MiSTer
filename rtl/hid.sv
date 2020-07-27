@@ -25,6 +25,10 @@ module hid
 
 	input [10:0] ps2_key,
 	input [24:0] ps2_mouse,
+	input        key_pressed,
+	input        key_extended,
+    input        right_shift_mod,
+	input        keypad_mod,
 
 	input  [6:0] joystick1,
 	input  [6:0] joystick2,
@@ -64,20 +68,72 @@ always @(posedge clk) begin
 
 	if(old_flg ^ ps2_key[10]) begin
 
+        if (key_extended)
 		case(ps2_key[7:0])
-			8'h11: alt       <= press; // alt
-
 			8'h75: key[0][0] <= press; // up
 			8'h74: key[0][1] <= press; // right
 			8'h72: key[0][2] <= press; // down
-			8'h01: key[0][3] <= press & ~alt; // F9
-			8'h0B: key[0][4] <= press & ~alt; // F6
-			8'h04: key[0][5] <= press & ~alt; // F3
 			8'h69: key[0][6] <= press; // Enter (End)
 			8'h7A: key[0][7] <= press; // . (PgDn)
 
 			8'h6B: key[1][0] <= press; // left
 			8'h70: key[1][1] <= press; // copy (Insert)
+			
+			8'h71: key[2][0] <= press; // CLR (DEL)
+			8'h5A: key[2][2] <= press; // Enter
+			8'h14: key[2][7] <= press; // Ctrl (right)
+
+			8'h4A: key[3][6] <= press; // KP /
+		endcase
+		else
+		case(ps2_key[7:0])
+			8'h11: alt       <= press; // alt
+
+			8'h75: // KP UP/8
+				if (keypad_mod)
+					key[0][0] <= press; // up
+				else
+					key[1][3] <= press; // F8
+			8'h74: // KP RIGHT/6
+				if (keypad_mod)
+					key[0][1] <= press; // right
+				else
+					key[0][4] <= press; // F6
+			8'h72: // KP DOWN/2
+				if (keypad_mod)
+					key[0][2] <= press; // down
+				else
+					key[1][6] <= press; // F2
+			8'h7d: key[0][3] <= press; // KP9 - F9
+			8'h01: key[0][3] <= press & ~alt; // F9
+			8'h0B: key[0][4] <= press & ~alt; // F6
+			8'h04: key[0][5] <= press & ~alt; // F3
+			8'h69: // KP END/1
+				if (keypad_mod)
+					key[0][6] <= press; // Enter (End)
+				else
+					key[1][5] <= press; // F1
+			8'h7A: // KP PgDn/3
+				if (keypad_mod)
+					key[0][7] <= press; // . (PgDn)
+				else
+					key[0][5] <= press; // F3
+			8'h6B: // KP LEFT/4
+				if (keypad_mod)
+					key[1][0] <= press; // left
+				else
+					key[2][4] <= press; // F4
+			8'h70: // KP INS/0
+				if (keypad_mod)
+					key[1][1] <= press; // copy (Insert)
+				else
+					key[1][7] <= press; // F0
+			8'h73: // KP 5
+				if (keypad_mod)
+					key[1][1] <= press; // copy
+				else
+					key[1][4] <= press; // F5
+			8'h6C: key[1][2] <= press; // KP7 - F7
 			8'h83: key[1][2] <= press & ~alt; // F7
 			8'h0A: key[1][3] <= press & ~alt; // F8
 			8'h03: key[1][4] <= press & ~alt; // F5
@@ -85,20 +141,42 @@ always @(posedge clk) begin
 			8'h06: key[1][6] <= press & ~alt; // F2
 			8'h09: key[1][7] <= press & ~alt; // F0
 
-			8'h71: key[2][0] <= press; // CLR (DEL)
+			8'h71: // KP ./0
+				if (keypad_mod)
+					key[2][0] <= press; // CLR (DEL)
+				else
+				   key[3][7] <= press; // .
 			8'h5B: key[2][1] <= press; // [ (])
 			8'h5A: key[2][2] <= press; // Enter
 			8'h5D: key[2][3] <= press; // ] (\)
 			8'h0C: key[2][4] <= press & ~alt; // F4
 			8'h12: key[2][5] <= press; // LShift
-			8'h59: key[2][6] <= press; // \ (RShift)
+			8'h59: // RShift
+				if (right_shift_mod)
+					key[2][5] <= press; // Shift
+				else
+					key[2][6] <= press; // \
+
+			8'h61: key[2][6] <= press; // \
+
 			8'h14: key[2][7] <= press; // Ctrl
 
 			8'h55: key[3][0] <= press; // arrow (+)
+			8'h7B: key[3][1] <= press; // KP -
 			8'h4E: key[3][1] <= press; // -
 			8'h54: key[3][2] <= press; // @ ([)
 			8'h4D: key[3][3] <= press; // P
+			8'h79: // KP +
+				begin
+					key[3][4] <= press;
+					key[2][5] <= press;
+				end
 			8'h52: key[3][4] <= press; // ; (:)
+			8'h7C: // KP *
+				begin
+					key[3][5] <= press;
+					key[2][5] <= press;
+				end
 			8'h4C: key[3][5] <= press; // : (')
 			8'h4A: key[3][6] <= press; // /
 			8'h49: key[3][7] <= press; // .

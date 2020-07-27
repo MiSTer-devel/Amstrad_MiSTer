@@ -24,6 +24,9 @@ module Amstrad_motherboard
 
 	input   [6:0] joy1,
 	input   [6:0] joy2,
+	input         key_extended,
+	input         right_shift_mod,
+	input         keypad_mod,
 	input  [10:0] ps2_key,
 	input  [24:0] ps2_mouse,
 	output        key_nmi,
@@ -201,6 +204,7 @@ crt_filter crt_filter
 ga40010 GateArray (
 	.clk(clk),
 	.cen_16(ce_16),
+	.fast(no_wait),
 	.RESET_N(~reset),
 	.A(A[15:14]),
 	.D(ga_din),
@@ -312,6 +316,10 @@ hid HID
 (
 	.reset(reset),
 	.clk(clk),
+	
+	.key_extended(key_extended),
+	.right_shift_mod(right_shift_mod),
+	.keypad_mod(keypad_mod),
 
 	.ps2_key(ps2_key),
 	.ps2_mouse(ps2_mouse),
