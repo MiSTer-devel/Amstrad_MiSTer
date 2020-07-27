@@ -393,7 +393,6 @@ begin
 			Alternate <= '0';
 
 			Read_To_Reg_r <= "00000";
-			F <= (others => '1');
 			Arith16_r <= '0';
 			BTR_r <= '0';
 			Z16_r <= '0';
@@ -1064,7 +1063,7 @@ begin
 			TState <= "000";
 			Pre_XY_F_M <= "000";
 			Halt_FF <= '0';
-			BusAck <= '0';
+			--BusAck <= '0';
 			NMICycle <= '0';
 			IntCycle <= '0';
 			IntE_FF1 <= '0';
@@ -1073,7 +1072,7 @@ begin
 			Auto_Wait_t1 <= '0';
 			Auto_Wait_t2 <= '0';
 			M1_n <= '1';
-			BusReq_s <= '0';
+			--BusReq_s <= '0';
 			NMI_s <= '0';
 		elsif rising_edge(CLK_n) then
 

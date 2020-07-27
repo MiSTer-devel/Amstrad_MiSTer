@@ -102,11 +102,12 @@ architecture rtl of T80pa is
 	signal CEN_pol			: std_logic;
 	signal A_int		   : std_logic_vector(15 downto 0);
 	signal A_last		   : std_logic_vector(15 downto 0);
+    signal CEN              : std_logic;
 
 begin
 
 	A <= A_int when NoRead = '0' or Write = '1' else A_last;
-
+    CEN <= CEN_p and not CEN_pol;
 	BUSAK_n <= BUSAK;
 
 	u0 : work.T80
@@ -115,7 +116,7 @@ begin
 			IOWait  => 1
 		)
 		port map(
-			CEN     => CEN_p and not CEN_pol,
+            CEN     => CEN,
 			M1_n    => M1_n,
 			IORQ    => IORQ,
 			NoRead  => NoRead,
