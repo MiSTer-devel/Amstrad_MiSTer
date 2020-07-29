@@ -4,6 +4,8 @@ set_global_assignment -name VERILOG_FILE rtl/sdram.v
 set_global_assignment -name SYSTEMVERILOG_FILE rtl/u765/u765.sv
 set_global_assignment -name VHDL_FILE rtl/tzxplayer.vhd
 set_global_assignment -name SYSTEMVERILOG_FILE rtl/YM2149.sv
+set_global_assignment -name QIP_FILE rtl/playcity/Z80CTC/z80ctc.qip
+set_global_assignment -name VERILOG_FILE rtl/playcity/playcity.v
 set_global_assignment -name VERILOG_FILE rtl/i8255.v
 set_global_assignment -name SYSTEMVERILOG_FILE rtl/color_mix.sv
 set_global_assignment -name SYSTEMVERILOG_FILE rtl/hid.sv

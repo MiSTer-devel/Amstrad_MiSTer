@@ -75,9 +75,9 @@ localparam UPD765_MAIN_RQM = 7;
 localparam UPD765_SD_BUFF_TRACKINFO = 1'd0;
 localparam UPD765_SD_BUFF_SECTOR = 1'd1;
 
-reg  [7:0] dbg_cmd /* synthesis noprune */;
+//reg  [7:0] dbg_cmd /* synthesis noprune */;
 reg [21:0] chksum;
-reg [21:0] dbg_chksum /* synthesis noprune */;
+//reg [21:0] dbg_chksum /* synthesis noprune */;
 
 typedef enum
 {
@@ -691,7 +691,7 @@ always @(posedge clk_sys) begin : fdc
 					//i_mfm <= din[6];
 					i_sk <= din[5];
 
-					dbg_cmd <= din;
+					//dbg_cmd <= din;
 
 					i_substate <= 0;
 					casez (din[7:0])
@@ -1115,7 +1115,7 @@ always @(posedge clk_sys) begin : fdc
 			//End of reading/writing sector, what's next?
 			COMMAND_RW_DATA_EXEC8:
 			if (!sd_busy_sector & sd_rd_sector == 2'b00 & sd_wr_sector == 2'b00) begin
-				dbg_chksum <= chksum;
+				//dbg_chksum <= chksum;
 				if (~i_rtrack & ~(i_sk & (i_rw_deleted ^ i_sector_st2[6])) &
 					((i_sector_st1[5] & i_sector_st2[5]) | (i_rw_deleted ^ i_sector_st2[6]))) begin
 					//deleted mark or crc error

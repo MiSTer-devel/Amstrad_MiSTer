@@ -25,9 +25,7 @@ module hid
 
 	input [10:0] ps2_key,
 	input [24:0] ps2_mouse,
-	input        key_pressed,
-	input        key_extended,
-    input        right_shift_mod,
+	input        right_shift_mod,
 	input        keypad_mod,
 
 	input  [6:0] joystick1,
@@ -68,7 +66,7 @@ always @(posedge clk) begin
 
 	if(old_flg ^ ps2_key[10]) begin
 
-        if (key_extended)
+		if (ps2_key[8])
 		case(ps2_key[7:0])
 			8'h75: key[0][0] <= press; // up
 			8'h74: key[0][1] <= press; // right
