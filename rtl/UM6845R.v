@@ -204,27 +204,29 @@ end
 reg vde;
 always @(posedge CLOCK) begin
 	reg  [3:0] vsc;
-	reg        old_hs;
+	reg        vsync_allow;
+
+	if (ENABLE & ~nCS & ~R_nW & addr == 5'd07) vsync_allow <= 1;
 
 	if(~nRESET) begin
 		vsc    <= 0;
 		vde    <= 0;
 		VSYNC  <= 0;
+		vsync_allow <= 1;
 	end
 	else if (CLKEN) begin
 		if(row_new) begin
+			if((frame_new & row !=0) | row_next != row) vsync_allow <= 1;
 			if(frame_new)                  vde <= 1;
 			if(row_next == R6_v_displayed) vde <= 0;
 		end
 
-		// separate 2 concatenated VSYNCs
-		old_hs <= HSYNC;
-		if(old_hs && ~HSYNC && !vsc) VSYNC <= 0;
-
 		if(field ? (hcc_next == {1'b0, R0_h_total[7:1]}) : line_new) begin
 			if(vsc) vsc <= vsc - 1'd1;
-			else if (field ? (row == R7_v_sync_pos && !line) : (row_next == R7_v_sync_pos && line_last)) begin
+			else if (vsync_allow & (field ? (row == R7_v_sync_pos && !line) : (row_next == R7_v_sync_pos && line_last))) begin
 				VSYNC <= 1;
+				// Don't allow a new vsync until a new row (Onescreen Colonies) or the R7 is written (PHX)
+				vsync_allow <= 0;
 				vsc <= (CRTC_TYPE ? 4'd0 : R3_v_sync_width) - 1'd1;
 			end
 			else VSYNC <= 0;
