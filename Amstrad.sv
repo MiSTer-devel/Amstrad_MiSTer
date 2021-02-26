@@ -37,8 +37,9 @@ module emu
 	output        CE_PIXEL,
 
 	//Video aspect ratio for HDMI. Most retro systems have ratio 4:3.
-	output [11:0] VIDEO_ARX,
-	output [11:0] VIDEO_ARY,
+	//if VIDEO_ARX[12] or VIDEO_ARY[12] is set then [11:0] contains scaled size instead of aspect ratio.
+	output [12:0] VIDEO_ARX,
+	output [12:0] VIDEO_ARY,
 
 	output  [7:0] VGA_R,
 	output  [7:0] VGA_G,
@@ -49,6 +50,9 @@ module emu
 	output        VGA_F1,
 	output [1:0]  VGA_SL,
 	output        VGA_SCALER, // Force VGA scaler
+
+	input  [11:0] HDMI_WIDTH,
+	input  [11:0] HDMI_HEIGHT,
 
 `ifdef USE_FB
 	// Use framebuffer in DDRAM (USE_FB=1 in qsf)
@@ -179,16 +183,11 @@ assign LED_POWER = 0;
 assign BUTTONS   = 0;
 assign VGA_SCALER= 0;
 
-wire [1:0] ar = status[26:25];
-
-assign VIDEO_ARX = (!ar) ? 12'd4 : (ar - 1'd1);
-assign VIDEO_ARY = (!ar) ? 12'd3 : 12'd0;
-
 // Status Bit Map:
 // 0         1         2         3          4         5         6
 // 01234567890123456789012345678901 23456789012345678901234567890123
 // 0123456789ABCDEFGHIJKLMNOPQRSTUV 0123456789ABCDEFGHIJKLMNOPQRSTUV
-// XXX XXXXXXXXXXXXXXXXX XXXXX
+// XXX XXXXXXXXXXXXXXXXX XXXXXXXXX
 
 `include "build_id.v"
 localparam CONF_STR = {
@@ -208,6 +207,10 @@ localparam CONF_STR = {
 	"P1-;",
 	"P1OPQ,Aspect ratio,Original,Full Screen,[ARC1],[ARC2];",
 	"P1O9A,Scandoubler Fx,None,HQ2x,CRT 25%,CRT 50%;",
+	"P1-;",
+	"d1P1OR,Vertical Crop,No,Yes;",
+	"P1OST,Scale,Normal,V-Integer,Narrower HV-Integer,Wider HV-Integer;",
+	"P1OU,Pixel Clock,16MHz,Adaptive;",
 	"P1-;",
 	"P1O2,CRTC,Type 1,Type 0;",
 	"P1OBD,Display,Color(GA),Color(ASIC),Green,Amber,Cyan,White;",
@@ -322,6 +325,8 @@ hps_io #(.STRLEN($size(CONF_STR)>>3), .VDNUM(2)) hps_io
 	.status(status),
 	.status_in({status[31:21],~status[20],status[19:0]}),
 	.status_set(Fn[1]),
+	.status_menumask({en270p,1'b0}),
+
 	.forced_scandoubler(forced_scandoubler),
 	.gamma_bus(gamma_bus),
 
@@ -804,8 +809,10 @@ Amstrad_motherboard motherboard
 
 //////////////////////////////////////////////////////////////////////
 
+assign CLK_VIDEO = clk_sys;
+
 reg ce_pix_fs;
-always @(posedge clk_sys) begin
+always @(posedge CLK_VIDEO) begin
 	reg [1:0] mode_fs;
 	reg [1:0] mode_next;
 	reg [1:0] cycle;
@@ -829,19 +836,19 @@ always @(posedge clk_sys) begin
 			cycle <= 0;
 		end
 
-		// choose highest pixel rate during the wholw active time
+		// choose highest pixel rate during the whole active time
 		if (~hbl && ~vbl && ~&mode && mode > mode_next) mode_next <= mode;
 	end
 end
 
-wire ce_pix = hq2x ? ce_pix_fs : ce_16;
+wire ce_pix = (hq2x | status[30]) ? ce_pix_fs : ce_16;
 
 wire [1:0] b, g, r;
 wire       hs, vs, hbl, vbl;
 
 color_mix color_mix
 (
-	.clk_vid(clk_sys),
+	.clk_vid(CLK_VIDEO),
 	.ce_pix(ce_pix),
 	.mix(status[13:11]),
 
@@ -871,7 +878,7 @@ wire       hq2x = (scale == 1);
 assign VGA_SL = scale[1] ? scale : 2'b00;
 
 reg [2:0] interlace;
-always @(posedge clk_sys) begin
+always @(posedge CLK_VIDEO) begin
 	reg old_vs;
 	
 	old_vs <= vs;
@@ -881,16 +888,29 @@ end
 video_mixer #(.LINE_LENGTH(800), .GAMMA(1)) video_mixer
 (
 	.*,
-
-	.clk_vid(CLK_VIDEO),
-	.ce_pix_out(CE_PIXEL),
-
-	.scanlines(0),
-	.scandoubler((scale || forced_scandoubler) && !interlace),
-	.mono(0)
+	.VGA_DE(vga_de),
+	.scandoubler((scale || forced_scandoubler) && !interlace)
 );
 
-assign CLK_VIDEO = clk_sys;
+reg en270p;
+always @(posedge CLK_VIDEO) begin
+	en270p <= ((HDMI_WIDTH == 1920) && (HDMI_HEIGHT == 1080) && !forced_scandoubler && !scale);
+end
+
+wire [1:0] ar = status[26:25];
+wire vcrop_en = status[27];
+wire vga_de;
+video_freak video_freak
+(
+	.*,
+	.VGA_DE_IN(vga_de),
+
+	.ARX((!ar) ? 12'd4 : (ar - 1'd1)),
+	.ARY((!ar) ? 12'd3 : 12'd0),
+	.CROP_SIZE((en270p & vcrop_en) ? 10'd270 : 10'd0),
+	.CROP_OFF(0),
+	.SCALE(status[29:28])
+);
 
 //////////////////////////////////////////////////////////////////////
 
