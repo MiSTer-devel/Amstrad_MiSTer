@@ -12,7 +12,22 @@ use ieee.std_logic_unsigned.all;
 
 entity tzxplayer is
 generic (
-	TZX_MS : integer := 64000       -- CE periods for one milliseconds
+	TZX_MS : integer := 64000;       -- CE periods for one milliseconds
+	-- Default: ZX Spectrum
+	NORMAL_PILOT_LEN    : integer := 2168;
+	NORMAL_SYNC1_LEN    : integer := 667;
+	NORMAL_SYNC2_LEN    : integer := 735;
+	NORMAL_ZERO_LEN     : integer := 855;
+	NORMAL_ONE_LEN      : integer := 1710;
+	NORMAL_PILOT_PULSES : integer := 4031
+
+	-- Amstrad CPC
+	--NORMAL_PILOT_LEN    : integer := 2000;
+	--NORMAL_SYNC1_LEN    : integer := 855;
+	--NORMAL_SYNC2_LEN    : integer := 855;
+	--NORMAL_ZERO_LEN     : integer := 855;
+	--NORMAL_ONE_LEN      : integer := 1710;
+	--NORMAL_PILOT_PULSES : integer := 4095
 );
 port(
 	clk             : in std_logic;
@@ -32,22 +47,6 @@ port(
 end tzxplayer;
 
 architecture struct of tzxplayer is
-
--- ZX Spectrum
---constant NORMAL_PILOT_LEN    : integer := 2168;
---constant NORMAL_SYNC1_LEN    : integer := 667;
---constant NORMAL_SYNC2_LEN    : integer := 735;
---constant NORMAL_ZERO_LEN     : integer := 855;
---constant NORMAL_ONE_LEN      : integer := 1710;
---constant NORMAL_PILOT_PULSES : integer := 4031;
-
--- Amstrad CPC
-constant NORMAL_PILOT_LEN    : integer := 2000;
-constant NORMAL_SYNC1_LEN    : integer := 855;
-constant NORMAL_SYNC2_LEN    : integer := 855;
-constant NORMAL_ZERO_LEN     : integer := 855;
-constant NORMAL_ONE_LEN      : integer := 1710;
-constant NORMAL_PILOT_PULSES : integer := 4095;
 
 signal tap_fifo_do    : std_logic_vector(7 downto 0);
 signal tick_cnt       : std_logic_vector(16 downto 0);
@@ -128,7 +127,7 @@ begin
 		loop_next <= '0';
 		loop_iter <= (others => '0');
 		wave_inverted <= '0';
-
+		tick_cnt <= (others => '0');
 	else
 
 		-- simulate tape motor momentum
@@ -150,8 +149,8 @@ begin
 		if pulse_len /= 0 then
 			if ce = '1' then
 				tick_cnt <= tick_cnt + 3500;
-				if tick_cnt >= TZX_MS then
-					tick_cnt <= tick_cnt - TZX_MS;
+				if tick_cnt >= (TZX_MS - 3500) then
+					tick_cnt <= tick_cnt + 3500 - TZX_MS;
 					wave_cnt <= wave_cnt + 1;
 					if wave_cnt = pulse_len - 1 then
 						wave_cnt <= (others => '0');
@@ -164,7 +163,6 @@ begin
 				end if;
 			end if;
 		else
-			tick_cnt <= (others => '0');
 			wave_cnt <= (others => '0');
 		end if;
 

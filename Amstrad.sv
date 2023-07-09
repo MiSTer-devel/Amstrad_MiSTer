@@ -508,8 +508,15 @@ always @(posedge clk_sys) begin
 	end
 end
 
-tzxplayer tzxplayer
-(
+tzxplayer #(
+	.NORMAL_PILOT_LEN(2000),
+	.NORMAL_SYNC1_LEN(855),
+	.NORMAL_SYNC2_LEN(855),
+	.NORMAL_ZERO_LEN(855),
+	.NORMAL_ONE_LEN(1710),
+	.NORMAL_PILOT_PULSES(4095)
+)
+tzxplayer (
 	.clk(clk_sys),
 	.ce(1),
 	.restart_tape(tape_reset),
