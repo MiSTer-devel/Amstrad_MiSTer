@@ -9,7 +9,6 @@ library ieee;
 use ieee.std_logic_1164.all;
 use IEEE.STD_LOGIC_ARITH.ALL;
 use ieee.std_logic_unsigned.all;
-use ieee.numeric_std.all;
 
 entity tzxplayer is
 generic (
@@ -27,9 +26,8 @@ port(
 	loop_next       : out std_logic;                    -- active for one clock at the next iteration
 	stop            : out std_logic;                    -- tape should be stopped
 	stop48k         : out std_logic;                    -- tape should be stopped in 48k mode
-
-	cass_read  : buffer std_logic;   -- tape read signal
-	cass_motor : in  std_logic    -- 1 = tape motor is powered
+	cass_read       : out std_logic;                    -- tape read signal
+	cass_motor      : in  std_logic                     -- 1 = tape motor is powered
 );
 end tzxplayer;
 
@@ -49,12 +47,13 @@ constant NORMAL_SYNC1_LEN    : integer := 855;
 constant NORMAL_SYNC2_LEN    : integer := 855;
 constant NORMAL_ZERO_LEN     : integer := 855;
 constant NORMAL_ONE_LEN      : integer := 1710;
-constant NORMAL_PILOT_PULSES : integer := 4096;
+constant NORMAL_PILOT_PULSES : integer := 4095;
 
 signal tap_fifo_do    : std_logic_vector(7 downto 0);
 signal tick_cnt       : std_logic_vector(16 downto 0);
 signal wave_cnt       : std_logic_vector(15 downto 0);
 signal wave_period    : std_logic;
+signal wave_inverted  : std_logic;
 signal skip_bytes     : std_logic;
 signal playing        : std_logic;  -- 1 = tap or wav file is playing
 signal bit_cnt        : std_logic_vector(2 downto 0);
@@ -111,6 +110,7 @@ signal data_len_dword : std_logic_vector(31 downto 0);
 
 begin
 
+cass_read <= wave_period;
 tap_fifo_do <= host_tap_in;
 process(clk)
 begin
@@ -127,6 +127,7 @@ begin
 		loop_start <= '0';
 		loop_next <= '0';
 		loop_iter <= (others => '0');
+		wave_inverted <= '0';
 
 	else
 
@@ -152,12 +153,12 @@ begin
 				if tick_cnt >= TZX_MS then
 					tick_cnt <= tick_cnt - TZX_MS;
 					wave_cnt <= wave_cnt + 1;
-					if wave_cnt = pulse_len then
+					if wave_cnt = pulse_len - 1 then
 						wave_cnt <= (others => '0');
-						cass_read <= wave_period;
-						wave_period <= not wave_period;
 						if wave_period = end_period then
 							pulse_len <= (others => '0');
+						else
+							wave_period <= not wave_period;
 						end if;
 					end if;
 				end if;
@@ -178,7 +179,8 @@ begin
 
 			case tzx_state is
 			when TZX_HEADER =>
-				cass_read <= '1';
+				wave_period <= '1';
+				wave_inverted <= '0';
 				tzx_offset <= tzx_offset + 1;
 				if tzx_offset = x"0A" then -- skip 9 bytes, offset lags 1
 					tzx_state <= TZX_NEWBLOCK;
@@ -253,9 +255,9 @@ begin
 						ms_counter <= ms_counter - 1;
 						-- Set pulse level to low after 1 ms
 						if ms_counter = 1 then
+							wave_inverted <= '0';
 							wave_period <= '0';
 							end_period <= '0';
-							cass_read <= '0';
 						end if;
 					end if;
 				elsif pause_len /= 0 then
@@ -346,7 +348,13 @@ begin
 						tzx_state <= TZX_NEWBLOCK;
 					else
 						pilot_pulses <= pilot_pulses - 1;
-						end_period <= wave_period;
+						if wave_inverted = '0' then
+							wave_period <= not wave_period;
+							end_period <= not wave_period; -- request pulse
+						else
+							wave_inverted <= '0';
+							end_period <= wave_period;
+						end if;
 						pulse_len <= pilot_l;
 					end if;
 				end if;
@@ -358,7 +366,13 @@ begin
 				elsif tzx_offset = x"01" then one_l( 7 downto 0) <= tap_fifo_do;
 				elsif tzx_offset = x"02" then
 					tzx_req <= tzx_ack; -- don't request new byte
-					end_period <= wave_period;
+						if wave_inverted = '0' then
+							wave_period <= not wave_period;
+							end_period <= not wave_period; -- request pulse
+						else
+							wave_inverted <= '0';							
+							end_period <= wave_period;
+						end if;
 					pulse_len <= tap_fifo_do & one_l( 7 downto 0);
 				elsif tzx_offset = x"03" then
 					if data_len(7 downto 0) = x"01" then
@@ -432,23 +446,26 @@ begin
 
 			when TZX_PLAY_TONE =>
 				tzx_req <= tzx_ack; -- don't request new byte
-				end_period <= not wave_period;
+				wave_period <= not wave_period;
+				end_period <= not wave_period; -- request pulse
 				pulse_len <= pilot_l;
-				if pilot_pulses /= 0 then
-					pilot_pulses <= pilot_pulses - 1;
-				else
+				if pilot_pulses = 1 then
 					tzx_state <= TZX_PLAY_SYNC1;
+				else
+					pilot_pulses <= pilot_pulses - 1;
 				end if;
 
 			when TZX_PLAY_SYNC1 =>
 				tzx_req <= tzx_ack; -- don't request new byte
-				end_period <= wave_period;
+				wave_period <= not wave_period;
+				end_period <= not wave_period; -- request pulse
 				pulse_len <= sync1_l;
 				tzx_state <= TZX_PLAY_SYNC2;
 
 			when TZX_PLAY_SYNC2 =>
 				tzx_req <= tzx_ack; -- don't request new byte
-				end_period <= wave_period;
+				wave_period <= not wave_period;
+				end_period <= not wave_period; -- request pulse				
 				pulse_len <= sync2_l;
 				tzx_state <= TZX_PLAY_TAPBLOCK;
 
@@ -463,7 +480,8 @@ begin
 					data_len <= data_len - 1;
 					tzx_state <= TZX_PLAY_TAPBLOCK3;
 				end if;
-				end_period <= not wave_period;
+				wave_period <= not wave_period;
+				end_period <= wave_period; -- request full period
 				if tap_fifo_do(CONV_INTEGER(bit_cnt)) = '0' then
 					pulse_len <= zero_l;
 				else
@@ -472,6 +490,8 @@ begin
 
 			when TZX_PLAY_TAPBLOCK3 =>
 				if data_len = 0 then
+					wave_period <= not wave_period;
+					wave_inverted <= '1';
 					tzx_state <= TZX_PAUSE2;
 				else
 					tzx_state <= TZX_PLAY_TAPBLOCK4;
@@ -505,12 +525,12 @@ begin
 				end if;
 
 				pulse_len <= zero_l;
-				cass_read <= tap_fifo_do(CONV_INTEGER(bit_cnt));
 				wave_period <= tap_fifo_do(CONV_INTEGER(bit_cnt));
 				end_period <= tap_fifo_do(CONV_INTEGER(bit_cnt));
 
 			when TZX_DIRECT3 =>
 				if data_len = 0 then
+					wave_inverted <= '0';
 					tzx_state <= TZX_PAUSE2;
 				else
 					tzx_state <= TZX_DIRECT2;
