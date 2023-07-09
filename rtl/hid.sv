@@ -34,6 +34,7 @@ module hid
 	input  [3:0] Y,
 	output [7:0] X,
 	output reg   key_nmi,
+	output reg   key_reset,
 	output reg [9:0] Fn
 );
 
@@ -226,7 +227,15 @@ always @(posedge clk) begin
 
 			8'h66: key[9][7] <= press; // DEL (Backspace)
 			
-			8'h78: key_nmi   <= press; // F11
+			8'h78: begin // F11
+				if (press) begin
+					key_nmi   <= !alt;
+					key_reset <= alt;
+				end else begin
+					key_nmi <= 0;
+					key_reset <= 0;
+				end
+			end
 		endcase
 		
 		case(ps2_key[7:0])

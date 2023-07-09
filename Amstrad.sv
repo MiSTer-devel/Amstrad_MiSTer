@@ -462,7 +462,7 @@ reg reset;
 
 always @(posedge clk_sys) begin
 	if(reset) model <= status[4];
-	reset <= RESET | status[0] | buttons[1] | rom_download;
+	reset <= RESET | status[0] | buttons[1] | rom_download | key_reset;
 end
 
 ////////////////////// CDT playback ///////////////////////////////
@@ -731,7 +731,7 @@ multiplay_mouse mmouse
 wire [15:0] cpu_addr;
 wire  [7:0] cpu_dout;
 wire        phi_n, phi_en_n;
-wire        m1, key_nmi;
+wire        m1, key_nmi, key_reset;
 wire        rd, wr, iorq;
 wire        field;
 wire        cursor;
@@ -805,7 +805,8 @@ Amstrad_motherboard motherboard
 	.irq(IRQ),
 	.cursor(cursor),
 
-	.key_nmi(key_nmi)
+	.key_nmi(key_nmi),
+	.key_reset(key_reset)
 );
 
 //////////////////////////////////////////////////////////////////////
