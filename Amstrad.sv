@@ -472,6 +472,7 @@ reg   [7:0] tape_din;
 reg         tape_wr = 0;
 wire        tape_wr_ack;
 wire        tape_read;
+wire        tape_running;
 wire        tape_data_req;
 wire        tape_data_ack;
 reg         tape_reset;
@@ -524,7 +525,27 @@ tzxplayer (
 	.tzx_req(tape_data_req),
 	.tzx_ack(tape_data_ack),
 	.cass_read(tape_read),
-	.cass_motor(tape_motor)
+	.cass_motor(tape_motor),
+	.cass_running(tape_running)
+);
+
+wire progress_pix;
+reg [31:0] tape_progress;
+
+always @(posedge clk_sys)
+	if (tape_last_addr != 0)
+		tape_progress <= tape_play_addr * 7'd127 / tape_last_addr;
+	else
+		tape_progress <= 0;
+
+progressbar progressbar(
+	.clk(clk_sys),
+	.ce_pix(ce_16),
+	.HSync(HSync),
+	.VSync(VSync),
+	.enable(tape_running),
+	.progress(tape_progress[6:0]),
+	.pix(progress_pix)
 );
 
 wire tape_ready = tape_last_addr && (tape_play_addr <= tape_last_addr);
@@ -897,6 +918,9 @@ end
 video_mixer #(.LINE_LENGTH(800), .GAMMA(1)) video_mixer
 (
 	.*,
+	.R(R[7:0] | {8{progress_pix}}),
+	.G(G[7:0] | {8{progress_pix}}),
+	.B(B[7:0] | {8{progress_pix}}),
 	.VGA_DE(vga_de),
 	.freeze_sync(),
 	.scandoubler((scale || forced_scandoubler) && !interlace)

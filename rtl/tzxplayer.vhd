@@ -42,7 +42,8 @@ port(
 	stop            : out std_logic;                    -- tape should be stopped
 	stop48k         : out std_logic;                    -- tape should be stopped in 48k mode
 	cass_read       : out std_logic;                    -- tape read signal
-	cass_motor      : in  std_logic                     -- 1 = tape motor is powered
+	cass_motor      : in  std_logic;                    -- 1 = tape motor is powered
+	cass_running    : out std_logic                     -- tape is running
 );
 end tzxplayer;
 
@@ -110,6 +111,7 @@ signal data_len_dword : std_logic_vector(31 downto 0);
 begin
 
 cass_read <= wave_period;
+cass_running <= playing;
 tap_fifo_do <= host_tap_in;
 process(clk)
 begin
