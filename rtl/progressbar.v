@@ -5,68 +5,35 @@
 module progressbar (
 	input        clk,
 	input        ce_pix,
-	input        HSync,
-	input        VSync,
+	input        hblank,
+	input        vblank,
 	input        enable,
 	input  [6:0] progress, // 0-127
 	output       pix
 );
 
-parameter X_OFFSET = 11'd200;
-parameter Y_OFFSET = 11'd40;
-
-// *********************************************************************************
-// video timing and sync polarity anaylsis
-// *********************************************************************************
+parameter X_OFFSET = 11'd68;
+parameter Y_OFFSET = 11'd20;
 
 // horizontal counter
 reg  [10:0] h_cnt;
-reg  [10:0] hs_low, hs_high;
-wire        hs_pol = hs_high < hs_low;
 
 // vertical counter
 reg  [10:0] v_cnt;
-reg  [10:0] vs_low, vs_high;
-wire        vs_pol = vs_high < vs_low;
 
 always @(posedge clk) begin
-	reg hsD;
-	reg vsD;
+	reg hbD;
 
 	if(ce_pix) begin
-		// bring hsync into local clock domain
-		hsD <= HSync;
+		hbD <= hblank;
 
-		// falling edge of HSync
-		if(!HSync && hsD) begin
+		if(hblank) begin
 			h_cnt <= 0;
-			hs_high <= h_cnt;
-		end
-
-		// rising edge of HSync
-		else if(HSync && !hsD) begin
-			h_cnt <= 0;
-			hs_low <= h_cnt;
-			v_cnt <= v_cnt + 1'd1;
-		end else begin
+			if (!hbD) v_cnt <= v_cnt + 1'd1;
+		end else
 			h_cnt <= h_cnt + 1'd1;
-		end
 
-		vsD <= VSync;
-
-		// falling edge of VSync
-		if(!VSync && vsD) begin
-			v_cnt <= 0;
-			// if the difference is only one line, that might be interlaced picture
-			if (vs_high != v_cnt + 1'd1) vs_high <= v_cnt;
-		end
-
-		// rising edge of VSync
-		else if(VSync && !vsD) begin
-			v_cnt <= 0;
-			// if the difference is only one line, that might be interlaced picture
-			if (vs_low != v_cnt + 1'd1) vs_low <= v_cnt;
-		end
+		if(vblank) v_cnt <= 0;
 	end
 end
 
@@ -90,8 +57,8 @@ always @(posedge clk) begin
 		endcase
 
 		osd_de <=
-		    (HSync != hs_pol) && (h_cnt >= h_osd_start) && ((h_cnt + 1'd1) < h_osd_end) &&
-		    (VSync != vs_pol) && (v_cnt >= v_osd_start) && (v_cnt < v_osd_end);
+		    (h_cnt >= h_osd_start) && ((h_cnt + 1'd1) < h_osd_end) &&
+		    (v_cnt >= v_osd_start) && (v_cnt < v_osd_end);
 	end
 end
 

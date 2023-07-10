@@ -541,8 +541,8 @@ always @(posedge clk_sys)
 progressbar progressbar(
 	.clk(clk_sys),
 	.ce_pix(ce_16),
-	.HSync(HSync),
-	.VSync(VSync),
+	.hblank(hbl),
+	.vblank(vbl),
 	.enable(tape_running),
 	.progress(tape_progress[6:0]),
 	.pix(progress_pix)
