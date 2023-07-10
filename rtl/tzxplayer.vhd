@@ -18,7 +18,7 @@ generic (
 	NORMAL_SYNC2_LEN    : integer := 735;
 	NORMAL_ZERO_LEN     : integer := 855;
 	NORMAL_ONE_LEN      : integer := 1710;
-	NORMAL_PILOT_PULSES : integer := 4031
+	NORMAL_PILOT_PULSES : integer := 3223 -- this is the non-header length
 
 	-- Amstrad CPC
 	--NORMAL_PILOT_LEN    : integer := 2000;
@@ -480,8 +480,13 @@ begin
 					data_len <= data_len - 1;
 					tzx_state <= TZX_PLAY_TAPBLOCK3;
 				end if;
-				wave_period <= not wave_period;
-				end_period <= wave_period; -- request full period
+				if wave_inverted = '0' then
+					wave_period <= not wave_period;
+					end_period <= wave_period; -- request full period
+				else
+					end_period <= not wave_period;
+					wave_inverted <= '0';
+				end if;
 				if tap_fifo_do(to_integer(bit_cnt)) = '0' then
 					pulse_len <= zero_l;
 				else
