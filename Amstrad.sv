@@ -233,6 +233,7 @@ localparam CONF_STR = {
 	"P2-;",
 	"P2O5,Distributor,Amstrad,Schneider;",
 	"P2O4,Model,CPC 6128,CPC 664;",
+	"P2OV,Tape progressbar,Off,On;",
 
 	"-;",
 	"R0,Reset & apply model;",
@@ -246,6 +247,7 @@ wire clk_sys;
 wire locked;
 wire st_right_shift_mod = status[22];
 wire st_keypad_mod = status[23];
+wire st_progressbar = status[31];
 
 pll pll
 (
@@ -543,7 +545,7 @@ progressbar progressbar(
 	.ce_pix(ce_16),
 	.hblank(hbl),
 	.vblank(vbl),
-	.enable(tape_running),
+	.enable(tape_running & st_progressbar),
 	.progress(tape_progress[6:0]),
 	.pix(progress_pix)
 );
