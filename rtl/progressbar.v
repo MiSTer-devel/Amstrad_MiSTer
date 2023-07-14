@@ -8,12 +8,33 @@ module progressbar (
 	input        hblank,
 	input        vblank,
 	input        enable,
-	input  [6:0] progress, // 0-127
+	input [24:0] current,
+	input [24:0] max,
 	output       pix
 );
 
 parameter X_OFFSET = 11'd68;
 parameter Y_OFFSET = 11'd20;
+
+reg [7:0] progress;
+/*
+always @(posedge clk) begin
+	progress <= current / max[24:7];
+end
+*/
+// Without divider
+reg [24:0] prg_counter = 0;
+reg  [7:0] prg_iter = 0;
+always @(posedge clk) begin
+	if (prg_counter >= current) begin
+		progress <= prg_iter;
+		prg_counter <= 0;
+		prg_iter <= 0;
+	end else begin
+		prg_counter <= prg_counter + max[24:7];
+		prg_iter <= prg_iter + 1'd1;
+	end
+end
 
 // horizontal counter
 reg  [10:0] h_cnt;
@@ -39,7 +60,7 @@ end
 
 // area in which OSD is being displayed
 wire [10:0] h_osd_start = X_OFFSET;
-wire [10:0] h_osd_end   = h_osd_start + 8'd132;
+wire [10:0] h_osd_end   = h_osd_start + 8'd134;
 wire [10:0] v_osd_start = Y_OFFSET;
 wire [10:0] v_osd_end   = v_osd_start + 8'd8;
 
@@ -52,8 +73,8 @@ always @(posedge clk) begin
 	if(ce_pix) begin
 		case (osd_vcnt)
 		0,7: osd_pixel <= 1;
-		2,3,4,5: osd_pixel <= osd_hcnt == 0 || osd_hcnt == 130 || ((osd_hcnt - 2'd2) < progress);
-		default: osd_pixel <= osd_hcnt == 0 || osd_hcnt == 130;
+		2,3,4,5: osd_pixel <= osd_hcnt == 0 || osd_hcnt == 132 || ((osd_hcnt - 2'd2) < progress);
+		default: osd_pixel <= osd_hcnt == 0 || osd_hcnt == 132;
 		endcase
 
 		osd_de <=

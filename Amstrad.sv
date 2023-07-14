@@ -517,6 +517,7 @@ tzxplayer #(
 	.NORMAL_SYNC2_LEN(855),
 	.NORMAL_ZERO_LEN(855),
 	.NORMAL_ONE_LEN(1710),
+	.HEADER_PILOT_PULSES(4095),
 	.NORMAL_PILOT_PULSES(4095)
 )
 tzxplayer (
@@ -532,13 +533,6 @@ tzxplayer (
 );
 
 wire progress_pix;
-reg [31:0] tape_progress;
-
-always @(posedge clk_sys)
-	if (tape_last_addr != 0)
-		tape_progress <= tape_play_addr * 7'd127 / tape_last_addr;
-	else
-		tape_progress <= 0;
 
 progressbar progressbar(
 	.clk(clk_sys),
@@ -546,7 +540,8 @@ progressbar progressbar(
 	.hblank(hbl),
 	.vblank(vbl),
 	.enable(tape_running & st_progressbar),
-	.progress(tape_progress[6:0]),
+	.current(tape_play_addr),
+	.max(tape_last_addr),
 	.pix(progress_pix)
 );
 
