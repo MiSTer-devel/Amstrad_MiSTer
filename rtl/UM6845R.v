@@ -21,6 +21,7 @@ module UM6845R
 (
 	input            CLOCK,
 	input            CLKEN,
+	input            nCLKEN,
 	input            nRESET,
 	input            CRTC_TYPE,
 
@@ -143,7 +144,7 @@ reg        frame_adj_r;
 wire       frame_adj_CRTC0 = (hcc == 2) ? frame_adj_r & |R5_v_total_adj : frame_adj_r;
 wire       frame_adj_CRTC1 = row_last && ~in_adj && R5_v_total_adj;
 wire       frame_adj = CRTC_TYPE ? frame_adj_CRTC1 : frame_adj_CRTC0;
-wire       frame_new = row_new & (row_last | in_adj) & ~frame_adj;
+wire       frame_new = row_new & ((CRTC_TYPE ? row_last : row_last_r) | in_adj) & ~frame_adj;
 
 // counters
 reg  field;
@@ -168,19 +169,19 @@ always @(posedge CLOCK) begin
 		if(hcc == 2) frame_adj_r <= frame_adj_r & |R5_v_total_adj;
 
 		if(row_new) begin
+			row <= row_next;
 			if(frame_adj) in_adj <= 1;
 			else if(frame_new) begin
 				in_adj <= 0;
 				row <= 0;
 				field <= ~field & R8_interlace[0];
 			end
-			else row <= row_next;
 		end
 	end
 end
 
 wire CRTC1_reload =  CRTC_TYPE & (frame_new | (~line_last & !row & !hcc_next)); //CRTC1 reloads addr on every line of 1st row
-wire CRTC0_reload = ~CRTC_TYPE & line_new & line_last_r & row_last_r;
+wire CRTC0_reload = ~CRTC_TYPE & frame_new;
 wire row_addr_save = hcc == R1_h_displayed && (CRTC_TYPE ? line_last : line_last_r);
 
 // address
@@ -233,26 +234,42 @@ always @(posedge CLOCK) begin
 end
 
 // vertical output
-reg vde;
+reg vde, vde_r;
 reg VSYNC_r;
 always @(posedge CLOCK) VSYNC <= VSYNC_r; // delay the same as HSYNC to not confuse the GA
 always @(posedge CLOCK) begin
 	reg  [3:0] vsc;
 	reg        vsync_allow;
 
-	if (ENABLE & ~nCS & ~R_nW & addr == 5'd07) vsync_allow <= 1;
+	if (ENABLE & RS & ~nCS & ~R_nW & addr == 5'd07) vsync_allow <= 1;
+	if (ENABLE & RS & ~nCS & ~R_nW & addr == 5'd06) begin
+		if (CRTC_TYPE) begin
+			if (row == DI[6:0]) vde_r <= 0;
+			if (row != DI[6:0] && DI[6:0] != 0) vde <= vde_r;
+			if (row == R6_v_displayed && DI[6:0] != row) vde <= 1;
+			if (row == DI[6:0] || DI[6:0] == 0) vde <= 0;
+		end else begin
+			if (row == DI[6:0] && !(row == 0 && line == 0)) vde_r <= 0;
+		end
+	end
 
 	if(~nRESET) begin
 		vsc    <= 0;
 		vde    <= 0;
+		vde_r  <= 0;
 		VSYNC_r<= 0;
 		vsync_allow <= 1;
 	end
 	else if (CLKEN) begin
+		if (!CRTC_TYPE && row == 0 && line == 0 && R6_v_displayed == 0) begin
+			vde <= 1;
+			vde_r <= 1;
+		end
+
 		if(row_new) begin
 			if((frame_new & row !=0) | row_next != row) vsync_allow <= 1;
-			if(frame_new)                  vde <= 1;
-			if(row_next == R6_v_displayed) vde <= 0;
+			if(frame_new)                  begin vde <= 1; vde_r <= 1; end
+			if(row_next == R6_v_displayed) begin vde <= 0; vde_r <= 0; end
 		end
 		if(field ? (hcc_next == {1'b0, R0_h_total[7:1]}) : line_new) begin
 			if(vsc) vsc <= vsc - 1'd1;
@@ -265,9 +282,15 @@ always @(posedge CLOCK) begin
 			else VSYNC_r <= 0;
 		end
 	end
+	else if (nCLKEN) begin
+		if (!CRTC_TYPE && row == 0 && line == 0 && R6_v_displayed == 0) begin
+			vde <= 0;
+			vde_r <= 0;
+		end
+	end
 end
 
-wire [3:0] de = {1'b0, dde[1:0], hde & vde & |R6_v_displayed};
+wire [3:0] de = {1'b0, dde[1:0], hde & vde & vde_r};
 reg  [1:0] dde;
 always @(posedge CLOCK) if (CLKEN) dde <= {dde[0],de[0]};
 

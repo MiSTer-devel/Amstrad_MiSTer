@@ -141,6 +141,7 @@ UM6845R CRTC
 (
 	.CLOCK(clk),
 	.CLKEN(cclk_en_n),
+	.nCLKEN(cclk_en_p),
 	.nRESET(~reset),
 	.CRTC_TYPE(crtc_type),
 
