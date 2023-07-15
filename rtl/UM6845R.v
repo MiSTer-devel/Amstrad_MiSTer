@@ -223,6 +223,8 @@ always @(posedge CLOCK) begin
 		if (hsync_off)     HSYNC <= 0;
 		else if (hsync_on) HSYNC <= 1;
 
+		if (ENABLE & RS & ~nCS & ~R_nW & addr == 5'd01 & hcc == DI) hde <= 0;
+
 		if (CLKEN) begin
 			if(line_new)                   hde <= 1;
 			if(hcc_next == R1_h_displayed) hde <= 0;
