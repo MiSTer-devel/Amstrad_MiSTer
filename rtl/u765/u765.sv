@@ -749,8 +749,8 @@ always @(posedge clk_sys) begin : fdc
 			end
 		end
 
-		m_status[UPD765_MAIN_D0B] <= |seek_state[0];
-		m_status[UPD765_MAIN_D1B] <= |seek_state[1];
+		m_status[UPD765_MAIN_D0B] <= seek_state[0] == 1 | seek_state[0] == 2;
+		m_status[UPD765_MAIN_D1B] <= seek_state[1] == 1 | seek_state[0] == 2;
 		m_status[UPD765_MAIN_CB] <= state != COMMAND_IDLE;
 
 `ifdef U765_DEBUG
