@@ -123,12 +123,15 @@ end
 wire hdelay_res0 = hsync_n | hdelay_reg[3]; // u804
 wire hdelay_res1 = hsync_n; // u822
 
-reg hdelay_res0_d;
-always @(posedge clk) hdelay_res0_d <= hdelay_res0;
+reg hdelay_res0_d, hdelay2d;
+always @(posedge clk) begin
+	hdelay_res0_d <= hdelay_res0;
+	hdelay2d <= hdelay[2];
+end
 
 always @(*) begin
 	hdelay = hdelay_reg;
-	mode_sync_en = ~hdelay_res0_d & hdelay_res0;
+	mode_sync_en = ~hdelay_res0_d & hdelay_res0 & hdelay2d;
 	if (hdelay_res0) hdelay[2:0] = 0;
 	if (hdelay_res1) hdelay[3] = 0;
 end

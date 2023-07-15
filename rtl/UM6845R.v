@@ -19,7 +19,7 @@
 
 module UM6845R
 (
-  	input            CLOCK,
+	input            CLOCK,
 	input            CLKEN,
 	input            nRESET,
 	input            CRTC_TYPE,
@@ -40,6 +40,8 @@ module UM6845R
 	output    [13:0] MA,
 	output     [4:0] RA
 );
+
+/* verilator lint_off WIDTH */
 
 assign FIELD = ~field & interlace[0];
 
@@ -176,32 +178,37 @@ always @(posedge CLOCK) begin
 end
 
 // horizontal output
-reg hde;
+reg        hde;
+reg  [3:0] hsc;
+
+wire hsync_on = hcc == R2_h_sync_pos && R3_h_sync_width != 0;
+wire hsync_off = (hsc == R3_h_sync_width) || (CRTC_TYPE && R3_h_sync_width == 0);
+
 always @(posedge CLOCK) begin
-	reg [3:0] hsc;
 
 	if(~nRESET) begin
 		hsc    <= 0;
 		hde    <= 0;
-		HSYNC  <= 0;
 	end
-	else if (CLKEN) begin
-		if(line_new)                   hde <= 1;
-		if(hcc_next == R1_h_displayed) hde <= 0;
+	else begin
+		// should be a half char delay (other edge of the clock?)
+		if (hsync_off)     HSYNC <= 0;
+		else if (hsync_on) HSYNC <= 1;
 
-		if(hsc) hsc <= hsc - 1'd1;
-		else if (hcc_next == R2_h_sync_pos) begin
-			if(R3_h_sync_width) begin
-				HSYNC <= 1;
-				hsc <= R3_h_sync_width - 1'd1;
-			end
+		if (CLKEN) begin
+			if(line_new)                   hde <= 1;
+			if(hcc_next == R1_h_displayed) hde <= 0;
+
+			if(HSYNC) hsc <= hsc + 1'd1;
+			else hsc <= 0;
 		end
-		else HSYNC <= 0;
 	end
 end
 
 // vertical output
 reg vde;
+reg VSYNC_r;
+always @(posedge CLOCK) VSYNC <= VSYNC_r; // delay the same as HSYNC to not confuse the GA
 always @(posedge CLOCK) begin
 	reg  [3:0] vsc;
 	reg        vsync_allow;
@@ -211,7 +218,7 @@ always @(posedge CLOCK) begin
 	if(~nRESET) begin
 		vsc    <= 0;
 		vde    <= 0;
-		VSYNC  <= 0;
+		VSYNC_r<= 0;
 		vsync_allow <= 1;
 	end
 	else if (CLKEN) begin
@@ -220,16 +227,15 @@ always @(posedge CLOCK) begin
 			if(frame_new)                  vde <= 1;
 			if(row_next == R6_v_displayed) vde <= 0;
 		end
-
 		if(field ? (hcc_next == {1'b0, R0_h_total[7:1]}) : line_new) begin
 			if(vsc) vsc <= vsc - 1'd1;
 			else if (vsync_allow & (field ? (row == R7_v_sync_pos && !line) : (row_next == R7_v_sync_pos && line_last))) begin
-				VSYNC <= 1;
+				VSYNC_r <= 1;
 				// Don't allow a new vsync until a new row (Onescreen Colonies) or the R7 is written (PHX)
 				vsync_allow <= 0;
 				vsc <= (CRTC_TYPE ? 4'd0 : R3_v_sync_width) - 1'd1;
 			end
-			else VSYNC <= 0;
+			else VSYNC_r <= 0;
 		end
 	end
 end
@@ -254,5 +260,5 @@ always @(posedge CLOCK) begin
 			cursor_line <= 0;
 		end
 	end
-	
+
 endmodule
