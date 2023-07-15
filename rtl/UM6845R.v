@@ -137,14 +137,15 @@ wire       line_new  = hcc_last;
 reg  [6:0] row;
 reg        row_last_r;
 wire       row_last  = (row == R4_v_total) || (!CRTC_TYPE && !R4_v_total);
-wire [6:0] row_next  = ((CRTC_TYPE ? row_last : row_last_r) & ~frame_adj) ? 7'd0 : row + 1'd1;
+wire       row_frame_last = ((CRTC_TYPE ? row_last : row_last_r) | in_adj) & ~frame_adj;
+wire [6:0] row_next  = row_frame_last ? 7'd0 : row + 1'd1;
 wire       row_new   = line_new & (CRTC_TYPE ? line_last : line_last_r);
 
 reg        frame_adj_r;
 wire       frame_adj_CRTC0 = (hcc == 2) ? frame_adj_r & |R5_v_total_adj : frame_adj_r;
 wire       frame_adj_CRTC1 = row_last && ~in_adj && R5_v_total_adj;
 wire       frame_adj = CRTC_TYPE ? frame_adj_CRTC1 : frame_adj_CRTC0;
-wire       frame_new = row_new & ((CRTC_TYPE ? row_last : row_last_r) | in_adj) & ~frame_adj;
+wire       frame_new = row_new & row_frame_last;
 
 // counters
 reg  field;
