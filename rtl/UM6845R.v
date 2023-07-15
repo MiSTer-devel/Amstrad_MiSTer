@@ -190,11 +190,8 @@ always @(posedge CLOCK) begin
 	if(CLKEN) begin
 		if(row_addr_save) row_addr <= row_addr_r; // save current pointer
 
-		if(hcc_last) begin
-			// restore saved pointer
-			if (!row_addr_save) row_addr_r <= row_addr; // take care of simultaneous saving and restoring
-		end else
-			row_addr_r <= row_addr_r + 1'd1;
+		if(hcc_last & !row_addr_save) row_addr_r <= row_addr; // restore the pointer, take care of simultaneous saving and restoring
+		if(!hcc_last)                 row_addr_r <= row_addr_r + 1'd1;
 
 		if(CRTC0_reload) begin
 			row_addr <= {R12_start_addr_h, R13_start_addr_l};
@@ -218,6 +215,7 @@ always @(posedge CLOCK) begin
 	if(~nRESET) begin
 		hsc    <= 0;
 		hde    <= 0;
+		HSYNC  <= 0;
 	end
 	else begin
 		// should be a half char delay (other edge of the clock?)
