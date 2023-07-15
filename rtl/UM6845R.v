@@ -179,15 +179,15 @@ always @(posedge CLOCK) begin
 	end
 end
 
-wire CRTC1_reload =  CRTC_TYPE & ~line_last & !row & !hcc_next; //CRTC1 reloads addr on every line of 1st row
-wire CRTC0_reload = ~CRTC_TYPE & line_new & !R4_v_total & !R9_v_max_line;
+wire CRTC1_reload = frame_new | (~line_last & !row & !hcc_next); //CRTC1 reloads addr on every line of 1st row
+wire CRTC0_reload = line_new & line_last_r & row_last_r;
 
 // address
 reg  [13:0] row_addr;
 always @(posedge CLOCK) begin
 	if(CLKEN) begin
-		if(hcc_next == R1_h_displayed && line_last) row_addr <= row_addr + R1_h_displayed;
-		if(frame_new | CRTC0_reload | CRTC1_reload) row_addr <= {R12_start_addr_h, R13_start_addr_l};
+		if(hcc_next == R1_h_displayed && (CRTC_TYPE ? line_last : line_last_r)) row_addr <= row_addr + R1_h_displayed;
+		if(CRTC_TYPE ? CRTC1_reload : CRTC0_reload) row_addr <= {R12_start_addr_h, R13_start_addr_l};
 	end
 end
 
