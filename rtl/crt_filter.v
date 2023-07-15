@@ -39,7 +39,7 @@ assign SHIFT = shift ^ hs4;
 
 // generate HSync if original is absent for almost whole frame
 reg hsync, no_hsync;
-always @(posedge CLK) begin
+always @(posedge CLK) begin : hsyncgen
 	reg [15:0] dcnt;
 	reg [10:0] hsz, hcnt;
 
@@ -78,13 +78,31 @@ always @(posedge CLK) begin
 
 end
 
-wire hsync_i = no_hsync ? hsync : HSYNC_I;
+reg hsync_mask = 0;
+// check for too frequent HSYNCs (S&KOH)
+always @(posedge CLK) begin : hsyncfilt
+	reg old_hsync;
+	reg [8:0] line_time;
+
+	if(CE_4) begin
+		old_hsync <= HSYNC_I;
+		if (hsync_mask) begin
+			if (~&line_time) line_time <= line_time + 1'd1;
+			if (!HSYNC_I & line_time >= 190) hsync_mask <= 0; // clear the mask after enough time
+		end
+
+		if (HSYNC_I & ~old_hsync & !hsync_mask) line_time <= 0; // new line detected
+		if (~HSYNC_I & old_hsync & !hsync_mask) hsync_mask <= 1; // start to mask after the first hsync seen
+	end
+end
+
+wire hsync_i = no_hsync ? hsync : (HSYNC_I & ~hsync_mask);
 
 
 // Generate HSync,VSync for monitor
 // HSync: delayed by 2us for set, immediate reset and limited by 4us.
 // VSync: delayed by 2 lines for set, immediate reset and limited by 2 lines.
-always @(posedge CLK) begin
+always @(posedge CLK) begin : syncgen
 	reg       old_hsync;
 	reg       old_vsync,old_vs;
 	reg [8:0] hSyncCount;
@@ -163,7 +181,7 @@ always @(posedge CLK) begin
 	end
 end
 
-always @(posedge CLK) begin
+always @(posedge CLK) begin : blankgen
 
 	localparam  BEGIN_VBORDER = 4 * 8 - 2;
 	localparam  END_VBORDER = 37 * 8 + 6;
