@@ -243,7 +243,14 @@ always @(posedge CLOCK) begin
 	reg  [3:0] vsc;
 	reg        vsync_allow;
 
-	if (ENABLE & RS & ~nCS & ~R_nW & addr == 5'd07) vsync_allow <= 1;
+	if (ENABLE & RS & ~nCS & ~R_nW & addr == 5'd07) begin
+		vsync_allow <= 1;
+		if (row == DI[6:0] && !VSYNC_r) begin
+			// TODO: extra conditions for CRTC0
+			VSYNC_r <= 1;
+			vsc <= (CRTC_TYPE ? 4'd0 : R3_v_sync_width) - 1'd1;
+		end
+	end
 	if (ENABLE & RS & ~nCS & ~R_nW & addr == 5'd06) begin
 		if (CRTC_TYPE) begin
 			if (row == DI[6:0]) vde_r <= 0;
