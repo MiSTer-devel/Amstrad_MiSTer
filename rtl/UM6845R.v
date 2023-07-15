@@ -127,7 +127,7 @@ wire       hcc_last  = (hcc == R0_h_total) && (CRTC_TYPE || R0_h_total); // alwa
 wire [7:0] hcc_next  = hcc_last ? 8'h00 : hcc + 1'd1;
 
 reg  [4:0] line;
-wire [4:0] line_max  = (in_adj ? R5_v_total_adj-1'd1 : R9_v_max_line) & ~interlace;
+wire [4:0] line_max  = (in_adj ? (|R5_v_total_adj ? R5_v_total_adj-1'd1 : 5'd0) : R9_v_max_line) & ~interlace;
 reg        line_last_r;
 wire       line_last = (line == line_max) || !line_max;
 wire [4:0] line_next = ((CRTC_TYPE ? line_last : line_last_r) ? 5'd0 : line + 1'd1 + interlace) & ~interlace;
@@ -139,7 +139,10 @@ wire       row_last  = (row == R4_v_total) || !R4_v_total;
 wire [6:0] row_next  = ((CRTC_TYPE ? row_last : row_last_r) & ~frame_adj) ? 7'd0 : row + 1'd1;
 wire       row_new   = line_new & (CRTC_TYPE ? line_last : line_last_r);
 
-wire       frame_adj = row_last && ~in_adj && R5_v_total_adj;
+reg        frame_adj_r;
+wire       frame_adj_CRTC0 = (hcc == 2) ? frame_adj_r & |R5_v_total_adj : frame_adj_r;
+wire       frame_adj_CRTC1 = row_last && ~in_adj && R5_v_total_adj;
+wire       frame_adj = CRTC_TYPE ? frame_adj_CRTC1 : frame_adj_CRTC0;
 wire       frame_new = row_new & (row_last | in_adj) & ~frame_adj;
 
 // counters
@@ -158,7 +161,12 @@ always @(posedge CLOCK) begin
 		if(hcc == 0) begin
 			line_last_r <= line_last;
 			row_last_r <= row_last;
+			frame_adj_r <= line_last & row_last & ~in_adj;
 		end
+		// CRTC0 always schedule the adjustment run at HCC=0,
+		// then at HCC=2 it decides that it really has to run
+		if(hcc == 2) frame_adj_r <= frame_adj_r & |R5_v_total_adj;
+
 		if(row_new) begin
 			if(frame_adj) in_adj <= 1;
 			else if(frame_new) begin
