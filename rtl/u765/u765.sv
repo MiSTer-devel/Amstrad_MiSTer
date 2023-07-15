@@ -643,7 +643,7 @@ always @(posedge clk_sys) begin : fdc
 			3:
 			if (~tinfo_wait) begin
 				if (tinfo_addr[7:0] == 8'h14) begin
-					if (!image_edsk[sector_search_ds0]) sector_length[sector_search_hds][sector_search_ds0] <= 8'h80 << tinfo_data[2:0];
+					if (!image_edsk[sector_search_ds0]) sector_length[sector_search_ds0][sector_search_hds] <= 16'h80 << tinfo_data[2:0];
 					tinfo_addr[7:0] <= 8'h18; //sector info list
 					tinfo_wait <= 1;
 				end else if (i_current_sector == 8'h1D && ~tinfo_addr[0]) begin
