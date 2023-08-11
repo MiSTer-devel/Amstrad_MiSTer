@@ -233,6 +233,7 @@ localparam CONF_STR = {
 	"P2-;",
 	"P2O5,Distributor,Amstrad,Schneider;",
 	"P2O4,Model,CPC 6128,CPC 664;",
+	"P2OV,Tape progressbar,Off,On;",
 
 	"-;",
 	"R0,Reset & apply model;",
@@ -246,6 +247,7 @@ wire clk_sys;
 wire locked;
 wire st_right_shift_mod = status[22];
 wire st_keypad_mod = status[23];
+wire st_progressbar = status[31];
 
 pll pll
 (
@@ -462,7 +464,7 @@ reg reset;
 
 always @(posedge clk_sys) begin
 	if(reset) model <= status[4];
-	reset <= RESET | status[0] | buttons[1] | rom_download;
+	reset <= RESET | status[0] | buttons[1] | rom_download | key_reset;
 end
 
 ////////////////////// CDT playback ///////////////////////////////
@@ -472,6 +474,7 @@ reg   [7:0] tape_din;
 reg         tape_wr = 0;
 wire        tape_wr_ack;
 wire        tape_read;
+wire        tape_running;
 wire        tape_data_req;
 wire        tape_data_ack;
 reg         tape_reset;
@@ -508,8 +511,16 @@ always @(posedge clk_sys) begin
 	end
 end
 
-tzxplayer tzxplayer
-(
+tzxplayer #(
+	.NORMAL_PILOT_LEN(2000),
+	.NORMAL_SYNC1_LEN(855),
+	.NORMAL_SYNC2_LEN(855),
+	.NORMAL_ZERO_LEN(855),
+	.NORMAL_ONE_LEN(1710),
+	.HEADER_PILOT_PULSES(4095),
+	.NORMAL_PILOT_PULSES(4095)
+)
+tzxplayer (
 	.clk(clk_sys),
 	.ce(1),
 	.restart_tape(tape_reset),
@@ -517,7 +528,21 @@ tzxplayer tzxplayer
 	.tzx_req(tape_data_req),
 	.tzx_ack(tape_data_ack),
 	.cass_read(tape_read),
-	.cass_motor(tape_motor)
+	.cass_motor(tape_motor),
+	.cass_running(tape_running)
+);
+
+wire progress_pix;
+
+progressbar progressbar(
+	.clk(clk_sys),
+	.ce_pix(ce_16),
+	.hblank(hbl),
+	.vblank(vbl),
+	.enable(tape_running & st_progressbar),
+	.current(tape_play_addr),
+	.max(tape_last_addr),
+	.pix(progress_pix)
 );
 
 wire tape_ready = tape_last_addr && (tape_play_addr <= tape_last_addr);
@@ -731,7 +756,7 @@ multiplay_mouse mmouse
 wire [15:0] cpu_addr;
 wire  [7:0] cpu_dout;
 wire        phi_n, phi_en_n;
-wire        m1, key_nmi;
+wire        m1, key_nmi, key_reset;
 wire        rd, wr, iorq;
 wire        field;
 wire        cursor;
@@ -805,7 +830,8 @@ Amstrad_motherboard motherboard
 	.irq(IRQ),
 	.cursor(cursor),
 
-	.key_nmi(key_nmi)
+	.key_nmi(key_nmi),
+	.key_reset(key_reset)
 );
 
 //////////////////////////////////////////////////////////////////////
@@ -889,6 +915,9 @@ end
 video_mixer #(.LINE_LENGTH(800), .GAMMA(1)) video_mixer
 (
 	.*,
+	.R(R[7:0] | {8{progress_pix}}),
+	.G(G[7:0] | {8{progress_pix}}),
+	.B(B[7:0] | {8{progress_pix}}),
 	.VGA_DE(vga_de),
 	.freeze_sync(),
 	.scandoubler((scale || forced_scandoubler) && !interlace)

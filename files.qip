@@ -16,5 +16,6 @@ set_global_assignment -name VERILOG_FILE rtl/UM6845R.v
 set_global_assignment -name VERILOG_FILE rtl/crt_filter.v
 set_global_assignment -name VERILOG_FILE rtl/Amstrad_MMU.v
 set_global_assignment -name VERILOG_FILE rtl/Amstrad_motherboard.v
+set_global_assignment -name VERILOG_FILE rtl/progressbar.v
 set_global_assignment -name SDC_FILE Amstrad.sdc
 set_global_assignment -name SYSTEMVERILOG_FILE Amstrad.sv

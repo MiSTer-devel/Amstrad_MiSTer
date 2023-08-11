@@ -29,6 +29,7 @@ module Amstrad_motherboard
 	input  [10:0] ps2_key,
 	input  [24:0] ps2_mouse,
 	output        key_nmi,
+	output        key_reset,
 	output  [9:0] Fn,
 
 	input   [3:0] ppi_jumpers,
@@ -55,7 +56,7 @@ module Amstrad_motherboard
 	output        field,
 
 	input  [15:0] vram_din,
-	output [14:0] vram_addr,
+	output reg [14:0] vram_addr,
 
 	input [255:0] rom_map,
 	input         ram64k,
@@ -81,8 +82,6 @@ module Amstrad_motherboard
 );
 
 wire crtc_shift;
-
-assign vram_addr = {MA[13:12], RA[2:0], MA[9:0]};
 
 wire io_rd = ~(RD_n | IORQ_n);
 wire io_wr = ~(WR_n | IORQ_n);
@@ -142,6 +141,7 @@ UM6845R CRTC
 (
 	.CLOCK(clk),
 	.CLKEN(cclk_en_n),
+	.nCLKEN(cclk_en_p),
 	.nRESET(~reset),
 	.CRTC_TYPE(crtc_type),
 
@@ -162,6 +162,8 @@ UM6845R CRTC
 	.RA(RA)
 );
 
+wire [14:0] crtc_vram_addr = {MA[13:12], RA[2:0], MA[9:0]};
+
 reg vram_bs;
 reg [7:0] vram_d;
 reg [7:0] vram_din_shift;
@@ -171,6 +173,7 @@ always @(posedge clk) begin
 	cas_n_old <= cas_n;
 	if (!cpu_n) vram_bs <= 0;
 	else begin
+		vram_addr <= crtc_vram_addr;
 		if (!ras_n & !cas_n_old & cas_n) vram_bs <= 1;
 		if (!ras_n & !cas_n)
 			if (sync_filter & crtc_shift) begin
@@ -339,6 +342,7 @@ hid HID
 	.Y(portC[3:0]),
 	.X(kbd_out),
 	.key_nmi(key_nmi),
+	.key_reset(key_reset),
 	.Fn(Fn)
 );
 
