@@ -21,7 +21,7 @@ This core has been started as a port of [CoreAmstrad by Renaud Hélias](https://
 
 
 ## Installation
-place RBF and **amstrad.rom** into root of SD card. Or on **MiSTer** you can rename ROM to boot.rom and put it into Amstrad folder.
+Place rbf into root and **boot.rom** into **Games/Amstrad** folder of SD card.
 
 ## Disk support
 Put some *.DSK files into Amstrad folder and mount it from OSD menu.
