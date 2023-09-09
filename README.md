@@ -1,5 +1,5 @@
 
-# Amstrad CPC 6128 for MiST and MiSTer
+# Amstrad CPC 6128 for MiSTer
 This core has been started as a port of [CoreAmstrad by Renaud Hélias](https://github.com/renaudhelias/CoreAmstrad) but every module has been either rewritten or replaced so, now it can be treated as a completely new core.
 
 ## Features
@@ -12,10 +12,10 @@ This core has been started as a port of [CoreAmstrad by Renaud Hélias](https://
 * Multiface 2.
 * Several monochrome modes and 2 types of palette (GA/ASIC).
 * Selectable expansion ROM loading.
-* Joystick support with up to 3 buttons (2 on MiST)
+* Joystick support with up to 3 buttons
 * Kempston, SYMBiFACE II and Multiplay mice.
 * HQ2x and Scanlines FX for scandoubler.
-* Tape input through UART header (MiST) / ADC board (MiSTer)
+* Tape input through ADC board
 * Support *.CDT tape files.
 * Tape output through speaker.
 
@@ -49,7 +49,6 @@ Every page is 16KB. It's possible to load larger ROM. In this case every 16KB bl
 You can load several expansions. With every load the system will reboot. System ROM also can be replaced the same way.
 To restore original ROM you have to reload the core (Alt-F12).
 
-### MiSTer specific
 You can define boot extensions to automatically load at start of core. Use following name rules:
 * boot.eXX  - load to both 664 and 6128 configs
 * boot0.eXX - load to 6128 config
@@ -57,7 +56,7 @@ You can define boot extensions to automatically load at start of core. Use follo
 
 whehe XX is 00-FF, ZZ, Z0.
 
-## CDT tape files (MiSTer)
+## CDT tape files
 CDT supported in very basic form for retro feeling and for some very specific apps. There is no way to rewind or fast forward the file. 
 USER LED will lit if there is a tape in the memory and still have data to play and blink while playback.
 
