@@ -66,6 +66,11 @@ Control keys:
 
 CDT playback respects the tape motor ON/OFF state.
 
+For loading a tape you need to type these commands
+
+|TAPE + Enter (switch on tape mode) 
+RUN" + Enter for loading a .CDT file after selected it from OSD menù 
+
 ## RAM
 CPC664 model has only 64KB RAM - use this model for programs not compatible with 128KB RAM.
 
