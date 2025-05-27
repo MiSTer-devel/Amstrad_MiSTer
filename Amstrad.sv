@@ -297,7 +297,7 @@ wire [24:0] ps2_mouse;
 wire  [1:0] buttons;
 wire  [6:0] joy1;
 wire  [6:0] joy2;
-wire [31:0] status;
+wire [63:0] status;
 
 wire        forced_scandoubler;
 wire [21:0] gamma_bus;
