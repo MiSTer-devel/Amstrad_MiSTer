@@ -28,6 +28,8 @@ module Amstrad_motherboard
 	input         keypad_mod,
 	input  [10:0] ps2_key,
 	input  [24:0] ps2_mouse,
+	output        joy1_sel,
+	output        joy2_sel,
 	output        key_nmi,
 	output        key_reset,
 	output  [9:0] Fn,
@@ -345,5 +347,8 @@ hid HID
 	.key_reset(key_reset),
 	.Fn(Fn)
 );
+
+assign joy1_sel = (portC[3:0] == 9);
+assign joy2_sel = (portC[3:0] == 6);
 
 endmodule

@@ -12,6 +12,7 @@ set_global_assignment -name SYSTEMVERILOG_FILE rtl/hid.sv
 set_global_assignment -name VERILOG_FILE rtl/multiplay_mouse.v
 set_global_assignment -name VERILOG_FILE rtl/symbiface_mouse.v
 set_global_assignment -name VERILOG_FILE rtl/kempston_mouse.v
+set_global_assignment -name VERILOG_FILE rtl/amx_mouse.v
 set_global_assignment -name VERILOG_FILE rtl/UM6845R.v
 set_global_assignment -name VERILOG_FILE rtl/crt_filter.v
 set_global_assignment -name VERILOG_FILE rtl/Amstrad_MMU.v
