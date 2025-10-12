@@ -194,7 +194,7 @@ assign HDMI_BOB_DEINT = 0;
 // 0         1         2         3          4         5         6
 // 01234567890123456789012345678901 23456789012345678901234567890123
 // 0123456789ABCDEFGHIJKLMNOPQRSTUV 0123456789ABCDEFGHIJKLMNOPQRSTUV
-// XXX X XXXXXXXXXXXXXXXXXXXXXXXXX            XXX
+// XXX X XXXXXXXXXXXXXXXXXXXXXXXXX  X         XXX
 
 `include "build_id.v"
 localparam CONF_STR = {
@@ -206,6 +206,8 @@ localparam CONF_STR = {
 	"FC3,E??,Load expansion;",
 	"-;",
 	"F4,CDT,Load tape;",
+	"O[32],Dandanator,Disabled,Enabled;",
+	"D2FC5,ROM,Load Dandanator ROM;",
 	"OK,Tape sound,Disabled,Enabled;",
 	"-;",
 	"OI,Joysticks swap,No,Yes;",
@@ -334,7 +336,7 @@ hps_io #(.CONF_STR(CONF_STR), .VDNUM(2)) hps_io
 	.status(status),
 	.status_in({status[31:21],~status[20],status[19:0]}),
 	.status_set(Fn[1]),
-	.status_menumask({en270p,1'b0}),
+	.status_menumask({~status[32],en270p,1'b0}),
 
 	.forced_scandoubler(forced_scandoubler),
 	.gamma_bus(gamma_bus),
@@ -350,6 +352,7 @@ hps_io #(.CONF_STR(CONF_STR), .VDNUM(2)) hps_io
 
 wire        rom_download = ioctl_download && (ioctl_index[4:0] < 4);
 wire        tape_download = ioctl_download && (ioctl_index == 4);
+wire        dan_download = ioctl_download && (ioctl_index == 5);																			 
 
 // A 8MB bank is split to 2 halves
 // Fist 4 MB is OS ROM + RAM pages + MF2 ROM
@@ -367,14 +370,19 @@ always @(posedge clk_sys) begin
 	reg [8:0] page = 0;
 	reg       combo = 0;
 	reg       old_download;
+	reg 	  old_dan_download;
 
-	if(rom_download & ioctl_wr) begin
+	if((rom_download | dan_download)  & ioctl_wr) begin
 		romdl_wait <= 1;
 		boot_dout <= ioctl_dout;
 
 		boot_a[13:0] <= ioctl_addr[13:0];
 
-		if(ioctl_index) begin
+		if (dan_download) begin
+        	boot_bank <= 2'b11;
+        	boot_a[22:14] <= ioctl_addr[22:14];
+		end 
+		else if(ioctl_index) begin
 			boot_a[22]    <= page[8];
 			boot_a[21:14] <= page[7:0] + ioctl_addr[21:14];
 			boot_bank     <= {1'b0, &ioctl_index[7:6]};
@@ -425,6 +433,10 @@ always @(posedge clk_sys) begin
 			if(ioctl_file_ext[15:0] == "Z0") begin page <= 0; combo <= 1; end
 		end
 	end
+	old_dan_download <= dan_download;
+    if (old_dan_download & ~dan_download)  begin
+        dan_eeprom_loaded <= 1'b1;
+    end
 end
 
 
@@ -448,11 +460,11 @@ sdram sdram
 
 	.oe  (reset ? 1'b0      : mem_rd & ~mf2_ram_en),
 	.we  (reset ? boot_wr   : mem_wr & ~mf2_ram_en & ~mf2_rom_en),
-	.addr(reset ? boot_a    : mf2_rom_en ? { 9'h0ff, cpu_addr[13:0] }: ram_a),
-	.bank(reset ? boot_bank : { 1'b0, model } ),
+	.addr(reset ? boot_a    : dan_ena ? {4'd0, dan_bank, cpu_addr[13:0]} : mf2_rom_en ? {9'h03f, cpu_addr[13:0]}: ram_a),
+	.bank(reset ? boot_bank : dan_ena ? 2'b11 : {1'b0, model}),
 	.din (reset ? boot_dout : cpu_dout),
 	.dout(ram_dout),
-
+	.vram_bank({1'b0, model}),
 	.vram_addr({2'b10,vram_addr,1'b0}),
 	.vram_dout(vram_dout),
 
@@ -469,8 +481,10 @@ reg model = 0;
 reg reset;
 
 always @(posedge clk_sys) begin
+	reg old_dan_status = 0;
 	if(reset) model <= status[4];
-	reset <= RESET | status[0] | buttons[1] | rom_download | key_reset;
+	old_dan_status <= status[32];
+	reset <= RESET | status[0] | buttons[1] | rom_download | key_reset | dan_download | (old_dan_status & ~status[32]);
 end
 
 ////////////////////// CDT playback ///////////////////////////////
@@ -490,6 +504,7 @@ wire        tape_motor;
 
 always @(posedge clk_sys) begin
 	reg old_tape_ack;
+	reg old_dan_download;
 
 	if(tape_wr_ack | reset) tape_wr <= 0;
 	if(tape_download && ioctl_wr) begin
@@ -771,9 +786,10 @@ amx_mouse amx_mouse
 
 wire [15:0] cpu_addr;
 wire  [7:0] cpu_dout;
-wire        phi_n, phi_en_n;
+wire        phi_n, phi_en_p, phi_en_n;
 wire        m1, key_nmi, key_reset;
 wire        rd, wr, iorq;
+wire        mreq;
 wire        field;
 wire        cursor;
 wire  [9:0] Fn;
@@ -782,11 +798,13 @@ wire  [1:0] mode;
 wire        joy1_sel;
 
 wire  [7:0] cpu_din = ram_dout & mf2_dout & fdc_dout & kmouse_dout & smouse_dout & mmouse_dout & playcity_dout;
-wire        NMI = playcity_nmi | mf2_nmi;
+wire        NMI = playcity_nmi | mf2_nmi| ~dan_nnmi;
 wire        IRQ = ~playcity_int_n;
 
 wire io_rd = rd & iorq;
 wire io_wr = wr & iorq;
+wire romen;
+wire ready;
 
 Amstrad_motherboard motherboard
 (
@@ -834,16 +852,20 @@ Amstrad_motherboard motherboard
 	.mem_rd(mem_rd),
 	.mem_wr(mem_wr),
 	.mem_addr(ram_a),
+    .romen(romen),
 
 	.phi_n(phi_n),
 	.phi_en_n(phi_en_n),
+	.phi_en_p(phi_en_p),
 	.cpu_addr(cpu_addr),
 	.cpu_dout(cpu_dout),
 	.cpu_din(cpu_din),
 	.iorq(iorq),
+    .mreq(mreq),
 	.rd(rd),
 	.wr(wr),
 	.m1(m1),
+    .ga_ready(ready),
 	.nmi(NMI),
 	.irq(IRQ),
 	.cursor(cursor),
@@ -852,6 +874,50 @@ Amstrad_motherboard motherboard
 	.key_reset(key_reset)
 );
 
+/////////////////////////////////Dandanator/////////////////////
+wire [4:0] dan_bank;
+wire dan_romdis;
+wire dan_ramdis;
+wire [7:0] dan_databus;
+wire dan_eeprom_nce;
+wire dan_eeprom_nwr;
+wire dan_nnmi;
+reg dan_eeprom_loaded = 1'b0;
+wire dan_ena = ~dan_eeprom_nce & dan_eeprom_loaded & status[32];
+
+CPC_Dandanator dandanator(
+    .clk(clk_sys),
+    .nRst(~reset),
+    .ceP(phi_en_p),
+    .ceN(phi_en_n),
+    
+    .Button(1'b1),
+    .Button2(1'b1),
+    
+    .nRomEn(~romen),
+    .nM1(~m1),
+    .nMreq(~mreq),
+    .nWr(~wr),
+    .nRd(~rd),
+    .Rdy(ready),
+    .A15(cpu_addr[15]),
+    .A14(cpu_addr[14]),
+    .A13(cpu_addr[13]),
+    .DataBusIn(cpu_din),
+    .DataBusOut(dan_databus),
+    
+    .EXP(),
+    
+    .nNMI(dan_nnmi),
+    .Romdis(dan_romdis),
+    .Ramdis(dan_ramdis),
+    .nEp_Ce(dan_eeprom_nce),
+    .nEp_Wr(dan_eeprom_nwr),
+    .Ep_A18_14(dan_bank),
+    
+    .CHG_Txd(1'b1),
+    .CHG_Rxd(1'b1)
+);
 //////////////////////////////////////////////////////////////////////
 
 assign CLK_VIDEO = clk_sys;

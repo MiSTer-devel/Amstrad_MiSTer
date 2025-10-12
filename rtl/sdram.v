@@ -50,6 +50,7 @@ module sdram
 
 	output reg [15:0] vram_dout,
 	input      [22:0] vram_addr,
+	input      [1:0] vram_bank,
 
 	input      [22:0] tape_addr,
 	input       [7:0] tape_din,
@@ -66,8 +67,7 @@ assign SDRAM_CKE = 1;
 assign SDRAM_nCS = 0;
 assign {SDRAM_DQMH, SDRAM_DQML} = SDRAM_A[12:11];
 
-assign dout = oe ? ram_dout : 8'hFF;
-
+assign dout = (oe | we) ? ram_dout : 8'hFF;
 // no burst configured
 localparam RASCAS_DELAY   = 3'd2;   // tRCD=20ns -> 2 cycles@64MHz
 localparam BURST_LENGTH   = 3'b000; // 000=1, 001=2, 010=4, 011=8
@@ -192,7 +192,7 @@ always @(posedge clk) begin
 	endcase
 
 	if(q == STATE_START) begin
-		SDRAM_BA <= (mode == MODE_NORMAL) ? (tape_req ? 2'b10 : bank) : 2'b00;
+		SDRAM_BA <= (mode == MODE_NORMAL) ? (tape_req ? 2'b10 :vram_req ? vram_bank : bank) : 2'b00;
 		if(ram_req & wr) ram_dout <= din;
 	end
 
