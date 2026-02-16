@@ -310,6 +310,7 @@ always @(posedge clk_sys) begin : fdc
 	reg       i_secinfo_valid[2][2];
 	reg [7:0] ncn[2]; //new cylinder number
 	reg [7:0] pcn[2]; //present cylinder number
+	reg       disk_changed[2];
 	reg [2:0] next_weak_sector[2];
 	reg [2:0] seek_state[2];
 	reg       i_seek_start[2];
@@ -380,6 +381,7 @@ always @(posedge clk_sys) begin : fdc
 			image_size[i] <= img_size;
 			image_scan_state[i] <= {1'b0, |img_size};
 			image_ready[i] <= 0;
+			disk_changed[i] <= 1;
 			int_state[i] <= 0;
 			seek_state[i] <= 0;
 			i_seek_start[i] <= 0;
@@ -479,6 +481,7 @@ always @(posedge clk_sys) begin : fdc
 		int_state <= '{ 0, 0 };
 		seek_state <= '{ 0, 0 };
 		i_seek_start <= '{ 0, 0 };
+		disk_changed <= '{ 0, 0 };
 		image_trackinfo_dirty <= '{ 1, 1 };
 		i_secinfo_valid <= '{ '{ 0, 0}, '{ 0, 0} };
 		image_track_offsets_wr <= 0;
@@ -840,13 +843,14 @@ always @(posedge clk_sys) begin : fdc
 			COMMAND_SENSE_DRIVE_STATUS_RD:
 			if (~old_rd & rd & a0) begin
 				m_data <= { 1'b0,
-							ready[ds0] & image_wp[ds0],         //write protected
-							available[ds0],                     //ready
+							(ready[ds0] & image_wp[ds0]) | disk_changed[ds0], //bit6:WP (also "disc changed" latch)
+							available[ds0],//ready
 							image_ready[ds0] & !pcn[ds0],       //track 0
 							image_ready[ds0] & image_sides[ds0],//two sides
 							image_ready[ds0] & hds,             //head address
 							1'b0,                               //us1
 							ds0 };                              //us0
+				disk_changed[ds0] <= 0;
 				state <= COMMAND_IDLE;
 			end
 
@@ -938,6 +942,10 @@ always @(posedge clk_sys) begin : fdc
 				end
 				if (i_current_track_sectors[ds0][hds] == 0) begin
 					//empty track
+					i_sector_c <= pcn[ds0];
+					i_sector_h <= {7'd0, hds};
+					i_sector_r <= 8'h00;
+					i_sector_n <= 8'h00;
 					status[0] <= 8'h40;
 					status[1] <= 8'b101;
 					status[2] <= 0;
@@ -1011,8 +1019,21 @@ always @(posedge clk_sys) begin : fdc
 				if (!image_trackinfo_dirty[ds0] && !tinfo_lock) begin
 					m_status[UPD765_MAIN_DIO] <= ~i_write;
 					if (i_rtrack) i_r <= 0;
-					i_bc <= 1;
-					state <= COMMAND_RW_DATA_EXEC2;
+					// If the current track is empty/unformatted (or intentionally treated as empty),
+					// do not enter the sector scan/data state machine. Return an error immediately.
+					if (i_current_track_sectors[ds0][hds] == 0) begin
+						i_sector_c <= i_c;
+						i_sector_h <= i_h;
+						i_sector_r <= i_r;
+						i_sector_n <= i_n;
+						status[0] <= 8'h40;
+						status[1] <= 8'h05; // missing address mark + no data
+						status[2] <= 8'h00;
+						state <= COMMAND_READ_RESULTS;
+					end else begin
+						i_bc <= 1;
+						state <= COMMAND_RW_DATA_EXEC2;
+					end
 				end
 			end
 
